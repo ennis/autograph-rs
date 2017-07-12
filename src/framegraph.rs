@@ -120,10 +120,10 @@ impl<'fg> FrameGraph<'fg>
 fn test_frame_graph_borrows()
 {
     //{
-        let mut fg = FrameGraph::make();
-        let resource1 = fg.create_resource();
-        let resource2 = fg.create_resource();
-        fg.add_pass();
+    let mut fg = FrameGraph::make();
+    let resource1 = fg.create_resource();
+    let resource2 = fg.create_resource();
+    fg.add_pass();
     //}
     println!("{}", resource1.name);
 }
@@ -138,7 +138,7 @@ Can't add passes (mutable borrow) when
 
 Solutions: 
     1. handles should not borrow the framegraph
-    2. unsafe code
+    2. unsafe code***
     3. RefCells?
     4. Cells?
 
