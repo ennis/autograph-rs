@@ -8,6 +8,7 @@ use std::mem;
 use super::context::Context;
 use super::buffer::{Buffer, BufferSlice, BufferUsage};
 use std::collections::vec_deque::VecDeque;
+use super::frame::Frame;
 
 struct FencedRegion
 {
@@ -47,7 +48,7 @@ fn align_offset(align: isize, size: isize, ptr: isize, space: isize) -> Option<i
 
 impl<'ctx> UploadBuffer<'ctx>
 {
-    pub fn new<'a>(ctx: &'a Context) -> UploadBuffer<'a>
+    pub fn new<'a>(ctx: &'a Context, buffer_size: i64) -> UploadBuffer<'a>
     {
         //UploadBuffer { _phantom: PhantomData }
         unimplemented!()
@@ -56,14 +57,19 @@ impl<'ctx> UploadBuffer<'ctx>
     // TODO the output slice should only be valid during the current frame:
     // maybe pass a reference to the frame object and bound the lifetime of the slice
     // to the lifetime of the frame?
-    pub fn upload<'frame, 'a: 'frame, T: Copy>(&'a self, data: &T, align: isize) -> BufferSlice<'a>
+    pub fn upload<'frame, 'a: 'frame, T: Copy>(&'a self, frame: &'frame Frame, data: &T, align: isize) -> BufferSlice<'frame>
     {
-        //if let Some(slice) = self.allocate(mem::size_of::<T>(), align)
+        /*if let Some(slice) = self.allocate(mem::size_of::<T>(), align) {
+
+        } else {
+
+        }*/
+        unimplemented!()
     }
 
     pub fn upload_slice<'a, T: Copy>(&'a self, data: &[T]) -> BufferSlice<'a>
     {
-
+        unimplemented!()
     }
 
     fn allocate<'a>(&'a self, size: isize, align: isize, expiration: i64) -> Option<BufferSlice<'a>>
@@ -119,8 +125,24 @@ impl<'ctx> UploadBuffer<'ctx>
          }
     }
 
+
     // uploadBuffer deals slices of its internal buffer, however, they live as long as the frame they
     // are allocated into
     // buf we don't want an exclusive borrow of the UploadBuffer, which would be useless: use a refcell internally
 
+}
+
+
+#[test]
+#[should_panic]
+fn test_upload_buffer_lifetimes()
+{
+    let ctx: Context = unimplemented!();
+    let frame: Frame = unimplemented!();    // 'frame
+    let uploadbuf = UploadBuffer::new(&ctx, 3 * 1024 * 1024);
+    let u0 = uploadbuf.upload(&frame, &0, 16);
+    let u1 = uploadbuf.upload(&frame, &1, 16);
+    // upload buf drops here
+    // frame drops here
+    // ctx drops here
 }

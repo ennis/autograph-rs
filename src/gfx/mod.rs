@@ -7,6 +7,7 @@ pub mod texture_format;
 pub mod vertex_array;
 pub mod upload_buffer;
 pub mod fence;
+pub mod frame;
 
 pub use self::texture::*;
 pub use self::buffer::*;

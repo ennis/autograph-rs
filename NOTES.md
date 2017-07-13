@@ -41,3 +41,17 @@ TODO
 * Associated maps: gradations, local maps
 
 #### Idea
+
+
+#### Scene
+HashMap<EntityID, Component>
+Operations:
+* Collect: remove all expired ids
+* Iterate
+* Lookup
+
+Limitations:
+* Cannot borrow a reference to a component that outlives the frame (collect() may rehash)
+* Cannot add new components in place: must do a functional update / staging area for new components (deferred creation)
+* Cannot delete components: that's OK (deferred cleanup)
+* References must be IDs

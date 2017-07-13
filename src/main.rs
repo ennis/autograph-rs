@@ -15,6 +15,7 @@ use gl::types::*;
 
 mod framegraph;
 mod gfx;
+mod id_table;
 
 fn main() {
     let event_loop = glutin::EventsLoop::new();
