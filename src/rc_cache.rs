@@ -25,12 +25,10 @@ pub struct Cached<T: 'static>
 impl<T> Cached<T>
 {
     fn new(value: T) -> Cached<T> {
-        unsafe {
-            Self::from_rc_any(Rc::new(value)).unwrap()
-        }
+        Self::from_rc_any(Rc::new(value)).unwrap()
     }
 
-    unsafe fn from_rc_any(ptr: Rc<Any>) -> Option<Cached<T>> {
+    fn from_rc_any(ptr: Rc<Any>) -> Option<Cached<T>> {
         match ptr.downcast_ref::<T>() {
             Some(_) => Some(Cached { ptr, _phantom: PhantomData }),
             None => None
@@ -77,9 +75,7 @@ impl Cache
             Entry::Vacant(v) => { v.insert(Rc::new(obj)) }
         }.clone();
 
-        unsafe {
-            Cached::from_rc_any(obj).unwrap()
-        }
+        Cached::from_rc_any(obj).unwrap()
     }
 
     pub fn get_or<'cache, T, F>(&'cache self, path: &str, f: F) -> Option<Cached<T>>
@@ -92,9 +88,7 @@ impl Cache
         // downcast it to the concrete type and return it
         let obj = hash.entry(path.to_owned()).or_insert_with(|| { Rc::new(f()) }).clone();
 
-        unsafe {
-            Cached::from_rc_any(obj)
-        }
+        Cached::from_rc_any(obj)
     }
 
     pub fn get<'cache, T>(&'cache self, path: &str) -> Option<Cached<T>>
