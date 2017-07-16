@@ -1,0 +1,59 @@
+
+// O: premultipled alpha
+vec4 apply_alpha(in vec4 S, in vec4 D, in vec4 O)
+{
+	float a = S.a + D.a * (1.0 - S.a);
+	return vec4(vec3(O.rgb / a), a);
+}
+
+
+// Generalized blending with custom formula ('over' operator)
+vec4 blend3(in vec4 S, in vec4 D, vec3 R)
+{
+	float Sa = S.a;
+	float Da = D.a;
+	vec3 O = (Da - Da*Sa) * D.rgb + (Sa - Da*Sa) * S.rgb + Da*Sa*R;
+	return clamp(vec4(O, S.a + D.a * (1.0 - S.a)), 0.0, 1.0);
+}
+
+// Multiply
+vec4 multiply(in vec4 S, in vec4 D)
+{
+	vec3 R = S.rgb * D.rgb;
+	return blend3(S, D, R);
+}
+
+// Screen
+vec4 screen(in vec4 S, in vec4 D)
+{
+	vec4 O;
+	O.rgb = vec3(1.0) - (vec3(1.0) - S.rgb*S.a) * (vec3(1.0) - D.rgb*D.a);
+	O = apply_alpha(S, D, O);
+	return clamp(O, 0.0f, 1.0f);
+}
+
+// Overlay
+vec4 overlay(in vec4 S, in vec4 D)
+{
+	vec3 O = mix(vec3(1.0) - 2.0 * (vec3(1.0) - D.rgb) * (vec3(1.0) - S.rgb), 2.0*S.rgb*D.rgb, lessThan(D.rgb, vec3(0.5)));
+	return blend3(S, D, O);
+}
+
+// Generalized blending ('over' operator)
+vec4 blend(in vec4 S, in vec4 D)
+{
+	return blend3(S, D, S.rgb);
+	/*vec4 O;
+	O.rgb = S.rgb * S.a + D.rgb * D.a * (1.0 - S.a);
+	O = apply_alpha(S, D, O);
+	return clamp(O, 0.0f, 1.0f);*/
+}
+
+// Generalized blending ('over' operator) w/ additional opacity
+// S = A, D = B
+vec4 blend2(in vec4 S, in vec4 D, in float opacity)
+{
+	vec4 Sp = S;
+	Sp.a *= opacity;
+	return blend(Sp, D);
+}

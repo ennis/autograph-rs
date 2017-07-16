@@ -1,11 +1,16 @@
 use std::vec::Vec;
 use std::collections::HashMap;
 
-#[derive(Copy,Clone,Hash,Debug,Default,Eq)]
+#[derive(Copy,Clone,Hash,Debug,Default,PartialEq,Eq)]
 pub struct ID
 {
     idx: u32,
     gen: u32
+}
+
+impl ID
+{
+    pub fn null() -> ID { ID { idx: 0, gen: 0 } }
 }
 
 pub struct IDTable

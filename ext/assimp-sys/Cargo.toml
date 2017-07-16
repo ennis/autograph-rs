@@ -1,0 +1,21 @@
+[package]
+name = "assimp-sys"
+version = "0.2.2"
+authors = ["Lee Jeffery <lee@leejeffery.co.uk>"]
+links = "assimp"
+
+description = "Rust FFI bindings for the Assimp library"
+repository = "https://github.com/Eljay/assimp-sys"
+
+license = "MIT"
+readme = "README.md"
+
+build = "build.rs"
+exclude = ["assimp/test/*"]
+
+[dependencies]
+bitflags = "0.3.2"
+
+[build-dependencies]
+cmake = "0.1"
+pkg-config = "0.3"

@@ -8,7 +8,11 @@ pub mod vertex_array;
 pub mod upload_buffer;
 pub mod fence;
 pub mod frame;
+pub mod state_group;
+pub mod program;
+pub mod shader_preprocessor;
 
+pub use self::state_group::*;
 pub use self::texture::*;
 pub use self::buffer::*;
 pub use self::context::*;

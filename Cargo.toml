@@ -11,3 +11,13 @@ bitflags = "0.9"
 lazy_static = "0.2.8"
 smallvec = "0.4.1"
 libc = "*"
+assimp = "*"
+nalgebra = "*"
+alga = "*"
+regex = "0.2.2"
+pretty_env_logger = "0.1.1"
+log = "0.3.8"
+itertools = "*"
+
+[replace]
+"assimp-sys:0.2.2" = { path = 'ext/assimp-sys' }

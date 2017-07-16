@@ -1,0 +1,18 @@
+
+
+#ifdef _VERTEX_ 
+layout(std140, binding = 0) uniform CameraParameters {
+  mat4 uViewMatrix;
+  mat4 uProjMatrix;
+  mat4 uViewProjMatrix;
+  mat4 uInvProjMatrix;
+};
+
+uniform mat4 uModelMatrix;
+
+layout(location = 0) in vec3 iPosition;
+layout(location = 1) in vec3 iNormal;
+layout(location = 2) in vec3 iTangent;
+layout(location = 3) in vec2 iTexcoords;
+
+#endif

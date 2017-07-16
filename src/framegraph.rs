@@ -2,35 +2,35 @@ use std::any;
 use typed_arena::Arena;
 use std::cell::UnsafeCell;
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 struct Lifetime {
     begin: i32,
     end: i32
 }
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 struct BufferMetadata {
     size: isize
 }
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 struct TextureMetadata {
     width: i32,
     height: i32,
     depth: i32
 }
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 struct Buffer {
     obj: u32
 }
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 struct Texture {
     obj: u32
 }
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 enum ResourceUsage {
     Default,
     ImageReadWrite,
@@ -116,6 +116,43 @@ impl<'fg> FrameGraph<'fg>
     }
 }
 
+/*gfx_pass! {
+    struct GBufferSetupPass
+    {
+        // input, type, name, usage, metadata
+        // metadata:
+        //  usage, format, width, height, allowed_formats, ...
+        //
+
+        @create texture2D diffuse {
+            usage: ...,
+            format: ...,
+        },
+
+        @read texture2D previous {
+            usage: ... ,
+            allowed_formats: [...],
+        },
+
+        width: i32,
+        height: i32,
+    }
+}*/
+/*
+impl Pass for GBufferSetupPass
+{
+    fn setup(&mut self, inputs: &GBuffersSetupPass::Inputs)
+    {
+        // self.diffuse.
+    }
+
+    fn execute(&self, resources: &GBufferSetupPass::Resources)
+    {
+
+    }
+}*/
+
+
 #[test]
 fn test_frame_graph_borrows()
 {
@@ -127,19 +164,3 @@ fn test_frame_graph_borrows()
     //}
     println!("{}", resource1.name);
 }
-
-/*
-Issue: the handles returned by the framegraph will borrow the framegraph (immutably)
-So, as long as the handles are alive, no modifications can be done on the frame graph
-i.e. can't compile while the handles are alive
-
-Issue 2:
-Can't add passes (mutable borrow) when 
-
-Solutions: 
-    1. handles should not borrow the framegraph
-    2. unsafe code***
-    3. RefCells?
-    4. Cells?
-
-*/
