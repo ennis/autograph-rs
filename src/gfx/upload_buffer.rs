@@ -9,6 +9,7 @@ use super::context::Context;
 use super::buffer::{Buffer, BufferSlice, BufferUsage};
 use std::collections::vec_deque::VecDeque;
 use super::frame::Frame;
+use std::rc::Rc;
 
 struct FencedRegion
 {
@@ -25,12 +26,12 @@ pub struct UploadBufferState
     fenced_regions: VecDeque<FencedRegion>
 }
 
-pub struct UploadBuffer<'ctx>
+// UploadBuffers outlive
+pub struct UploadBuffer
 {
-    buffer: Buffer<'ctx>,
+    buffer: Buffer,
     state: RefCell<UploadBufferState>,
     mapped_region: *mut c_void,
-    _phantom: PhantomData<&'ctx ()>
 }
 
 fn align_offset(align: isize, size: isize, ptr: isize, space: isize) -> Option<isize>
@@ -46,9 +47,9 @@ fn align_offset(align: isize, size: isize, ptr: isize, space: isize) -> Option<i
     }
 }
 
-impl<'ctx> UploadBuffer<'ctx>
+impl UploadBuffer
 {
-    pub fn new<'a>(ctx: &'a Context, buffer_size: i64) -> UploadBuffer<'a>
+    pub fn new(ctx: Rc<Context>, buffer_size: i64) -> UploadBuffer
     {
         //UploadBuffer { _phantom: PhantomData }
         unimplemented!()
@@ -137,7 +138,7 @@ impl<'ctx> UploadBuffer<'ctx>
 #[should_panic]
 fn test_upload_buffer_lifetimes()
 {
-    let ctx: Context = unimplemented!();
+    let ctx: Rc<Context> = unimplemented!();
     let frame: Frame = unimplemented!();    // 'frame
     let uploadbuf = UploadBuffer::new(&ctx, 3 * 1024 * 1024);
     let u0 = uploadbuf.upload(&frame, &0, 16);

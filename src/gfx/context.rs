@@ -3,6 +3,7 @@ use gl;
 use std::ffi::CStr;
 use std::mem;
 use typed_arena::Arena;
+use std::rc::Rc;
 
 
 extern "system" fn debug_callback(
@@ -31,7 +32,9 @@ pub struct Context
 
 impl Context
 {
-    pub fn new(cfg: &ContextConfig) -> Context {
-        Context { cfg: *cfg }
+    pub fn new(cfg: &ContextConfig) -> Rc<Context> {
+        Rc::new(Context { cfg: *cfg })
     }
 }
+
+

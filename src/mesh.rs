@@ -1,5 +1,6 @@
 use nalgebra::{Point3,Vector3,Vector2};
 use gfx::{Buffer, Context};
+use std::rc::Rc;
 
 pub struct Vertex3
 {
@@ -9,15 +10,15 @@ pub struct Vertex3
     pub uv: Vector2<f32>
 }
 
-pub struct Mesh<'ctx>
+pub struct Mesh
 {
-    vbo: Buffer<'ctx>,
-    ibo: Option<Buffer<'ctx>>,
+    vbo: Buffer,
+    ibo: Option<Buffer>,
     vertex_count: usize,
     index_count: usize
 }
 
-impl<'ctx> Mesh<'ctx>
+impl Mesh
 {
     pub fn vertex_count(&self) -> usize {
         self.vertex_count
@@ -27,7 +28,7 @@ impl<'ctx> Mesh<'ctx>
         self.index_count
     }
 
-    pub fn new<'a, T>(context: &'a Context, vertices: &[T], indices: Option<&[i32]>) -> Mesh<'a> {
+    pub fn new<T>(context: Rc<Context>, vertices: &[T], indices: Option<&[i32]>) -> Mesh {
         //Mesh {
         //    vbo: Buffer::new(context, vertices.o)
         //}

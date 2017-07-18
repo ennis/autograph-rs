@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::mem;
 use std::os::raw::c_void;
 use super::context::Context;
+use std::rc::Rc;
 
 #[derive(Copy,Clone)]
 pub struct BufferSlice<'buf>
@@ -24,12 +25,11 @@ pub enum BufferUsage
     READBACK
 }
 
-pub struct Buffer<'ctx>
+pub struct Buffer
 {
     obj: GLuint,
     size: isize,
-    usage: BufferUsage,
-    _phantom: PhantomData<&'ctx ()>
+    usage: BufferUsage
 }
 
 /*void *Buffer::map(size_t offset, size_t size) {
@@ -65,8 +65,9 @@ obj_ = buf_obj;
 }*/
 
 
-impl<'ctx> Buffer<'ctx> {
-    pub fn new<'a>(ctx: &'a Context, size: isize, usage: BufferUsage) -> Buffer<'a>
+impl Buffer
+{
+    pub fn new(ctx: Rc<Context>, size: isize, usage: BufferUsage) -> Buffer
     {
         let mut obj: GLuint = 0;
         unsafe {
@@ -80,7 +81,7 @@ impl<'ctx> Buffer<'ctx> {
             gl::CreateBuffers(1, &mut obj);
             gl::NamedBufferStorage(obj, size, 0 as *const c_void, flags);
         }
-        Buffer { obj, size, usage, _phantom: PhantomData }
+        Buffer { obj, size, usage }
     }
 
     pub fn size(&self) -> isize { self.size }

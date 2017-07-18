@@ -7,12 +7,6 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-pub struct CacheObject
-{
-}
-
-
-
 ///
 /// Wrapper around a cached object of type T
 #[derive(Clone)]

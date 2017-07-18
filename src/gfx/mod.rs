@@ -11,6 +11,7 @@ pub mod frame;
 pub mod state_group;
 pub mod program;
 pub mod shader_preprocessor;
+pub mod bind;
 
 pub use self::state_group::*;
 pub use self::texture::*;

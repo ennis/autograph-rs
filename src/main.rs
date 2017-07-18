@@ -36,6 +36,14 @@ mod unsafe_any;
 mod mesh;
 mod rc_cache;
 
+// Remaining:
+// - Camera stuff
+// - Meshes
+// - Materials
+// - Load images (openimageio bindings?)
+// - Test scene
+// - imgui (vulkan backend???)
+
 fn main() {
     pretty_env_logger::init().unwrap();
 
@@ -70,7 +78,7 @@ fn main() {
     });
 
     // create a texture bound to this context
-    let tex = gfx::Texture::new(&ctx, &gfx::TextureDesc {
+    let tex = gfx::Texture::new(ctx.clone(), &gfx::TextureDesc {
         dimensions: gfx::TextureDimensions::Tex2D,
         format: gfx::TextureFormat::R8G8B8A8_UNORM,
         width: 640,
@@ -78,30 +86,6 @@ fn main() {
         ..Default::default()
     });
 
-    // draw macro with dynamic pipelines
-    // <binding-type> <name> = initializer
-    // OR: <binding-type> <index> = initializer
-    // OR: <binding-type>: initializer
-
-    /*gfx_draw!(
-        target:                     fbo,
-        command:                    DrawArrays { ..unimplemented!() },
-        uniform uPrevModelMatrix:   unimplemented!(),
-        uniform uObjectID:          unimplemented!(),
-        uniform_buffer[0]:          unimplemented!(),
-        sampled_texture[0]:         (tex, sampler),
-    );*/
-
-    /*gfx_draw!(
-        target:         fbo,
-        command:        DrawArrays { ... },
-        pipeline:       DynamicPipeline,
-        vertex_buffer(0):  ,
-        index_buffer:   ,
-        uniform Name = "...",
-        uniform_buffer Struct = "...",
-        ssbo Name = <some slice>,
-    );*/
 
     while running {
         // poll events

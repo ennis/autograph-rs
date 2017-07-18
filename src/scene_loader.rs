@@ -2,22 +2,23 @@ use assimp as ai;
 use id_table::{ID, IDTable};
 use scene_object::{SceneObject, SceneObjects};
 use aabb::AABB;
-use cache::Cache;
 use mesh::{Mesh, Vertex3};
 use nalgebra::*;
 use itertools::Zip;
 use gfx;
+use std::rc::Rc;
+use rc_cache::{Cache, Cached};
 
-struct AssimpSceneImporter<'a, 'cache, 'ctx>
+struct AssimpSceneImporter<'a, 'cache>
 {
     path: String,
     ids: &'a IDTable,
     cache: &'cache Cache,
-    ctx: &'ctx gfx::Context,
+    ctx: Rc<gfx::Context>,
 }
 
-fn import_mesh<'a, 'imp, 'cache: 'imp, 'ctx: 'cache>(importer: &'imp AssimpSceneImporter<'a, 'cache, 'ctx>, scene: &ai::Scene, index: usize)
-    -> (&'cache Mesh<'ctx>, AABB<f32>)
+fn import_mesh<'a, 'imp, 'cache: 'imp>(importer: &'imp AssimpSceneImporter<'a, 'cache>, scene: &ai::Scene, index: usize)
+    -> (Cached<Mesh>, AABB<f32>)
 {
     let mesh_name = format!("{}:mesh_{}", &importer.path, index);
     let aimesh = scene.mesh(index).unwrap();
@@ -37,7 +38,7 @@ fn import_mesh<'a, 'imp, 'cache: 'imp, 'ctx: 'cache>(importer: &'imp AssimpScene
         }).collect();
 
         Mesh::new(importer.ctx, verts.as_slice(), Some(indices.as_slice()))
-    });
+    }).unwrap();
 
     (cached_mesh, unimplemented!())
 }

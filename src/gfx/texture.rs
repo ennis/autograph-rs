@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use bitflags;
 use std::cmp::*;
 use super::context::Context;
+use std::rc::Rc;
 
 bitflags! {
     #[derive(Default)]
@@ -54,15 +55,14 @@ impl Default for TextureDesc {
 /// that it is impossible to reallocate the storage (resizing, adding mip
 /// levels) once the texture is created
 ///
-/// The texture object is bound to the context lifetime `'ctx`
-pub struct Texture<'ctx>
+/// The texture object is bound to the context lifetime. It is checked dynamically.
+pub struct Texture
 {
     pub obj: GLuint,
-    desc: TextureDesc,
-    _phantom: PhantomData<&'ctx ()>
+    desc: TextureDesc
 }
 
-impl<'ctx> Texture<'ctx>
+impl Texture
 {
     /// Returns the TextureDesc object describing this texture
     pub fn desc(&self) -> &TextureDesc {
@@ -86,12 +86,12 @@ impl<'ctx> Texture<'ctx>
     }
 
     /// Create a new texture object based on the given description
-    pub fn new<'a>(ctx: &'a Context, desc: &TextureDesc) -> Texture<'a> {
-        Texture { obj: 0, desc: desc.clone(), _phantom: PhantomData }
+    pub fn new(ctx: Rc<Context>, desc: &TextureDesc) -> Texture {
+        Texture { obj: 0, desc: desc.clone() }
     }
 }
 
-impl<'ctx> Drop for Texture<'ctx>
+impl Drop for Texture
 {
     fn drop(&mut self)
     {
