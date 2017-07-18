@@ -152,6 +152,12 @@ impl Pass for GBufferSetupPass
     }
 }*/
 
+// maybe a custom derive?
+
+
+// will derive impl RenderPass for GBuffersSetupPass
+//
+
 
 #[test]
 fn test_frame_graph_borrows()

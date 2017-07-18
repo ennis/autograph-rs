@@ -5,8 +5,6 @@ authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
 [dependencies]
 typed-arena = "1.3.0"
-glutin = "0.8.1"
-gl = "*"
 bitflags = "0.9"
 lazy_static = "0.2.8"
 smallvec = "0.4.1"
@@ -18,6 +16,11 @@ regex = "0.2.2"
 pretty_env_logger = "0.1.1"
 log = "0.3.8"
 itertools = "*"
+vulkano = "*"
+vulkano-shader-derive = "*"
+vulkano-win = "*"
+winit = "*"
+time = "*"
 
 [replace]
 "assimp-sys:0.2.2" = { path = 'ext/assimp-sys' }

@@ -1,5 +1,5 @@
 use nalgebra::{Point3,Vector3,Vector2};
-use gfx::{Buffer, Context};
+//use gfx::{Buffer, Context};
 
 pub struct Vertex3
 {
