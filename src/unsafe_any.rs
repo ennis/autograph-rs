@@ -11,7 +11,7 @@ extern "rust-intrinsic" {
 }
 
 #[derive(Eq,PartialEq,Copy,Clone,Debug)]
-struct RawTypeId(u64);
+pub struct RawTypeId(u64);
 
 fn type_id_of_unbound<T: ?Sized>() -> RawTypeId
 {

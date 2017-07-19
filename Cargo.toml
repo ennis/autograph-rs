@@ -1,5 +1,5 @@
 [package]
-name = "test_rust"
+name = "autograph"
 version = "0.1.0"
 authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
@@ -21,6 +21,7 @@ vulkano-shader-derive = "*"
 vulkano-win = "*"
 winit = "*"
 time = "*"
+glsl-to-spirv = "*"
 
 [replace]
 "assimp-sys:0.2.2" = { path = 'ext/assimp-sys' }

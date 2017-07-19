@@ -1,4 +1,4 @@
-require 'data/shaders/utils'
+require('data/shaders/utils')
 
 geometryPass = GeometryPass
 {

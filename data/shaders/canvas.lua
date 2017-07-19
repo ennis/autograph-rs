@@ -1,4 +1,4 @@
-require 'shaders/utils'
+require('shaders/utils')
 
 gbuffer = GeometryPass{
 	shaderFile = 'CanvasGBuffers.glsl'

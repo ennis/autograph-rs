@@ -129,7 +129,7 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
 }
 
 #[derive(Debug)]
-struct PreprocessedShaders
+pub struct PreprocessedShaders
 {
     vertex: Option<String>,
     fragment: Option<String>,
@@ -139,7 +139,7 @@ struct PreprocessedShaders
     compute: Option<String>
 }
 
-fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&str], include_paths: &[&Path]) -> (PipelineStages, PreprocessedShaders)
+pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&str], include_paths: &[&Path]) -> (PipelineStages, PreprocessedShaders)
 {
     lazy_static! {
         static ref MACRO_DEF_RE: Regex = Regex::new(r"^(\w+)(?:=(\w*))?$").unwrap();
