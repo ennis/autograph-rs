@@ -131,12 +131,12 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
 #[derive(Debug)]
 pub struct PreprocessedShaders
 {
-    vertex: Option<String>,
-    fragment: Option<String>,
-    geometry: Option<String>,
-    tess_control: Option<String>,
-    tess_eval: Option<String>,
-    compute: Option<String>
+    pub vertex: Option<String>,
+    pub fragment: Option<String>,
+    pub geometry: Option<String>,
+    pub tess_control: Option<String>,
+    pub tess_eval: Option<String>,
+    pub compute: Option<String>
 }
 
 pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&str], include_paths: &[&Path]) -> (PipelineStages, PreprocessedShaders)
@@ -169,7 +169,7 @@ pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&s
     }
 
     let mut out_header = String::new();
-    out_header.push_str(&format!("#version {}", glsl_version));
+    out_header.push_str(&format!("#version {}\n", glsl_version));
     for m in macros {
         if let Some(captures) = MACRO_DEF_RE.captures(m) {
             out_header.push_str("#define ");

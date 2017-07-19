@@ -17,11 +17,14 @@ pretty_env_logger = "0.1.1"
 log = "0.3.8"
 itertools = "*"
 vulkano = "*"
+vulkano-shaders = "*"
 vulkano-shader-derive = "*"
 vulkano-win = "*"
 winit = "*"
 time = "*"
 glsl-to-spirv = "*"
+rspirv = "*"
+spirv_headers = "*"
 
 [replace]
 "assimp-sys:0.2.2" = { path = 'ext/assimp-sys' }
