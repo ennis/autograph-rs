@@ -1,5 +1,6 @@
 use parse;
 use spirv;
+use std::collections::HashMap;
 
 #[derive(Copy,Clone,Debug)]
 pub enum PrimitiveType
@@ -11,10 +12,19 @@ pub enum PrimitiveType
 }
 
 #[derive(Clone,Debug)]
+pub struct StructMember
+{
+    struct_id: u32,
+    index: u32,
+    name: Option<String>,
+    ty: u32
+}
+
+#[derive(Clone,Debug)]
 pub struct Struct
 {
     id: u32,
-    members: Vec<(Option<String>, Type)>
+    members: Vec<StructMember>
 }
 
 #[derive(Clone,Debug)]
@@ -25,6 +35,58 @@ pub enum Type
     Matrix(PrimitiveType, i8, i8),  // R,C
     Array(Box<Type>, usize),
     Struct(u32)     // struct type-ID
+}
+
+
+// TODO should be a vec of decorations
+#[derive(Debug)]
+pub struct VariableDecorations
+{
+    location: Option<u32>,
+    descriptor: Option<(u32, u32)>,
+    input_attachment_index: Option<u32>,
+    constant_id: Option<u32>
+}
+
+#[derive(Debug)]
+pub struct Variable
+{
+    id: u32,
+    name: Option<String>,
+    storage_class: spirv::StorageClass,
+    ty: u32,
+    deco: VariableDecorations
+}
+
+#[derive(Clone,Debug)]
+pub struct EntryPoint
+{
+    execution_model: spirv::ExecutionModel,
+    name: String,
+    interface: Vec<u32>,
+}
+
+
+pub fn parse_entry_points(doc: &parse::Spirv, entry_points: &mut HashMap<u32, EntryPoint>)
+{
+    for instruction in doc.instructions.iter() {
+        match instruction {
+            &parse::Instruction::EntryPoint {
+                execution,
+                id,
+                ref name,
+                ref interface } => {
+                entry_points.insert(id, EntryPoint {
+                    execution_model: execution,
+                    name: name.clone(),
+                    interface: interface.clone()
+                }).unwrap();
+            },
+            _ => ()
+        }
+    }
+
+    panic!("No entry point found in binary")
 }
 
 pub fn find_decoration<'a>(doc: &'a parse::Spirv, id: u32, deco: spirv::Decoration) -> Option<&'a [u32]>
@@ -62,8 +124,28 @@ pub fn find_name(doc: &parse::Spirv, id: u32) -> Option<String>
     None
 }
 
+pub fn find_member_name(doc: &parse::Spirv, struct_id: u32, member_index: u32) -> Option<String>
+{
+    // find membername annotation
+    for instruction in doc.instructions.iter() {
+        match instruction {
+            &parse::Instruction::MemberName {
+                target_id,
+                member,
+                ref name,
+            } if target_id == struct_id && member == member_index => {
+                return Some(name.clone())
+            },
+            _ => (),
+        }
+    };
+
+    None
+}
+
+
 // TODO: resolve initializers?
-pub fn describe_variable(doc: &parse::Spirv, id: u32) -> (Option<String>, Type, spirv::StorageClass)
+pub fn parse_variable(doc: &parse::Spirv, id: u32) -> Variable
 {
     for instruction in doc.instructions.iter() {
         match instruction {
@@ -73,7 +155,27 @@ pub fn describe_variable(doc: &parse::Spirv, id: u32) -> (Option<String>, Type, 
                 storage_class,
                 initializer
             } if result_id == id => {
-                return (find_name(doc, result_id), type_from_id(doc, result_type_id), storage_class);
+                // get decorations
+                let deco = VariableDecorations {
+                    location: find_decoration(doc, id, spirv::Decoration::Location).map(|op| op[0]),
+                    descriptor: {
+                        let ds = find_decoration(doc, id, spirv::Decoration::DescriptorSet).map(|op| op[0]);
+                        let binding = find_decoration(doc, id, spirv::Decoration::Binding).map(|op| op[0]);
+                        match (ds,binding) {
+                            (Some(ds), Some(binding)) => Some((ds,binding)),
+                            (_, _) => None
+                        }
+                    },
+                    input_attachment_index: find_decoration(doc, id, spirv::Decoration::InputAttachmentIndex).map(|op| op[0]),
+                    constant_id: None   // TODO
+                };
+                return Variable {
+                    storage_class: storage_class,
+                    id: result_id,
+                    ty: result_type_id,
+                    name: find_name(doc, result_id),
+                    deco
+                };
             },
             _ => (),
         }
@@ -83,29 +185,7 @@ pub fn describe_variable(doc: &parse::Spirv, id: u32) -> (Option<String>, Type, 
 }
 
 
-
-pub fn describe_struct_member(doc: &parse::Spirv, struct_id: u32, member_type_id: u32, member_index: u32) -> (Option<String>, Type)
-{
-    // find membername annotation
-    let mut member_name = None;
-
-    for instruction in doc.instructions.iter() {
-        match instruction {
-            &parse::Instruction::MemberName {
-                target_id,
-                member,
-                ref name,
-            } if target_id == struct_id && member == member_index => {
-                member_name = Some(name.clone());
-            },
-            _ => (),
-        }
-    };
-
-    (member_name, type_from_id(doc, member_type_id))
-}
-
-pub fn describe_struct(doc: &parse::Spirv, id: u32) -> Struct
+pub fn parse_struct(doc: &parse::Spirv, id: u32) -> Struct
 {
     for instruction in doc.instructions.iter() {
         match instruction {
@@ -115,8 +195,13 @@ pub fn describe_struct(doc: &parse::Spirv, id: u32) -> Struct
             } if result_id == id => {
                 return Struct {
                     id,
-                    members: member_types.iter().enumerate().map(|(index, member_type_id)| {
-                        describe_struct_member(doc, id, *member_type_id, index as u32)
+                    members: member_types.iter().enumerate().map(|(index, ty)| {
+                        StructMember {
+                            name: find_member_name(doc,id,index as u32),
+                            struct_id: id,
+                            ty: *ty,
+                            index: index as u32,
+                        }
                     }).collect()
                 };
             },
