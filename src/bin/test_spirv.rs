@@ -9,121 +9,130 @@ extern crate time;
 extern crate pretty_env_logger;
 extern crate glsl_to_spirv;
 #[macro_use] extern crate log;
-extern crate spirv_headers as spirv;
 extern crate rspirv;
+extern crate spirv_headers as spirv;
 
 use std::path::Path;
 use std::fs::File;
 use std::io::Read;
+use std::sync::Arc;
 use rspirv::binary::Disassemble;
-use vulkano::pipeline::shader::ShaderInterfaceDefEntry;
+use vulkano::pipeline::shader::*;
+use vulkano::descriptor::descriptor::*;
+use vulkano::descriptor::descriptor_set::*;
+use vulkano::descriptor::pipeline_layout::*;
+use vulkano::device::Device;
+use vulkano::device::DeviceOwned;
+
+use vulkano_shaders::parse::*;
+use vulkano_shaders::enums::*;
+use vulkano_shaders::descriptor_sets::{ParsedDescriptor, parse_descriptor_sets};
+use vulkano_shaders::entry_point::*;
 
 use autograph::shader_preprocessor::preprocess_combined_shader_source;
 
 
 const COMBINED_SHADER_PATH: &str = "data/shaders/DeferredGeometry450.glsl";
 
-macro_rules! operand_cast {
-    ($op:expr, $op_type:ident) => {
-        if let &rspirv::mr::Operand::$op_type(ref a) = $op {
-            a
-        } else {
-            panic!("Unexpected operand type")
-        }
-    };
+
+struct Descriptor
+{
+    name: String,
+    desc: DescriptorDesc,
+    //set: u32,
+    //binding: u32,
 }
 
-fn as_op_entry_point(insn: &rspirv::mr::Instruction)
+struct DescriptorSet
 {
+    bindings: Vec<Option<Descriptor>>   // None => empty descriptor (hole)
 }
 
-// find insn by result id
-fn find_by_id(insns: &[rspirv::mr::Instruction], rid: u32) -> &rspirv::mr::Instruction
+struct RuntimePipelineLayout
 {
-    insns.iter().find(|i| if let Some(result_id) = i.result_id { result_id == rid } else { false }).unwrap()
+    sets: Vec<Option<DescriptorSet>>,
 }
 
-enum SpirvLeafType
+impl RuntimePipelineLayout
 {
-    Bool,
-    Float,
-    Int,
-    Void
-}
-
-enum SpirvType
-{
-    Leaf(SpirvLeafType),
-    Vector(SpirvLeafType, i32),
-    Struct(u32)     // u32 is the type-id of the struct
-}
-
-fn describe_spirv_type(module: &rspirv::mr::Module, id: u32) -> SpirvType
-{
-    let insn = find_by_id(&module.types_global_values, id);
-    match insn.class.opcode {
-        spirv::Op::TypeVoid => SpirvType::Leaf(SpirvLeafType::Void),
-        spirv::Op::TypeBool => SpirvType::Leaf(SpirvLeafType::Bool),
-        spirv::Op::TypeInt => SpirvType::Leaf(SpirvLeafType::Int),
-        spirv::Op::TypeFloat => SpirvType::Leaf(SpirvLeafType::Float),
-        spirv::Op::TypeVector => {
-            let base_ty = if let SpirvType::Leaf(leaf_type) = describe_spirv_type(module, operand_cast!(&insn.operands[0], RefId)) {
-                leaf_type
-            } else {
-                panic!("Unexpected vector base type")
-            };
-            let size = operand_cast!(&insn.operands[0], LiteralInt32);
-            SpirvType::Vector(base_ty, *size as i32)
-        },
-        spirv::Op::TypeMatrix => {
-            unimplemented!()
-        },
-        spirv::Op::TypeImage => unimplemented!(),
-        spirv::Op::TypeSampler => unimplemented!(),
-        spirv::Op::TypeSampledImage => unimplemented!(),
-        spirv::Op::TypeArray => unimplemented!(),
-        spirv::Op::TypeRuntimeArray => unimplemented!(),
-        spirv::Op::TypeStruct => unimplemented!(),
-        spirv::Op::TypeOpaque => unimplemented!(),
-        spirv::Op::TypePointer => unimplemented!(),
-        spirv::Op::TypeFunction => unimplemented!(),
-        spirv::Op::TypeEvent => unimplemented!(),
-        spirv::Op::TypeDeviceEvent => unimplemented!(),
-        spirv::Op::TypeReserveId => unimplemented!(),
-        spirv::Op::TypeQueue => unimplemented!(),
-        spirv::Op::TypePipe => unimplemented!(),
-        spirv::Op::TypeForwardPointer => unimplemented!(),
-        _ => panic!("Whatever")
+    pub fn from_spirv(doc: &Spirv) -> RuntimePipelineLayout
+    {
+        // descriptor sets
+        let (descriptors, push_constant_size) = parse_descriptor_sets(doc);
+        println!("Descriptors: {:#?}", descriptors);
+        unimplemented!()
     }
 }
 
-//
-
-fn dump_spirv_blob(blob: &[u8])
+unsafe impl PipelineLayoutDesc for RuntimePipelineLayout
 {
-    let module: rspirv::mr::Module = rspirv::mr::load_bytes(blob).expect("Invalid SPIR-V binary blob");
-    println!("{}", module.disassemble());
-
-    //
-    
-    for ep in module.entry_points {
-        let execution_model = operand_cast!(&ep.operands[0], ExecutionModel);
-        let function_id = operand_cast!(&ep.operands[1], IdRef);
-        let name = operand_cast!(&ep.operands[2], LiteralString);
-        let interface : Vec<_> = ep.operands[3..].iter().map(|o| operand_cast!(o, IdRef)).collect();
-        println!("Module entry point: {:?},{:?},{:?},{:?}", execution_model, function_id, name, interface);
-
-        // extract interface
-        for var in interface {
-            let var_insn = find_by_result_id(&module.types_global_values, *var);
-            let ty = operand_cast!(&var_insn.operands[0], IdRef);
-
-        }
+    /// Returns the number of sets in the layout. Includes possibly empty sets.
+    ///
+    /// In other words, this should be equal to the highest set number plus one.
+    fn num_sets(&self) -> usize
+    {
+        self.sets.len()
     }
 
-    // extract interface
-    //module.
+    /// Returns the number of descriptors in the set. Includes possibly empty descriptors.
+    ///
+    /// Returns `None` if the set is out of range.
+    fn num_bindings_in_set(&self, set: usize) -> Option<usize>
+    {
+        unimplemented!()
+    }
 
+    /// Returns the descriptor for the given binding of the given set.
+    ///
+    /// Returns `None` if out of range or if the descriptor is empty.
+    fn descriptor(&self, set: usize, binding: usize) -> Option<DescriptorDesc>
+    {
+        unimplemented!()
+    }
+
+    /// If the `PipelineLayoutDesc` implementation is able to provide an existing
+    /// `UnsafeDescriptorSetLayout` for a given set, it can do so by returning it here.
+    #[inline]
+    fn provided_set_layout(&self, set: usize) -> Option<Arc<UnsafeDescriptorSetLayout>> {
+        None
+    }
+
+    /// Returns the number of push constant ranges of the layout.
+    fn num_push_constants_ranges(&self) -> usize
+    {
+        unimplemented!()
+    }
+
+    /// Returns a description of the given push constants range.
+    ///
+    /// Contrary to the descriptors, a push constants range can't be empty.
+    ///
+    /// Returns `None` if out of range.
+    ///
+    /// Each bit of `stages` must only be present in a single push constants range of the
+    /// description.
+    fn push_constants_range(&self, num: usize) -> Option<PipelineLayoutDescPcRange>
+    {
+        unimplemented!()
+    }
+
+    /// Builds the union of this layout and another.
+    #[inline]
+    fn union<T>(self, other: T) -> PipelineLayoutDescUnion<Self, T>
+        where Self: Sized
+    {
+        PipelineLayoutDescUnion::new(self, other)
+    }
+
+    /// Turns the layout description into a `PipelineLayout` object that can be used by Vulkan.
+    ///
+    /// > **Note**: This is just a shortcut for `PipelineLayout::new`.
+    #[inline]
+    fn build(self, device: Arc<Device>) -> Result<PipelineLayout<Self>, PipelineLayoutCreationError>
+        where Self: Sized
+    {
+        PipelineLayout::new(device, self)
+    }
 }
 
 fn main()
@@ -158,8 +167,13 @@ fn main()
                     let mut blob = Vec::new();
                     result.read_to_end(&mut blob).unwrap();
                     println!("Disassembly: ");
-                    dump_spirv_blob(blob.as_ref());
+                    let module = rspirv::mr::load_bytes(&blob).expect("Invalid SPIR-V binary blob");
+                    println!("{}", module.disassemble());
                     println!("\n");
+                    // parse spir-v
+                    let parsed_spirv = vulkano_shaders::parse::parse_spirv(&blob).unwrap();
+                    RuntimePipelineLayout::from_spirv(&parsed_spirv);
+                    // extract interface
                     Some(blob)
                 }
             }

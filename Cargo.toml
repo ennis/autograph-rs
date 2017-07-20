@@ -3,6 +3,7 @@ name = "autograph"
 version = "0.1.0"
 authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
+
 [dependencies]
 typed-arena = "1.3.0"
 bitflags = "0.9"
@@ -25,6 +26,7 @@ time = "*"
 glsl-to-spirv = "*"
 rspirv = "*"
 spirv_headers = "*"
+spirv-reflect = { path = "spirv-reflect" }
 
 [replace]
 "assimp-sys:0.2.2" = { path = 'ext/assimp-sys' }

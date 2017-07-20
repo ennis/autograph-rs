@@ -97,3 +97,4 @@ must have an interface to dynamically create passes (variable number of resource
     * setup() + execute()
     * No corresponding allocation, just a prototype
 *
+
