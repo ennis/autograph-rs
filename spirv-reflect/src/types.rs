@@ -27,6 +27,7 @@ pub struct Struct
     members: Vec<StructMember>
 }
 
+// 'unfolded' type description
 #[derive(Clone,Debug)]
 pub enum Type
 {
@@ -80,14 +81,50 @@ pub fn parse_entry_points(doc: &parse::Spirv, entry_points: &mut HashMap<u32, En
                     execution_model: execution,
                     name: name.clone(),
                     interface: interface.clone()
-                }).unwrap();
+                });
             },
             _ => ()
         }
     }
-
-    panic!("No entry point found in binary")
 }
+
+pub fn parse_variables(doc: &parse::Spirv, variables: &mut HashMap<u32, Variable>)
+{
+    for instruction in doc.instructions.iter() {
+        match instruction {
+            &parse::Instruction::Variable {
+                result_type_id,
+                result_id,
+                storage_class,
+                initializer
+            } => {
+                // get decorations
+                let deco = VariableDecorations {
+                    location: find_decoration(doc, result_id, spirv::Decoration::Location).map(|op| op[0]),
+                    descriptor: {
+                        let ds = find_decoration(doc, result_id, spirv::Decoration::DescriptorSet).map(|op| op[0]);
+                        let binding = find_decoration(doc, result_id, spirv::Decoration::Binding).map(|op| op[0]);
+                        match (ds,binding) {
+                            (Some(ds), Some(binding)) => Some((ds,binding)),
+                            (_, _) => None
+                        }
+                    },
+                    input_attachment_index: find_decoration(doc, result_id, spirv::Decoration::InputAttachmentIndex).map(|op| op[0]),
+                    constant_id: None   // TODO
+                };
+                variables.insert(result_id, Variable {
+                    storage_class: storage_class,
+                    id: result_id,
+                    ty: result_type_id,
+                    name: find_name(doc, result_id),
+                    deco
+                });
+            },
+            _ => (),
+        }
+    }
+}
+
 
 pub fn find_decoration<'a>(doc: &'a parse::Spirv, id: u32, deco: spirv::Decoration) -> Option<&'a [u32]>
 {
@@ -148,37 +185,7 @@ pub fn find_member_name(doc: &parse::Spirv, struct_id: u32, member_index: u32) -
 pub fn parse_variable(doc: &parse::Spirv, id: u32) -> Variable
 {
     for instruction in doc.instructions.iter() {
-        match instruction {
-            &parse::Instruction::Variable {
-                result_type_id,
-                result_id,
-                storage_class,
-                initializer
-            } if result_id == id => {
-                // get decorations
-                let deco = VariableDecorations {
-                    location: find_decoration(doc, id, spirv::Decoration::Location).map(|op| op[0]),
-                    descriptor: {
-                        let ds = find_decoration(doc, id, spirv::Decoration::DescriptorSet).map(|op| op[0]);
-                        let binding = find_decoration(doc, id, spirv::Decoration::Binding).map(|op| op[0]);
-                        match (ds,binding) {
-                            (Some(ds), Some(binding)) => Some((ds,binding)),
-                            (_, _) => None
-                        }
-                    },
-                    input_attachment_index: find_decoration(doc, id, spirv::Decoration::InputAttachmentIndex).map(|op| op[0]),
-                    constant_id: None   // TODO
-                };
-                return Variable {
-                    storage_class: storage_class,
-                    id: result_id,
-                    ty: result_type_id,
-                    name: find_name(doc, result_id),
-                    deco
-                };
-            },
-            _ => (),
-        }
+
     }
 
     panic!("Variable not found")

@@ -10,6 +10,7 @@ extern crate pretty_env_logger;
 extern crate glsl_to_spirv;
 #[macro_use] extern crate log;
 extern crate rspirv;
+extern crate spirv_reflect;
 extern crate spirv_headers as spirv;
 
 use std::path::Path;
@@ -24,10 +25,6 @@ use vulkano::descriptor::pipeline_layout::*;
 use vulkano::device::Device;
 use vulkano::device::DeviceOwned;
 
-use vulkano_shaders::parse::*;
-use vulkano_shaders::enums::*;
-use vulkano_shaders::descriptor_sets::{ParsedDescriptor, parse_descriptor_sets};
-use vulkano_shaders::entry_point::*;
 
 use autograph::shader_preprocessor::preprocess_combined_shader_source;
 
@@ -51,17 +48,6 @@ struct DescriptorSet
 struct RuntimePipelineLayout
 {
     sets: Vec<Option<DescriptorSet>>,
-}
-
-impl RuntimePipelineLayout
-{
-    pub fn from_spirv(doc: &Spirv) -> RuntimePipelineLayout
-    {
-        // descriptor sets
-        let (descriptors, push_constant_size) = parse_descriptor_sets(doc);
-        println!("Descriptors: {:#?}", descriptors);
-        unimplemented!()
-    }
 }
 
 unsafe impl PipelineLayoutDesc for RuntimePipelineLayout
@@ -171,8 +157,8 @@ fn main()
                     println!("{}", module.disassemble());
                     println!("\n");
                     // parse spir-v
-                    let parsed_spirv = vulkano_shaders::parse::parse_spirv(&blob).unwrap();
-                    RuntimePipelineLayout::from_spirv(&parsed_spirv);
+                    let reflection = spirv_reflect::Reflect::reflect(&blob).unwrap();
+                    println!("{:#?}", reflection);
                     // extract interface
                     Some(blob)
                 }
