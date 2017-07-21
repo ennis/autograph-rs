@@ -17,6 +17,8 @@ use std::path::Path;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
+use std::collections::BTreeSet;
+use std::cmp::Ord;
 use rspirv::binary::Disassemble;
 use vulkano::pipeline::shader::*;
 use vulkano::descriptor::descriptor::*;
@@ -158,7 +160,33 @@ fn main()
                     println!("\n");
                     // parse spir-v
                     let reflection = spirv_reflect::Reflect::reflect(&blob).unwrap();
-                    println!("{:#?}", reflection);
+                    //println!("{:#?}", reflection);
+
+                    // dump interface and types
+                    let mut inputs = Vec::new();
+                    let mut outputs = Vec::new();
+                    let mut uniforms = Vec::new();
+                    for v in reflection.variables.values() {
+                        match v.storage_class {
+                            spirv::StorageClass::Input => {inputs.push(v);},
+                            spirv::StorageClass::Output => {outputs.push(v);},
+                            spirv::StorageClass::Uniform => {uniforms.push(v);},
+                            _ => ()
+                        }
+                    }
+                    inputs.sort_by(|a,b| { Ord::cmp(&a.deco.location.unwrap(), &b.deco.location.unwrap()) });
+                    outputs.sort_by(|a,b| { Ord::cmp(&a.deco.location.unwrap_or(0), &b.deco.location.unwrap_or(0)) });
+
+                    for i in inputs {
+                        println!("Input {}: ty {:?} def {:?}", if reflection.is_builtin_variable(i) { "[BUILTIN] "} else {""}, reflection.describe_type(i.ty), i);
+                    }
+                    for o in outputs {
+                        println!("Output {}: ty {:?} def {:?}", if reflection.is_builtin_variable(o) { "[BUILTIN] "} else {""}, reflection.describe_type(o.ty), o);
+                    }
+                    for u in uniforms {
+                        println!("Uniform: ty {:?} def {:?}", reflection.describe_type(u.ty), u);
+                    }
+
                     // extract interface
                     Some(blob)
                 }

@@ -1,6 +1,8 @@
 use parse;
 use spirv;
 use std::collections::HashMap;
+use num_traits::FromPrimitive;
+
 
 #[derive(Copy,Clone,Debug)]
 pub enum PrimitiveType
@@ -14,17 +16,27 @@ pub enum PrimitiveType
 #[derive(Clone,Debug)]
 pub struct StructMember
 {
-    struct_id: u32,
-    index: u32,
-    name: Option<String>,
-    ty: u32
+    pub struct_id: u32,
+    pub index: u32,
+    pub name: Option<String>,
+    pub ty: u32,
+    pub builtin: Option<spirv::BuiltIn>
+    // TODO locations, etc: they can also be attached to struct members if it's an interface block
 }
 
 #[derive(Clone,Debug)]
 pub struct Struct
 {
-    id: u32,
-    members: Vec<StructMember>
+    pub id: u32,
+    pub members: Vec<StructMember>,
+    pub block: Option<spirv::Decoration>    // is it an interface block
+}
+
+impl Struct
+{
+    pub fn has_builtin_members(&self) -> bool {
+        self.members.iter().fold(false, |a, m| a || m.builtin.is_some())
+    }
 }
 
 // 'unfolded' type description
@@ -35,7 +47,8 @@ pub enum Type
     Vector(PrimitiveType, i8),
     Matrix(PrimitiveType, i8, i8),  // R,C
     Array(Box<Type>, usize),
-    Struct(u32)     // struct type-ID
+    Struct(u32),     // struct type-ID
+    Pointer(Box<Type>)
 }
 
 
@@ -43,28 +56,30 @@ pub enum Type
 #[derive(Debug)]
 pub struct VariableDecorations
 {
-    location: Option<u32>,
-    descriptor: Option<(u32, u32)>,
-    input_attachment_index: Option<u32>,
-    constant_id: Option<u32>
+    pub location: Option<u32>,
+    pub descriptor: Option<(u32, u32)>,
+    pub input_attachment_index: Option<u32>,
+    pub constant_id: Option<u32>,
+    pub builtin: Option<spirv::BuiltIn>
 }
 
 #[derive(Debug)]
 pub struct Variable
 {
-    id: u32,
-    name: Option<String>,
-    storage_class: spirv::StorageClass,
-    ty: u32,
-    deco: VariableDecorations
+    pub id: u32,
+    pub name: Option<String>,
+    pub storage_class: spirv::StorageClass,
+    pub ty: u32,
+    pub deco: VariableDecorations
 }
+
 
 #[derive(Clone,Debug)]
 pub struct EntryPoint
 {
-    execution_model: spirv::ExecutionModel,
-    name: String,
-    interface: Vec<u32>,
+    pub execution_model: spirv::ExecutionModel,
+    pub name: String,
+    pub interface: Vec<u32>,
 }
 
 
@@ -101,6 +116,7 @@ pub fn parse_variables(doc: &parse::Spirv, variables: &mut HashMap<u32, Variable
                 // get decorations
                 let deco = VariableDecorations {
                     location: find_decoration(doc, result_id, spirv::Decoration::Location).map(|op| op[0]),
+                    builtin: find_decoration(doc, result_id, spirv::Decoration::BuiltIn).map(|op| spirv::BuiltIn::from_u32(op[0]).unwrap()),
                     descriptor: {
                         let ds = find_decoration(doc, result_id, spirv::Decoration::DescriptorSet).map(|op| op[0]);
                         let binding = find_decoration(doc, result_id, spirv::Decoration::Binding).map(|op| op[0]);
@@ -144,6 +160,27 @@ pub fn find_decoration<'a>(doc: &'a parse::Spirv, id: u32, deco: spirv::Decorati
     None
 }
 
+pub fn find_member_decoration<'a>(doc: &'a parse::Spirv, id: u32, member_index: u32, deco: spirv::Decoration) -> Option<&'a [u32]>
+{
+    for instruction in doc.instructions.iter() {
+        match instruction {
+            &parse::Instruction::MemberDecorate {
+                target_id,
+                member,
+                decoration,
+                ref params
+            } if target_id == id && member == member_index && decoration == deco => {
+                println!("Found member decoration {:?}", instruction);
+                return Some(params);
+            },
+            _ => ()
+        }
+    }
+
+    None
+}
+
+
 pub fn find_name(doc: &parse::Spirv, id: u32) -> Option<String>
 {
     for instruction in doc.instructions.iter() {
@@ -181,17 +218,6 @@ pub fn find_member_name(doc: &parse::Spirv, struct_id: u32, member_index: u32) -
 }
 
 
-// TODO: resolve initializers?
-pub fn parse_variable(doc: &parse::Spirv, id: u32) -> Variable
-{
-    for instruction in doc.instructions.iter() {
-
-    }
-
-    panic!("Variable not found")
-}
-
-
 pub fn parse_struct(doc: &parse::Spirv, id: u32) -> Struct
 {
     for instruction in doc.instructions.iter() {
@@ -202,12 +228,14 @@ pub fn parse_struct(doc: &parse::Spirv, id: u32) -> Struct
             } if result_id == id => {
                 return Struct {
                     id,
+                    block: find_decoration(doc, id, spirv::Decoration::Block).map(|_| spirv::Decoration::Block),
                     members: member_types.iter().enumerate().map(|(index, ty)| {
                         StructMember {
                             name: find_member_name(doc,id,index as u32),
                             struct_id: id,
                             ty: *ty,
                             index: index as u32,
+                            builtin: find_member_decoration(doc, id, index as u32, spirv::Decoration::BuiltIn).map(|v| spirv::BuiltIn::from_u32(v[0]).unwrap()),
                         }
                     }).collect()
                 };
@@ -240,7 +268,7 @@ pub fn get_constant_bits(doc: &parse::Spirv, id: u32) -> u64
     panic!("Constant not found")
 }
 
-fn type_from_id(doc: &parse::Spirv, searched: u32) -> Type
+pub fn type_from_id(doc: &parse::Spirv, searched: u32) -> Type
 {
     for instruction in doc.instructions.iter() {
         match instruction {
@@ -302,7 +330,7 @@ fn type_from_id(doc: &parse::Spirv, searched: u32) -> Type
             &parse::Instruction::TypePointer {
                 result_id, type_id, ..
             }  if result_id == searched => {
-                unimplemented!()
+                return Type::Pointer(Box::new(type_from_id(doc, type_id)));
             },
 
             _ => (),
