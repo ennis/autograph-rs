@@ -27,6 +27,9 @@ glsl-to-spirv = "*"
 rspirv = "*"
 spirv_headers = "*"
 spirv-reflect = { path = "spirv-reflect" }
+petgraph = "*"
+gl = "*"
+glutin = "*"
 
 [replace]
 "assimp-sys:0.2.2" = { path = 'ext/assimp-sys' }

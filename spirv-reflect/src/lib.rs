@@ -24,7 +24,7 @@ pub struct Reflect
 
 impl Reflect
 {
-    pub fn reflect(blob: &[u8]) -> Result<Reflect, parse::ParseError>
+    pub fn from_bytes(blob: &[u8]) -> Result<Reflect, parse::ParseError>
     {
         let mut struct_types = HashMap::new();
         let mut entry_points = HashMap::new();

@@ -1,6 +1,10 @@
-use super::state_group::StateGroup;
+use super::state_group::{StateGroup};
 use super::frame::Frame;
 use super::buffer::*;
+use super::Texture;
+use super::pipeline::GraphicsPipeline;
+use super::upload_buffer::{UploadBuffer,TransientBuffer};
+use std::rc::Rc;
 
 /// Trait for objects that can be bound to the pipeline as a resource
 pub trait Bind {
@@ -43,10 +47,11 @@ pub trait Bind {
 ///
 /// Draw command builder
 /// lifetime-bound to a frame
-pub struct DrawCommandBuilder<'frame>
+pub struct DrawCommandBuilder<'a>
 {
-    frame: &'frame Frame,
+    frame: &'a Frame,
     sg: StateGroup,
+    pipeline: Rc<GraphicsPipeline>
 }
 
 // Trait with blanket impls to interpret a value as an uniform
@@ -54,18 +59,50 @@ pub struct DrawCommandBuilder<'frame>
 // same with matrices
 
 // uniform_vecN(glsl_type,
+// Should use Rc for all resource types, since we don't really know how long they should live
+// (they should live until the GPU command is processed, but we don't know when exactly)
+// although OpenGL will wait for all references to an object in the pipeline to drop
+// before actually releasing memory for an object, so it's actually useless
+// But do it anyway to mimic vulkan
 
-impl<'frame> DrawCommandBuilder<'frame>
+impl<'a> DrawCommandBuilder<'a>
 {
-    fn new<'a>(frame: &'a Frame) -> DrawCommandBuilder<'a> {
-        DrawCommandBuilder { frame: frame, sg: Default::default() }
+    pub fn new<'b>(frame: &'b Frame, pipeline: Rc<GraphicsPipeline>) -> DrawCommandBuilder<'b>
+    {
+        unimplemented!()
+        //DrawCommandBuilder { frame: frame, sg: Default::default(), pipeline:  }
     }
 
-    fn uniform_buffer<'buf>(self, slot: i32, slice: BufferSlice<'buf>) -> Self where 'frame:'buf
+    // XXX TransientBuffer should really be T where T: BindableBufferResource
+    // BindableBufferResource would have an unsafe get_slice()
+    // BindableResource would have a add_ref(Frame)
+    pub fn storage_buffer<'frame>(self, slot: i32, slice: &'a TransientBuffer<'frame>) -> Self
     {
         unimplemented!()
     }
 
-    // TODO impl uniform_vecN, storage_buffer<'buf: 'frame>, uniform_buffer<'buf, 'frame:'buf> (the frame must outlive the
+    pub fn uniform_buffer<'frame>(self, slot: i32, slice: &'a TransientBuffer<'frame>) -> Self
+    {
+        unimplemented!()
+    }
+
+    pub fn image(self, slot: i32, tex: Rc<Texture>) -> Self
+    {
+        unimplemented!()
+    }
+
+    pub fn all_viewports(self, v: (f32,f32,f32,f32)) -> Self
+    {
+         unimplemented!()
+    }
+
+    pub fn viewport(self, index: i32, v: (f32,f32,f32,f32)) -> Self
+    {
+        unimplemented!()
+    }
+
+    //pub fn named_uniform(self, name: &str, )
+
+    // TODO impl uniform_vecN, storage_buffer<'buf: 'frame>, uniform_buffer<'buf, 'frame:'buf> (the frame must outlive the buf)
 
 }

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 pub struct Frame {
     // The ID of the current frame
-    id: i64,
+    pub id: i64,
     // TODO list of drop continuations
 }
 
@@ -41,6 +41,7 @@ pub struct Frame {
 
 //
 // Consider using vulkano?
+// => Not yet usable
 // We would only have to provide the frame graph; keep the shader preprocessor (already working)
 // TODO: analyze whether it is useful to have dynamic states for things like vertex layouts and such
 //

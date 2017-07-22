@@ -33,23 +33,66 @@ use autograph::shader_preprocessor::preprocess_combined_shader_source;
 
 const COMBINED_SHADER_PATH: &str = "data/shaders/DeferredGeometry450.glsl";
 
-
-struct Descriptor
-{
-    name: String,
-    desc: DescriptorDesc,
-    //set: u32,
-    //binding: u32,
-}
-
+#[derive(Clone,Default)]
 struct DescriptorSet
 {
-    bindings: Vec<Option<Descriptor>>   // None => empty descriptor (hole)
+    bindings: Vec<Option<DescriptorDesc>>   // None => empty descriptor (hole)
 }
 
 struct RuntimePipelineLayout
 {
-    sets: Vec<Option<DescriptorSet>>,
+    sets: Vec<DescriptorSet>,
+}
+
+impl RuntimePipelineLayout
+{
+    pub fn from_spirv(spirv: &[u8]) -> RuntimePipelineLayout
+    {
+        let reflect = spirv_reflect::Reflect::from_bytes(spirv).unwrap();
+
+        let mut desc_sets: Vec<DescriptorSet> = Vec::new();
+
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+        let mut uniforms = Vec::new();
+        for v in reflect.variables.values() {
+            match v.storage_class {
+                spirv::StorageClass::Input => {inputs.push(v);},
+                spirv::StorageClass::Output => {outputs.push(v);},
+                spirv::StorageClass::Uniform => {uniforms.push(v);},
+                _ => ()
+            }
+        }
+        inputs.sort_by(|a,b| { Ord::cmp(&a.deco.location.unwrap(), &b.deco.location.unwrap()) });
+        outputs.sort_by(|a,b| { Ord::cmp(&a.deco.location.unwrap_or(0), &b.deco.location.unwrap_or(0)) });
+        uniforms.sort_by(|a,b| { Ord::cmp(&a.deco.location.unwrap_or(0), &b.deco.location.unwrap_or(0)) });
+
+        for i in inputs {
+            println!("Input {}: ty {:?} def {:?}", if reflect.is_builtin_variable(i) { "[BUILTIN] "} else {""}, reflect.describe_type(i.ty), i);
+        }
+        for o in outputs {
+            println!("Output {}: ty {:?} def {:?}", if reflect.is_builtin_variable(o) { "[BUILTIN] "} else {""}, reflect.describe_type(o.ty), o);
+        }
+
+        for u in uniforms {
+            match u.deco.descriptor {
+                Some((set,binding)) => {
+                    desc_sets.resize(set as usize, DescriptorSet { bindings: Vec::new() });
+                    /*desc_sets[set as usize].push(DescriptorDesc {
+                        array_count: 1,
+                        readonly: false,
+                        stages:
+                    });*/
+                    unimplemented!()
+                }
+            }
+
+            println!("Uniform: ty {:?} def {:?}", reflect.describe_type(u.ty), u);
+        }
+
+
+        unimplemented!()
+    }
 }
 
 unsafe impl PipelineLayoutDesc for RuntimePipelineLayout
@@ -67,7 +110,7 @@ unsafe impl PipelineLayoutDesc for RuntimePipelineLayout
     /// Returns `None` if the set is out of range.
     fn num_bindings_in_set(&self, set: usize) -> Option<usize>
     {
-        unimplemented!()
+        self.sets.get(set).map(|set| set.bindings.len())
     }
 
     /// Returns the descriptor for the given binding of the given set.
@@ -75,7 +118,7 @@ unsafe impl PipelineLayoutDesc for RuntimePipelineLayout
     /// Returns `None` if out of range or if the descriptor is empty.
     fn descriptor(&self, set: usize, binding: usize) -> Option<DescriptorDesc>
     {
-        unimplemented!()
+        self.sets.get(set).and_then(|set| set.bindings.get(binding).and_then(|desc| desc.clone()))
     }
 
     /// If the `PipelineLayoutDesc` implementation is able to provide an existing
@@ -159,7 +202,7 @@ fn main()
                     println!("{}", module.disassemble());
                     println!("\n");
                     // parse spir-v
-                    let reflection = spirv_reflect::Reflect::reflect(&blob).unwrap();
+                    let reflection = spirv_reflect::Reflect::from_bytes(&blob).unwrap();
                     //println!("{:#?}", reflection);
 
                     // dump interface and types

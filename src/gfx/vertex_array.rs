@@ -16,6 +16,13 @@ struct VertexArray
     obj: GLuint
 }
 
+impl VertexArray
+{
+    pub fn with_attribs(attribs: &[VertexAttribute]) {
+
+    }
+}
+
 impl Drop for VertexArray
 {
     fn drop(&mut self) {

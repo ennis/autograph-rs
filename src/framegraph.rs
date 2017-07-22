@@ -1,6 +1,7 @@
 use std::any;
 use typed_arena::Arena;
 use std::cell::UnsafeCell;
+use petgraph::Graph;
 
 #[derive(Copy,Clone,Debug)]
 struct Lifetime {
@@ -57,7 +58,7 @@ struct LogicalResource<'fg>
 struct Handle<'fg> {
     usage: ResourceUsage,
     resource: &'fg LogicalResource<'fg>,
-    renameIndex: i32,
+    rename_index: i32,
 }
 
 #[derive(Debug)]
@@ -77,7 +78,7 @@ impl<'fg> Pass<'fg> {
 
 struct FrameGraph<'fg>
 {
-    logicalResources: Arena<LogicalResource<'fg>>,
+    logical_resources: Arena<LogicalResource<'fg>>,
     passes: UnsafeCell<Vec<Pass<'fg>>>  // must be mutated while there are still references to LogicalResources outside
     // but that's okay, since there are no refs to passes leaving the FrameGraph
 }
@@ -85,7 +86,7 @@ struct FrameGraph<'fg>
 impl<'fg> FrameGraph<'fg>
 {
     fn make() -> FrameGraph<'fg> {
-        FrameGraph { logicalResources: Arena::new(), passes: UnsafeCell::new(Vec::new()) }
+        FrameGraph { logical_resources: Arena::new(), passes: UnsafeCell::new(Vec::new()) }
     }
 
     // Create a logical resource and return a handle to it: this does not mutably borrow

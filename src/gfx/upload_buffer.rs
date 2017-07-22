@@ -1,12 +1,12 @@
 use gl;
 use gl::types::*;
 use std::slice;
-use libc::c_void;
+use std::os::raw::c_void;
 use std::marker::PhantomData;
 use std::cell::RefCell;
 use std::mem;
 use super::context::Context;
-use super::buffer::{Buffer, BufferSlice, BufferUsage};
+use super::buffer::{Buffer, RawBufferSlice, BufferUsage};
 use std::collections::vec_deque::VecDeque;
 use super::frame::Frame;
 use std::rc::Rc;
@@ -14,27 +14,26 @@ use std::rc::Rc;
 struct FencedRegion
 {
     expiration: i64,
-    begin_ptr: isize,
-    end_ptr: isize
+    begin_ptr: usize,
+    end_ptr: usize
 }
 
 pub struct UploadBufferState
 {
-    write: isize,
-    begin: isize,
-    used: isize,
+    write: usize,
+    begin: usize,
+    used: usize,
     fenced_regions: VecDeque<FencedRegion>
 }
 
-// UploadBuffers outlive
 pub struct UploadBuffer
 {
-    buffer: Buffer,
+    buffer: Rc<Buffer>, // Owned
     state: RefCell<UploadBufferState>,
     mapped_region: *mut c_void,
 }
 
-fn align_offset(align: isize, size: isize, ptr: isize, space: isize) -> Option<isize>
+fn align_offset(align: usize, size: usize, ptr: usize, space: usize) -> Option<usize>
 {
     let mut off = ptr & (align - 1);
     if off > 0 {
@@ -47,42 +46,106 @@ fn align_offset(align: isize, size: isize, ptr: isize, space: isize) -> Option<i
     }
 }
 
+//
+pub struct TransientBuffer<'frame>
+{
+    buffer: Rc<Buffer>,
+    frame_id: i64,
+    slice: RawBufferSlice,
+    _phantom: PhantomData<&'frame ()>
+}
+
+// TODO: impl trait 'PipelineBindable' for TransientBuffer
+
+
 impl UploadBuffer
 {
-    pub fn new(ctx: Rc<Context>, buffer_size: i64) -> UploadBuffer
+    pub fn new(ctx: Rc<Context>, buffer_size: usize) -> UploadBuffer
     {
         //UploadBuffer { _phantom: PhantomData }
-        unimplemented!()
+        let buffer = Rc::new(Buffer::new(ctx.clone(), buffer_size, BufferUsage::UPLOAD));
+        let mapped_region = unsafe {
+            buffer.map_persistent_unsynchronized()
+        };
+
+        UploadBuffer {
+            buffer,
+            state: RefCell::new(UploadBufferState {
+                begin: 0,
+                used: 0,
+                write: 0,
+                fenced_regions: VecDeque::new()
+            }),
+            mapped_region
+        }
     }
+
+    //
+    // The output slice should be valid until the GPU has finished rendering the current frame
+    // However, we do not expose a dynamic lifetime to the user: we simply say that
+    // the buffer slice can be used until the frame is finalized.
+    //
+    // TL;DR
+    // There are two lifetimes:
+    // - logical: slice accessible until the frame is finalized
+    // - actual: until the GPU has finished rendering the frame and the resources are reclaimed
+    //
+    // Issue:
+    // Currently, nothing prevents a user from passing a buffer slice that **actually** lives
+    // only during the current frame, and not long enough for the GPU operation to complete
+    // => extend the lifetime of the buffer by passing an Rc<Buffer> into the buffer slice?
+    //
+    // Add an Rc<stuff> into the frame each time a resource is referenced in the frame
+    //
+    // TL;DR: the problem is that any resource reference passed into the GPU pipeline
+    // escapes all known static lifetimes
+    // Possible solution: bind the lifetime of all 'transient objects' to a GPUFuture object
+    // Dropping the GPUFuture object means waiting for the frame to be finished
+    // Thus, logical lifetime of the fence = actual lifetime of a frame
+    //
+    // TL;DR 2: 'Outliving the frame object' is not enough for resources
+    // buffer slice of an Rc<Buffer> lives as long as the Rc => should live as long as the buffer?
+    //
+    // draw pipelines should NOT consume a transient buffer slice
+    //
+    // Binding a buffer to the pipeline: take a Rc<Buffer> + Buffer slice
+    //
+    // TL;DR 3 - Conclusion: Resources bound to the pipeline must be Rc, since they escape all known static lifetimes
 
     // TODO the output slice should only be valid during the current frame:
     // maybe pass a reference to the frame object and bound the lifetime of the slice
     // to the lifetime of the frame?
-    pub fn upload<'frame, 'a: 'frame, T: Copy>(&'a self, frame: &'frame Frame, data: &T, align: isize) -> BufferSlice<'frame>
+    // The output slice is then 'consumed'
+    pub fn upload<'frame, T: Copy>(&self, frame: &'frame Frame, data: &T, align: usize) -> TransientBuffer<'frame>
     {
-        /*if let Some(slice) = self.allocate(mem::size_of::<T>(), align) {
-
-        } else {
-
-        }*/
-        unimplemented!()
+        TransientBuffer {
+            _phantom: PhantomData,
+            buffer: self.buffer.clone(),
+            frame_id: frame.id,
+            slice: unsafe { self.allocate(mem::size_of::<T>(), align, frame.id).expect("Upload buffer is full") }
+        }
     }
 
-    pub fn upload_slice<'a, T: Copy>(&'a self, data: &[T]) -> BufferSlice<'a>
+    pub fn upload_slice<'frame, T: Copy>(&self, frame: &'frame Frame, data: &[T]) -> TransientBuffer<'frame>
     {
-        unimplemented!()
+        TransientBuffer {
+            _phantom: PhantomData,
+            buffer: self.buffer.clone(),
+            frame_id: frame.id,
+            slice: unsafe { self.allocate(data.len() * mem::size_of::<T>(), 16, frame.id).expect("Upload buffer is full") }
+        }
     }
 
-    fn allocate<'a>(&'a self, size: isize, align: isize, expiration: i64) -> Option<BufferSlice<'a>>
+    unsafe fn allocate<'a>(&'a self, size: usize, align: usize, expiration: i64) -> Option<RawBufferSlice>
     {
         if let Some(offset) = self.try_allocate_contiguous(expiration, size, align) {
-            Some(self.buffer.get_slice(offset, size))
+            Some(self.buffer.get_raw_slice(offset, size))
         } else {
             None
         }
     }
 
-    fn try_allocate_contiguous(&self, expiration: i64, size: isize, align: isize) -> Option<isize> {
+    fn try_allocate_contiguous(&self, expiration: i64, size: usize, align: usize) -> Option<usize> {
         //assert!(size < self.buffer.size);
         let mut state = self.state.borrow_mut();
 
@@ -117,6 +180,7 @@ impl UploadBuffer
         Some(alloc_begin)
     }
 
+    // TODO decide who should call it?
     fn reclaim(&self, date: i64) {
         let mut state = self.state.borrow_mut();
          while !state.fenced_regions.is_empty() && state.fenced_regions.front().unwrap().expiration <= date {
@@ -130,7 +194,6 @@ impl UploadBuffer
     // uploadBuffer deals slices of its internal buffer, however, they live as long as the frame they
     // are allocated into
     // buf we don't want an exclusive borrow of the UploadBuffer, which would be useless: use a refcell internally
-
 }
 
 
@@ -140,7 +203,7 @@ fn test_upload_buffer_lifetimes()
 {
     let ctx: Rc<Context> = unimplemented!();
     let frame: Frame = unimplemented!();    // 'frame
-    let uploadbuf = UploadBuffer::new(&ctx, 3 * 1024 * 1024);
+    let uploadbuf = UploadBuffer::new(ctx.clone(), 3 * 1024 * 1024);
     let u0 = uploadbuf.upload(&frame, &0, 16);
     let u1 = uploadbuf.upload(&frame, &1, 16);
     // upload buf drops here

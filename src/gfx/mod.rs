@@ -10,8 +10,9 @@ pub mod fence;
 pub mod frame;
 pub mod state_group;
 pub mod program;
-pub mod shader_preprocessor;
+pub mod pipeline;
 pub mod bind;
+pub mod framebuffer;
 
 pub use self::state_group::*;
 pub use self::texture::*;

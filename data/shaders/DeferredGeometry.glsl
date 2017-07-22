@@ -2,6 +2,7 @@
 #include "Utils.glsli"
 
 #pragma stages(vertex,fragment)
+#pragma input_layout(0,rgb32f,0,rgb32f,0,rgb32f,0,rg32f)
 
 layout(std140, binding = 0) uniform CameraParameters {
   mat4 uViewMatrix;

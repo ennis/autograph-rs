@@ -18,13 +18,14 @@ extern "system" fn debug_callback(
 
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub struct ContextConfig
 {
-    pub max_frames_in_flight: i32,
-    pub default_upload_buffer_size: i32
+    pub max_frames_in_flight: u32,
+    pub default_upload_buffer_size: u32
 }
 
+#[derive(Debug)]
 pub struct Context
 {
     cfg: ContextConfig

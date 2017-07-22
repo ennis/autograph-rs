@@ -1,6 +1,6 @@
 use bitflags;
 use super::context::Context;
-use super::buffer::BufferSlice;
+use super::buffer::RawBufferSlice;
 use gl::types::*;
 use gl;
 use std::mem;
@@ -109,7 +109,7 @@ impl Default for DepthStencilState
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-struct RasterizerState
+pub struct RasterizerState
 {
     fill_mode: GLenum,
     cull_mode: GLenum,
@@ -145,7 +145,7 @@ const MAX_SHADER_STORAGE_BUFFER_SLOTS: usize = 8;
 ///
 /// Never use that directly since it does not hold references
 #[derive(Copy,Clone,Debug,PartialEq,Default)]
-struct Uniforms
+pub struct Uniforms
 {
     textures: [GLuint; MAX_TEXTURE_UNITS],
     samplers: [GLuint; MAX_TEXTURE_UNITS],

@@ -2,6 +2,8 @@
 #![feature(intrinsics)]
 #![feature(box_syntax)]
 
+extern crate glutin;
+extern crate gl;
 extern crate typed_arena;
 extern crate smallvec;
 extern crate libc;
@@ -17,6 +19,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 extern crate itertools;
+extern crate petgraph;
 
 use std::iter;
 use std::sync::Arc;
@@ -33,3 +36,4 @@ pub mod unsafe_any;
 //mod mesh;
 pub mod rc_cache;
 pub mod shader_preprocessor;
+pub mod gfx;
