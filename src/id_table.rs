@@ -21,7 +21,7 @@ pub struct IDTable
 
 impl IDTable
 {
-    fn new() -> IDTable {
+    pub fn new() -> IDTable {
         IDTable {
             live_ids: Vec::new(),
             free_ids: Vec::new()

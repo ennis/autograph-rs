@@ -3,7 +3,6 @@
 #![feature(box_syntax)]
 
 extern crate glutin;
-extern crate gl;
 extern crate typed_arena;
 extern crate smallvec;
 extern crate libc;
@@ -36,4 +35,7 @@ pub mod unsafe_any;
 //mod mesh;
 pub mod rc_cache;
 pub mod shader_preprocessor;
+pub mod gl;
 pub mod gfx;
+pub mod scene_loader;
+pub mod mesh;

@@ -23,3 +23,4 @@ pub use self::sampler::*;
 pub use self::vertex_array::*;
 pub use self::upload_buffer::*;
 pub use self::texture_format::*;
+pub use self::pipeline::*;

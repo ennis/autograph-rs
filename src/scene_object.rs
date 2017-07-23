@@ -43,6 +43,13 @@ pub struct SceneObjects
 /// This way the pointers to the scene objects stay stable within a frame
 impl SceneObjects
 {
+    pub fn new() -> SceneObjects {
+        SceneObjects {
+            scene_objects: HashMap::new(),
+            changes: RefCell::new(Vec::new())
+        }
+    }
+
     /// Add a parent/child relationship between the two IDs
     pub fn parent(&self, parent: ID, child: ID)
     {

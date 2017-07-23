@@ -32,13 +32,13 @@ bitflags! {
 #[derive(Copy,Clone,Debug,Hash,Eq,PartialEq)]
 pub struct BlendState
 {
-    enabled: bool,
-    mode_rgb: GLenum,
-    mode_alpha: GLenum,
-    func_src_rgb: GLenum,
-    func_dst_rgb: GLenum,
-    func_src_alpha: GLenum,
-    func_dst_alpha: GLenum
+    pub enabled: bool,
+    pub mode_rgb: GLenum,
+    pub mode_alpha: GLenum,
+    pub func_src_rgb: GLenum,
+    pub func_dst_rgb: GLenum,
+    pub func_src_alpha: GLenum,
+    pub func_dst_alpha: GLenum
 }
 
 impl Default for BlendState
@@ -75,17 +75,17 @@ impl BlendState
 #[derive(Copy,Clone,Debug,Hash,Eq,PartialEq)]
 pub struct DepthStencilState
 {
-    depth_test_enable: bool,
-    depth_write_enable: bool,
-    stencil_enable: bool,
-    depth_test_func: GLenum,
-    stencil_face: GLenum,
-    stencil_func: GLenum,
-    stencil_ref: i32,
-    stencil_mask: u32,
-    stencil_op_s_fail: GLenum,
-    stencil_op_dp_fail: GLenum,
-    stencil_op_dp_pass: GLenum
+    pub depth_test_enable: bool,
+    pub depth_write_enable: bool,
+    pub stencil_enable: bool,
+    pub depth_test_func: GLenum,
+    pub stencil_face: GLenum,
+    pub stencil_func: GLenum,
+    pub stencil_ref: i32,
+    pub stencil_mask: u32,
+    pub stencil_op_s_fail: GLenum,
+    pub stencil_op_dp_fail: GLenum,
+    pub stencil_op_dp_pass: GLenum
 }
 
 impl Default for DepthStencilState
@@ -111,13 +111,13 @@ impl Default for DepthStencilState
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct RasterizerState
 {
-    fill_mode: GLenum,
-    cull_mode: GLenum,
-    front_face: GLenum,
-    depth_bias: f32,
-    slope_scaled_depth_bias: f32,
-    depth_clip_enable: bool,
-    scissor_enable: bool
+    pub fill_mode: GLenum,
+    pub cull_mode: GLenum,
+    pub front_face: GLenum,
+    pub depth_bias: f32,
+    pub slope_scaled_depth_bias: f32,
+    pub depth_clip_enable: bool,
+    pub scissor_enable: bool
 }
 
 impl Default for RasterizerState

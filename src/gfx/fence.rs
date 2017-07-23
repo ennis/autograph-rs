@@ -21,6 +21,7 @@ pub struct Fence
     current_value: i64,
 }
 
+/*
 impl Fence
 {
     pub fn new(ctx: Rc<Context>, init_value: i64) -> Fence {
@@ -30,8 +31,8 @@ impl Fence
         }
     }
 
-    pub fn signal(&self) {
-        unimplemented!()
+    pub fn signal(&self, value: i64) {
+
     }
 
     pub fn advance(&mut self) {
@@ -46,3 +47,5 @@ impl Fence
         unimplemented!()
     }
 }
+
+*/

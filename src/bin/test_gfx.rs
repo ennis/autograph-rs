@@ -4,7 +4,6 @@ extern crate autograph;
 extern crate time;
 extern crate pretty_env_logger;
 extern crate glutin;
-extern crate gl;
 extern crate smallvec;
 extern crate libc;
 extern crate assimp;
@@ -30,7 +29,9 @@ use glutin::GlContext;
 
 use autograph::shader_preprocessor::preprocess_combined_shader_source;
 use autograph::gfx;
-
+use autograph::gl;
+use autograph::id_table::{ID,IDTable};
+use autograph::scene_object::{SceneObject,SceneObjects};
 
 fn main()
 {
@@ -74,6 +75,66 @@ fn main()
         height: 480,
         ..Default::default()
     });
+
+    // load a pipeline!
+    let pipeline = {
+        // load combined shader source
+        let mut src = String::new();
+        let path = Path::new("data/shaders/DeferredGeometry.glsl");
+        File::open(path).unwrap().read_to_string(&mut src).unwrap();
+        // preprocess
+        let (stages, results) = preprocess_combined_shader_source(&src, path, &[], &[]);
+        // now build a pipeline
+        gfx::GraphicsPipelineBuilder::new()
+            .with_vertex_shader(gfx::Shader::compile(&results.vertex.unwrap(), gl::VERTEX_SHADER).map_err(|gfx::ShaderCompilationError(log)| println!("Shader compilation error: {}", log)).unwrap())
+            .with_fragment_shader(gfx::Shader::compile(&results.fragment.unwrap(), gl::FRAGMENT_SHADER).map_err(|gfx::ShaderCompilationError(log)| println!("Shader compilation error: {}", log)).unwrap())
+            .with_rasterizer_state(&gfx::RasterizerState{
+                fill_mode: gl::LINE,
+                .. Default::default()
+            })
+            .with_input_layout(&[
+                gfx::VertexAttribute {
+                    slot: 0,
+                    ty: gl::FLOAT,
+                    size: 3,
+                    relative_offset: 0,
+                    normalized: false
+                },
+                gfx::VertexAttribute {
+                    slot: 0,
+                    ty: gl::FLOAT,
+                    size: 3,
+                    relative_offset: 12,
+                    normalized: false
+                },
+                gfx::VertexAttribute {
+                    slot: 0,
+                    ty: gl::FLOAT,
+                    size: 3,
+                    relative_offset: 24,
+                    normalized: false
+                },
+                gfx::VertexAttribute {
+                    slot: 0,
+                    ty: gl::FLOAT,
+                    size: 2,
+                    relative_offset: 36,
+                    normalized: false
+                }])
+            .build(ctx).map_err(|e| match e {
+                gfx::GraphicsPipelineBuildError::ProgramLinkError(ref log) => {
+                    println!("Program link error: {}", log);
+                }
+            })
+            .unwrap()
+    };
+
+    // load a scene!
+    let mut ids = IDTable::new();
+    let mut scene_objects = SceneObjects::new();
+
+
+    println!("Pipeline: {:#?}", pipeline);
 
     // draw macro with dynamic pipelines
     // <binding-type> <name> = initializer

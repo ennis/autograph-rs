@@ -5,6 +5,7 @@ use log;
 use std::fs::File;
 use std::io::prelude::*;
 use pretty_env_logger;
+use gfx::pipeline::VertexAttribute;
 
 bitflags! {
     #[derive(Default)]
@@ -35,6 +36,7 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
 {
     lazy_static! {
         static ref SHADER_STAGE_PRAGMA_RE: Regex = Regex::new(r#"^stages\s*\(\s*(\w+)(?:\s*,\s*(\w+))*\s*\)\s*?$"#).unwrap();
+        static ref INPUT_LAYOUT_PRAGMA_RE: Regex = Regex::new(r#"^input_layout\s*\(\s*(\w+)(?:\s*,\s*(\w+))*\s*\)\s*?$"#).unwrap();
         static ref INCLUDE_RE: Regex = Regex::new(r#"^\s*#include\s+"(.*)"\s*?$"#).unwrap();
         static ref VERSION_RE: Regex = Regex::new(r#"^\s*#version\s+([0-9]*)\s*?$"#).unwrap();
         static ref PRAGMA_RE: Regex = Regex::new(r#"^\s*#pragma\s+(.*)\s*?$"#).unwrap();
@@ -136,7 +138,8 @@ pub struct PreprocessedShaders
     pub geometry: Option<String>,
     pub tess_control: Option<String>,
     pub tess_eval: Option<String>,
-    pub compute: Option<String>
+    pub compute: Option<String>,
+    pub input_layout: Option<Vec<VertexAttribute>>
 }
 
 pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&str], include_paths: &[&Path]) -> (PipelineStages, PreprocessedShaders)
@@ -213,7 +216,8 @@ pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&s
             fragment: gen_variant(PS_FRAGMENT),
             tess_control: gen_variant(PS_TESS_CONTROL),
             tess_eval: gen_variant(PS_TESS_EVAL),
-            compute: gen_variant(PS_COMPUTE)
+            compute: gen_variant(PS_COMPUTE),
+            input_layout: None
         }
     )
 }

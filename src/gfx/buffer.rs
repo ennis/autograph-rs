@@ -26,7 +26,7 @@ pub struct BufferSlice<'buf>
     _phantom: PhantomData<&'buf ()>
 }*/
 
-#[derive(Copy,Clone,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq)]
 pub enum BufferUsage
 {
     UPLOAD,
@@ -34,6 +34,7 @@ pub enum BufferUsage
     READBACK
 }
 
+#[derive(Debug)]
 pub struct Buffer
 {
     context: Rc<Context>,
@@ -74,23 +75,57 @@ gl::NamedBufferStorage(buf_obj, byteSize, initial_data, flags);
 obj_ = buf_obj;
 }*/
 
+pub trait BufferData
+{
+}
+
+impl<T: Copy> BufferData for T {
+}
+
+impl<U: Copy> BufferData for [U] {
+}
+
+unsafe fn create_buffer<T: BufferData + ?Sized>(size: usize, usage: BufferUsage, initial_data: Option<&T>) -> GLuint
+{
+    let mut obj: GLuint = 0;
+    unsafe {
+        let flags = match usage
+            {
+                BufferUsage::READBACK => gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
+                BufferUsage::UPLOAD => gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
+                BufferUsage::DEFAULT => 0
+            };
+        gl::CreateBuffers(1, &mut obj);
+        gl::NamedBufferStorage(obj, size as isize, if let Some(data) = initial_data { data as *const T as *const GLvoid } else { 0 as *const GLvoid }, flags);
+    }
+    obj
+}
+
 
 impl Buffer
 {
     pub fn new(ctx: Rc<Context>, size: usize, usage: BufferUsage) -> Buffer
     {
-        let mut obj: GLuint = 0;
-        unsafe {
-            let flags = match usage
-                {
-                    BufferUsage::READBACK => gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
-                    BufferUsage::UPLOAD => gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
-                    BufferUsage::DEFAULT => 0
-                };
-            gl::CreateBuffers(1, &mut obj);
-            gl::NamedBufferStorage(obj, size as isize, 0 as *const c_void, flags);
+        Buffer {
+            context: ctx.clone(),
+            obj: unsafe {
+                create_buffer::<()>(size, usage, None)
+            },
+            size,
+            usage
         }
-        Buffer { context: ctx.clone(), obj, size, usage }
+    }
+
+    pub fn with_data<T: BufferData + ?Sized>(ctx: Rc<Context>, usage: BufferUsage, data: &T) -> Buffer {
+        let size = mem::size_of_val(data);
+        Buffer {
+            context: ctx.clone(),
+            obj: unsafe {
+                create_buffer(size, usage, Some(data))
+            },
+            size,
+            usage
+        }
     }
 
     pub unsafe fn get_raw_slice(&self, offset: usize, size: usize) -> RawBufferSlice
