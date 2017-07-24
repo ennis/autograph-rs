@@ -78,12 +78,9 @@ pub struct Shader
     stage: GLenum
 }
 
-
-pub struct ShaderCompilationError(pub String);
-
 impl Shader
 {
-    pub fn compile(source: &str, stage: GLenum) -> Result<Shader, ShaderCompilationError> {
+    pub fn compile(source: &str, stage: GLenum) -> Result<Shader, String> {
         unsafe {
             let obj = gl::CreateShader(stage);
             let srcs = [source.as_ptr() as *const i8];
@@ -101,7 +98,7 @@ impl Shader
                 gl::GetShaderInfoLog(obj, log_size, &mut log_size, log_buf.as_mut_ptr() as *mut i8);
                 log_buf.set_len(log_size as usize);
                 gl::DeleteShader(obj);
-                Err(ShaderCompilationError(String::from_utf8(log_buf).unwrap()))
+                Err(String::from_utf8(log_buf).unwrap())
             }
             else {
                 Ok(Shader {
@@ -121,9 +118,7 @@ impl Drop for Shader {
     }
 }
 
-struct ProgramLinkError(String);
-
-fn link_program(obj: GLuint) -> Result<(),ProgramLinkError>
+fn link_program(obj: GLuint) -> Result<(),String>
 {
     unsafe {
         gl::LinkProgram(obj);
@@ -136,7 +131,7 @@ fn link_program(obj: GLuint) -> Result<(),ProgramLinkError>
             let mut log_buf: Vec<u8> = Vec::with_capacity(log_size as usize);
             gl::GetProgramInfoLog(obj, log_size, &mut log_size, log_buf.as_mut_ptr() as *mut i8);
             log_buf.set_len(log_size as usize);
-            Err(ProgramLinkError(String::from_utf8(log_buf).unwrap()))
+            Err(String::from_utf8(log_buf).unwrap())
         }
         else {
             Ok(())
@@ -171,23 +166,23 @@ impl<'a> GraphicsPipelineBuilder<'a>
         self
     }
 
-    pub fn with_fragment_shader<'b:'a>(mut self, shader: Shader) -> Self {
+    pub fn with_fragment_shader(mut self, shader: Shader) -> Self {
         self.fragment_shader = Some(shader);
         self
     }
 
-    pub fn with_tess_control_shader<'b:'a>(mut self, shader: Shader) -> Self {
-        self.tess_control_shader = Some(shader);
+    pub fn with_tess_control_shader(mut self, shader: Option<Shader>) -> Self {
+        self.tess_control_shader = shader;
         self
     }
 
-    pub fn with_tess_eval_shader<'b:'a>(mut self, shader: Shader) -> Self {
-        self.tess_eval_shader = Some(shader);
+    pub fn with_tess_eval_shader(mut self, shader: Option<Shader>) -> Self {
+        self.tess_eval_shader = shader;
         self
     }
 
-    pub fn with_geometry_shader<'b:'a>(mut self, shader: Shader) -> Self {
-        self.geometry_shader = Some(shader);
+    pub fn with_geometry_shader(mut self, shader: Option<Shader>) -> Self {
+        self.geometry_shader = shader;
         self
     }
 
@@ -240,7 +235,7 @@ impl<'a> GraphicsPipelineBuilder<'a>
             }
         }
         // link shaders
-        link_program(program).map_err(|ProgramLinkError(str)| GraphicsPipelineBuildError::ProgramLinkError(str))?;
+        link_program(program).map_err(|log| GraphicsPipelineBuildError::ProgramLinkError(log))?;
 
         Ok(GraphicsPipeline {
             depth_stencil_state: self.depth_stencil_state,

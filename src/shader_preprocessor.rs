@@ -6,6 +6,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use pretty_env_logger;
 use gfx::pipeline::VertexAttribute;
+use gl;
+use gl::types::*;
 
 bitflags! {
     #[derive(Default)]
@@ -32,11 +34,11 @@ struct IncludeFile<'a>
     path: &'a Path,
 }
 
-fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_seen_version: &mut Option<i32>, enabled_pipeline_stages: &mut PipelineStages, this_file: &IncludeFile<'a>, source_map: &mut Vec<SourceMapEntry>) -> i32
+fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_seen_version: &mut Option<i32>, enabled_pipeline_stages: &mut PipelineStages, input_layout: &mut Option<Vec<VertexAttribute>>, this_file: &IncludeFile<'a>, source_map: &mut Vec<SourceMapEntry>) -> i32
 {
     lazy_static! {
-        static ref SHADER_STAGE_PRAGMA_RE: Regex = Regex::new(r#"^stages\s*\(\s*(\w+)(?:\s*,\s*(\w+))*\s*\)\s*?$"#).unwrap();
-        static ref INPUT_LAYOUT_PRAGMA_RE: Regex = Regex::new(r#"^input_layout\s*\(\s*(\w+)(?:\s*,\s*(\w+))*\s*\)\s*?$"#).unwrap();
+        static ref SHADER_STAGE_PRAGMA_RE: Regex = Regex::new(r#"^stages\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
+        static ref INPUT_LAYOUT_PRAGMA_RE: Regex = Regex::new(r#"^input_layout\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
         static ref INCLUDE_RE: Regex = Regex::new(r#"^\s*#include\s+"(.*)"\s*?$"#).unwrap();
         static ref VERSION_RE: Regex = Regex::new(r#"^\s*#version\s+([0-9]*)\s*?$"#).unwrap();
         static ref PRAGMA_RE: Regex = Regex::new(r#"^\s*#pragma\s+(.*)\s*?$"#).unwrap();
@@ -50,7 +52,7 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
     let mut should_output_line_directive = false;
     let mut num_errors = 0;
 
-    for line in source.lines() {
+    'line: for line in source.lines() {
         if let Some(captures) = INCLUDE_RE.captures(line) {
             let mut inc_path = dir.to_owned();
             inc_path.push(&captures[1]);
@@ -62,7 +64,7 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
                     let mut text = String::new();
                     file.read_to_string(&mut text);
                     let next_include = IncludeFile { path: &inc_path, parent: Some(&this_file) };
-                    preprocess_shader_internal(preprocessed, &text, last_seen_version, enabled_pipeline_stages, &next_include, source_map);
+                    preprocess_shader_internal(preprocessed, &text, last_seen_version, enabled_pipeline_stages, input_layout, &next_include, source_map);
                 }
                 Err(e) => {
                     error!("{:?}({:?}): Could not open include file {:?}: {:?}", this_file.path, cur_line, inc_path, e);
@@ -97,9 +99,10 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
             debug!("Pragma directive");
             let pragma_str = &captures[1];
             if let Some(captures) = SHADER_STAGE_PRAGMA_RE.captures(pragma_str) {
-                for stage in captures.iter().skip(1).filter_map(|m| m)
+                let stages = &captures[1];
+                for stage in stages.split(",").map(|s| s.trim())
                 {
-                    match stage.as_str() {
+                    match stage {
                         "vertex" => { *enabled_pipeline_stages |= PS_VERTEX; }
                         "fragment" => { *enabled_pipeline_stages |= PS_FRAGMENT; }
                         "geometry" => { *enabled_pipeline_stages |= PS_GEOMETRY; }
@@ -112,8 +115,57 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
                         }
                     }
                 }
+            } else if let Some(captures) = INPUT_LAYOUT_PRAGMA_RE.captures(pragma_str) {
+                let mut iter = captures.iter().skip(1).filter_map(|m| m);
+                let mut index = 0;
+                let mut layout = Vec::new();
+
+                if let &mut Some(_) = input_layout {
+                    error!("{:?}({:?}): Duplicate input_layout directive", this_file.path, cur_line);
+                    continue 'line; // ignore this directive
+                }
+
+                while let Some(fmt) = iter.next() {
+                    let slot = iter.next().and_then(|slot| {println!("{:?}", slot.as_str()); slot.as_str().parse::<u32>().ok()});
+                    let relative_offset = iter.next().and_then(|ro| {println!("{:?}", ro.as_str());ro.as_str().parse::<u32>().ok()});
+
+                    if slot.is_none() || relative_offset.is_none() {
+                        error!("{:?}({:?}): Error parsing input_layout directive", this_file.path, cur_line);
+                        continue 'line;
+                    }
+
+                    let mut attrib_format = (gl::FLOAT,4,false);
+
+                    match fmt.as_str() {
+                        "rgba32f" => { (gl::FLOAT,4,false) },
+                        "rgb32f" => { (gl::FLOAT,3,false) },
+                        "rg32f" => { (gl::FLOAT,2,false) },
+                        "r32f" => { (gl::FLOAT,1,false) },
+                        "rgba16_snorm" => { (gl::SHORT, 4, true) },
+                        "rgb16_snorm" => { (gl::SHORT, 3, true) },
+                        "rg16_snorm" => { (gl::SHORT, 2, true) },
+                        "r16_snorm" => { (gl::SHORT, 1, true) },
+                        _ => {
+                            error!("{:?}({:?}): Error parsing input_layout directive (unsupported format?)", this_file.path, cur_line);
+                            num_errors += 1;
+                            continue 'line;
+                        }
+                    };
+
+                    layout.push(VertexAttribute {
+                        ty: attrib_format.0,
+                        relative_offset: relative_offset.unwrap() as i32,
+                        slot: slot.unwrap(),
+                        size: attrib_format.1,
+                        normalized: attrib_format.2
+                    });
+
+                    index += 1;
+                }
+
+                *input_layout = Some(layout);
             } else {
-                error!("{:?}({:?}): Malformed `#pragma stage` directive: `{:?}`", this_file.path, cur_line, pragma_str);
+                error!("{:?}({:?}): Malformed `#pragma` directive: `{:?}`", this_file.path, cur_line, pragma_str);
                 num_errors += 1;
             }
         } else {
@@ -153,7 +205,8 @@ pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&s
     let mut enabled_pipeline_stages = PipelineStages::empty();
     let mut glsl_version = None;
     let mut preprocessed = String::new();
-    let num_errors = preprocess_shader_internal(&mut preprocessed, source, &mut glsl_version, &mut enabled_pipeline_stages, &this_file, &mut source_map);
+    let mut input_layout = None;
+    let num_errors = preprocess_shader_internal(&mut preprocessed, source, &mut glsl_version, &mut enabled_pipeline_stages, &mut input_layout, &this_file, &mut source_map);
     debug!("PP: enabled stages: {:?}", enabled_pipeline_stages);
     debug!("PP: number of errors: {}", num_errors);
 
@@ -217,7 +270,7 @@ pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&s
             tess_control: gen_variant(PS_TESS_CONTROL),
             tess_eval: gen_variant(PS_TESS_EVAL),
             compute: gen_variant(PS_COMPUTE),
-            input_layout: None
+            input_layout
         }
     )
 }
