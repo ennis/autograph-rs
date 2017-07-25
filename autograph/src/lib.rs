@@ -6,7 +6,7 @@ extern crate glutin;
 extern crate typed_arena;
 extern crate smallvec;
 extern crate libc;
-extern crate assimp;
+extern crate assimp_sys;
 extern crate nalgebra;
 extern crate alga;
 extern crate regex;

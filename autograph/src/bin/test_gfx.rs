@@ -6,7 +6,6 @@ extern crate pretty_env_logger;
 extern crate glutin;
 extern crate smallvec;
 extern crate libc;
-extern crate assimp;
 extern crate nalgebra;
 extern crate alga;
 extern crate regex;
