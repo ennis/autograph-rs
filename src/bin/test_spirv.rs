@@ -84,7 +84,8 @@ impl RuntimePipelineLayout
                         stages:
                     });*/
                     unimplemented!()
-                }
+                },
+                _ => unimplemented!()
             }
 
             println!("Uniform: ty {:?} def {:?}", reflect.describe_type(u.ty), u);
