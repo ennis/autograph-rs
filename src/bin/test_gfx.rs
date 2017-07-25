@@ -30,6 +30,7 @@ use glutin::GlContext;
 use autograph::shader_preprocessor::*;
 use autograph::gfx;
 use autograph::gl;
+use autograph::gl::types::*;
 use autograph::id_table::{ID,IDTable};
 use autograph::scene_object::{SceneObject,SceneObjects};
 
@@ -39,7 +40,8 @@ struct CompiledShaders {
     geometry: Option<gfx::Shader>,
     tess_control: Option<gfx::Shader>,
     tess_eval: Option<gfx::Shader>,
-    input_layout: Vec<gfx::VertexAttribute>
+    input_layout: Vec<gfx::VertexAttribute>,
+    primitive_topology: GLenum
 }
 
 fn compile_shaders_from_combined_source(src_path: &Path) -> Result<CompiledShaders, String>
@@ -83,7 +85,8 @@ fn compile_shaders_from_combined_source(src_path: &Path) -> Result<CompiledShade
     Ok(
         CompiledShaders {
             vertex, fragment, geometry, tess_control, tess_eval,
-            input_layout: pp.input_layout.ok_or("No input layout specified in combined shader source!".to_owned())?
+            input_layout: pp.input_layout.ok_or("Missing input layout in combined shader source".to_owned())?,
+            primitive_topology: pp.primitive_topology.ok_or("Missing primitive topology in combined shader source".to_owned())?
         }
     )
 }
@@ -135,12 +138,14 @@ fn main()
     let pipeline = {
         // now build a pipeline
         let compiled_shaders = compile_shaders_from_combined_source(Path::new("data/shaders/DeferredGeometry.glsl")).unwrap();
+        println!("layout: {:#?}", &compiled_shaders.input_layout);
         gfx::GraphicsPipelineBuilder::new()
             .with_vertex_shader(compiled_shaders.vertex)
-            .with_vertex_shader(compiled_shaders.fragment)
+            .with_fragment_shader(compiled_shaders.fragment)
             .with_geometry_shader(compiled_shaders.geometry)
             .with_tess_eval_shader(compiled_shaders.tess_eval)
             .with_tess_control_shader(compiled_shaders.tess_control)
+            .with_primitive_topology(compiled_shaders.primitive_topology)
             .with_rasterizer_state(&gfx::RasterizerState{
                 fill_mode: gl::LINE,
                 .. Default::default()

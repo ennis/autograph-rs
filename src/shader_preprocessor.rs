@@ -34,11 +34,12 @@ struct IncludeFile<'a>
     path: &'a Path,
 }
 
-fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_seen_version: &mut Option<i32>, enabled_pipeline_stages: &mut PipelineStages, input_layout: &mut Option<Vec<VertexAttribute>>, this_file: &IncludeFile<'a>, source_map: &mut Vec<SourceMapEntry>) -> i32
+fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_seen_version: &mut Option<i32>, enabled_pipeline_stages: &mut PipelineStages, input_layout: &mut Option<Vec<VertexAttribute>>, topology: &mut Option<GLenum>, this_file: &IncludeFile<'a>, source_map: &mut Vec<SourceMapEntry>) -> i32
 {
     lazy_static! {
         static ref SHADER_STAGE_PRAGMA_RE: Regex = Regex::new(r#"^stages\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
         static ref INPUT_LAYOUT_PRAGMA_RE: Regex = Regex::new(r#"^input_layout\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
+        static ref PRIMITIVE_TOPOLOGY_PRAGMA_RE: Regex = Regex::new(r#"^primitive_topology\s*\(\s*(\w+)\s*\)\s*?$"#).unwrap();
         static ref INCLUDE_RE: Regex = Regex::new(r#"^\s*#include\s+"(.*)"\s*?$"#).unwrap();
         static ref VERSION_RE: Regex = Regex::new(r#"^\s*#version\s+([0-9]*)\s*?$"#).unwrap();
         static ref PRAGMA_RE: Regex = Regex::new(r#"^\s*#pragma\s+(.*)\s*?$"#).unwrap();
@@ -64,7 +65,7 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
                     let mut text = String::new();
                     file.read_to_string(&mut text);
                     let next_include = IncludeFile { path: &inc_path, parent: Some(&this_file) };
-                    preprocess_shader_internal(preprocessed, &text, last_seen_version, enabled_pipeline_stages, input_layout, &next_include, source_map);
+                    preprocess_shader_internal(preprocessed, &text, last_seen_version, enabled_pipeline_stages, input_layout, topology, &next_include, source_map);
                 }
                 Err(e) => {
                     error!("{:?}({:?}): Could not open include file {:?}: {:?}", this_file.path, cur_line, inc_path, e);
@@ -116,27 +117,28 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
                     }
                 }
             } else if let Some(captures) = INPUT_LAYOUT_PRAGMA_RE.captures(pragma_str) {
-                let mut iter = captures.iter().skip(1).filter_map(|m| m);
+                let entries = &captures[1];
+                let mut iter = entries.split(",").map(|s| s.trim());
                 let mut index = 0;
                 let mut layout = Vec::new();
 
-                if let &mut Some(_) = input_layout {
+                if input_layout.is_some() {
                     error!("{:?}({:?}): Duplicate input_layout directive", this_file.path, cur_line);
+                    num_errors += 1;
                     continue 'line; // ignore this directive
                 }
 
                 while let Some(fmt) = iter.next() {
-                    let slot = iter.next().and_then(|slot| {println!("{:?}", slot.as_str()); slot.as_str().parse::<u32>().ok()});
-                    let relative_offset = iter.next().and_then(|ro| {println!("{:?}", ro.as_str());ro.as_str().parse::<u32>().ok()});
+                    let slot = iter.next().and_then(|slot| slot.parse::<u32>().ok());
+                    let relative_offset = iter.next().and_then(|ro| ro.parse::<u32>().ok());
 
                     if slot.is_none() || relative_offset.is_none() {
                         error!("{:?}({:?}): Error parsing input_layout directive", this_file.path, cur_line);
+                        num_errors += 1;
                         continue 'line;
                     }
 
-                    let mut attrib_format = (gl::FLOAT,4,false);
-
-                    match fmt.as_str() {
+                    let attrib_format = match fmt {
                         "rgba32f" => { (gl::FLOAT,4,false) },
                         "rgb32f" => { (gl::FLOAT,3,false) },
                         "rg32f" => { (gl::FLOAT,2,false) },
@@ -164,6 +166,24 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
                 }
 
                 *input_layout = Some(layout);
+            } else if let Some(captures) = PRIMITIVE_TOPOLOGY_PRAGMA_RE.captures(pragma_str) {
+                let topo_str = &captures[1];
+
+                if topology.is_some() {
+                    error!("{:?}({:?}): Duplicate primitive_topology directive", this_file.path, cur_line);
+                    num_errors += 1;
+                    continue 'line; // ignore this directive
+                }
+
+                *topology = Some(match topo_str {
+                    "triangle" => gl::TRIANGLES,
+                    "line" => gl::LINES,
+                    _ => {
+                        error!("{:?}({:?}): Unsupported primitive topology: {:?}", this_file.path, cur_line, topo_str);
+                        num_errors += 1;
+                        continue 'line;
+                    }
+                });
             } else {
                 error!("{:?}({:?}): Malformed `#pragma` directive: `{:?}`", this_file.path, cur_line, pragma_str);
                 num_errors += 1;
@@ -191,7 +211,8 @@ pub struct PreprocessedShaders
     pub tess_control: Option<String>,
     pub tess_eval: Option<String>,
     pub compute: Option<String>,
-    pub input_layout: Option<Vec<VertexAttribute>>
+    pub input_layout: Option<Vec<VertexAttribute>>,
+    pub primitive_topology: Option<GLenum>
 }
 
 pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&str], include_paths: &[&Path]) -> (PipelineStages, PreprocessedShaders)
@@ -206,7 +227,8 @@ pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&s
     let mut glsl_version = None;
     let mut preprocessed = String::new();
     let mut input_layout = None;
-    let num_errors = preprocess_shader_internal(&mut preprocessed, source, &mut glsl_version, &mut enabled_pipeline_stages, &mut input_layout, &this_file, &mut source_map);
+    let mut primitive_topology = None;
+    let num_errors = preprocess_shader_internal(&mut preprocessed, source, &mut glsl_version, &mut enabled_pipeline_stages, &mut input_layout, &mut primitive_topology, &this_file, &mut source_map);
     debug!("PP: enabled stages: {:?}", enabled_pipeline_stages);
     debug!("PP: number of errors: {}", num_errors);
 
@@ -270,7 +292,8 @@ pub fn preprocess_combined_shader_source(source: &str, path: &Path, macros: &[&s
             tess_control: gen_variant(PS_TESS_CONTROL),
             tess_eval: gen_variant(PS_TESS_EVAL),
             compute: gen_variant(PS_COMPUTE),
-            input_layout
+            input_layout,
+            primitive_topology
         }
     )
 }

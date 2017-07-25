@@ -46,7 +46,7 @@ fn align_offset(align: usize, size: usize, ptr: usize, space: usize) -> Option<u
     }
 }
 
-//
+// Should this be Deref<Target=Buffer> ?
 pub struct TransientBuffer<'frame>
 {
     buffer: Rc<Buffer>,

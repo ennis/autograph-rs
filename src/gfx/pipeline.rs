@@ -27,12 +27,19 @@ pub struct VertexAttribute
 pub struct GraphicsPipeline
 {
     // TODO
-    context: Rc<Context>,
-    blend_states: [BlendState; 8],  // TODO hardcoded limit
-    rasterizer_state: RasterizerState,
-    depth_stencil_state: DepthStencilState,
-    vao: GLuint,
-    program: GLuint
+    pub(super) context: Rc<Context>,
+    pub(super) blend_states: [BlendState; 8],  // TODO hardcoded limit
+    pub(super) rasterizer_state: RasterizerState,
+    pub(super) depth_stencil_state: DepthStencilState,
+    pub(super) vao: GLuint,
+    pub(super) program: GLuint,
+    pub(super) primitive_topology: GLenum
+}
+
+pub enum PrimitiveTopology
+{
+    Triangle,
+    Line
 }
 
 pub struct GraphicsPipelineBuilder<'a>
@@ -53,7 +60,8 @@ pub struct GraphicsPipelineBuilder<'a>
     geometry_shader: Option<Shader>,
     tess_control_shader: Option<Shader>,
     tess_eval_shader: Option<Shader>,
-    input_layout: Option<&'a [VertexAttribute]>
+    input_layout: Option<&'a [VertexAttribute]>,
+    primitive_topology: GLenum
 }
 
 unsafe fn gen_vertex_array(attribs: &[VertexAttribute]) -> GLuint
@@ -108,6 +116,9 @@ impl Shader
             }
         }
     }
+
+    // TODO: from_spirv, from_binary?
+    // (runtime) reflection for spirv
 }
 
 impl Drop for Shader {
@@ -157,7 +168,7 @@ impl<'a> GraphicsPipelineBuilder<'a>
             vertex_shader: None,
             geometry_shader: None,
             input_layout: None,
-
+            primitive_topology: gl::TRIANGLES,
         }
     }
 
@@ -211,6 +222,11 @@ impl<'a> GraphicsPipelineBuilder<'a>
         self
     }
 
+    pub fn with_primitive_topology(mut self, primitive_topology: GLuint) -> Self {
+        self.primitive_topology = primitive_topology;
+        self
+    }
+
     pub fn build(self, ctx: Rc<Context>) -> Result<GraphicsPipeline, GraphicsPipelineBuildError>
     {
         let vao = unsafe {
@@ -223,7 +239,7 @@ impl<'a> GraphicsPipelineBuilder<'a>
 
         unsafe {
             gl::AttachShader(program, self.vertex_shader.expect("must specify a vertex shader").obj);
-            gl::AttachShader(program, self.fragment_shader.expect("must specify a vertex shader").obj);
+            gl::AttachShader(program, self.fragment_shader.expect("must specify a fragment shader").obj);
             if let Some(s) = self.geometry_shader {
                 gl::AttachShader(program, s.obj);
             }
@@ -243,6 +259,7 @@ impl<'a> GraphicsPipelineBuilder<'a>
             blend_states: self.blend_states,
             vao,
             program,
+            primitive_topology: self.primitive_topology,
             context: ctx.clone()
         })
     }
