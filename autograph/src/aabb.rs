@@ -2,34 +2,44 @@ use nalgebra::{Scalar, Vector3, Vector4, Point3, Affine3, min, max, Matrix, U1, 
 use nalgebra::storage::{Storage, OwnedStorage};
 use alga::general::{Field};
 use std::cmp::Ord;
+use num_traits::Bounded;
 
-pub struct AABB<N: Scalar + Field>
+#[derive(Copy,Clone,Debug)]
+pub struct AABB<N: Scalar + Field + PartialOrd + Bounded>
 {
     min: Point3<N>,
     max: Point3<N>
 }
 
-fn cw_min3<N: Scalar + Ord>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
-{
-    Vector3::new(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z))
+fn partial_min<T: PartialOrd>(a: T, b: T) -> T {
+    if a < b { a } else { b }
 }
 
-fn cw_max3<N: Scalar + Ord>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
-{
-    Vector3::new(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z))
+fn partial_max<T: PartialOrd>(a: T, b: T) -> T {
+    if a < b { b } else { a }
 }
 
-fn cw_min4<N: Scalar + Ord>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
+fn cw_min3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
 {
-    Vector4::new(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w))
+    Vector3::new(partial_min(a.x, b.x), partial_min(a.y, b.y), partial_min(a.z, b.z))
 }
 
-fn cw_max4<N: Scalar + Ord>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
+fn cw_max3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
 {
-    Vector4::new(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w))
+    Vector3::new(partial_max(a.x, b.x), partial_max(a.y, b.y), partial_max(a.z, b.z))
 }
 
-impl<N: Scalar + Field + Ord> AABB<N>
+fn cw_min4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
+{
+    Vector4::new(partial_min(a.x, b.x), partial_min(a.y, b.y), partial_min(a.z, b.z), partial_min(a.w, b.w))
+}
+
+fn cw_max4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
+{
+    Vector4::new(partial_max(a.x, b.x), partial_max(a.y, b.y), partial_max(a.z, b.z), partial_max(a.w, b.w))
+}
+
+impl<N: Scalar + Field + PartialOrd + Bounded> AABB<N>
 {
     pub fn size(&self) -> Vector3<N> {
         self.max - self.min
@@ -57,5 +67,13 @@ impl<N: Scalar + Field + Ord> AABB<N>
         // This is a tad verbose
         self.min = Point3::from_coordinates(cw_min3(&self.min.coords, &other.min.coords));
         self.max = Point3::from_coordinates(cw_max3(&self.max.coords, &other.max.coords));
+    }
+
+    pub fn empty() -> AABB<N>
+    {
+        AABB {
+            max: Point3::new(N::min_value(), N::min_value(), N::min_value()),
+            min: Point3::new(N::max_value(), N::max_value(), N::max_value()),
+        }
     }
 }

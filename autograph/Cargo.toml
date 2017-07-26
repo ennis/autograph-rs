@@ -32,4 +32,4 @@ spirv-reflect = { path = "../spirv-reflect" }
 petgraph = "*"
 glutin = "*"
 assimp-sys = { path = '../ext/assimp-sys' }
-
+num-traits = "*"

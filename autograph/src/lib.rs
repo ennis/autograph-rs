@@ -19,6 +19,7 @@ extern crate lazy_static;
 extern crate bitflags;
 extern crate itertools;
 extern crate petgraph;
+extern crate num_traits;
 
 use std::iter;
 use std::sync::Arc;

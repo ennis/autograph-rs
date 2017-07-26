@@ -4,6 +4,8 @@ use std::rc::Rc;
 use aabb::AABB;
 use std::collections::HashMap;
 use std::cell::RefCell;
+use mesh::Mesh;
+use rc_cache::Cached;
 
 ///
 ///
@@ -11,14 +13,15 @@ use std::cell::RefCell;
 ///
 pub struct SceneObject
 {
-    id: ID,
-    name: String,
-    parent_id: ID,
-    local_transform: Affine3<f32>,
-    world_transform: Affine3<f32>,
-    world_bounds: AABB<f32>,
-    mesh_bounds: AABB<f32>,
-    children: Vec<ID>
+    pub id: ID,
+    pub name: String,
+    pub parent_id: Option<ID>,                  // TODO Option<ID> ?
+    pub local_transform: Affine3<f32>,
+    pub world_transform: Affine3<f32>,
+    pub world_bounds: AABB<f32>,        // TODO Should be Option<AABB<f32>>, since an object may not have world bounds
+    pub mesh_bounds: AABB<f32>,         // Same, as an object may not have an attached mesh
+    pub children: Vec<ID>,
+    pub mesh: Option<Cached<Mesh>>      // TODO should this be in its own component map?
 }
 
 impl SceneObject
@@ -83,7 +86,7 @@ impl SceneObjects
     pub fn calculate_transforms(&mut self)
     {
         // isolate roots
-        let roots : Vec<_> = self.scene_objects.values().filter(|obj| obj.borrow().parent_id == ID::null()).map(|obj| obj.borrow().id).collect();
+        let roots : Vec<_> = self.scene_objects.values().filter(|obj| obj.borrow().parent_id == None).map(|obj| obj.borrow().id).collect();
         self.calculate_transforms_rec(&roots, &Affine3::identity());
     }
 
@@ -99,15 +102,20 @@ impl SceneObjects
                     // add child to parent
                     self.scene_objects.get(&parent_id).unwrap().borrow_mut().children.push(child_id);
                     // set parent of child
-                    self.scene_objects.get(&child_id).unwrap().borrow_mut().parent_id = parent_id;
+                    self.scene_objects.get(&child_id).unwrap().borrow_mut().parent_id = Some(parent_id);
                 },
                 SceneGraphChange::Orphan(parent_id,child_id) => {
                     // remove child from parent
                     self.scene_objects.get(&parent_id).unwrap().borrow_mut().children.retain(|&id| id != child_id);
                     // unset parent from child
-                    self.scene_objects.get(&child_id).unwrap().borrow_mut().parent_id = ID::null();
+                    self.scene_objects.get(&child_id).unwrap().borrow_mut().parent_id = None;
                 },
                 SceneGraphChange::Insert(scene_object) => {
+                    // add child to parent, if the node has a parent
+                    if let Some(parent_id) = scene_object.parent_id {
+                        self.scene_objects.get(&parent_id).unwrap().borrow_mut().children.push(scene_object.id);
+                    }
+                    // insert scene object
                     if let Some(_) = self.scene_objects.insert(scene_object.id, RefCell::new(scene_object)) {
                         panic!("Key already present");
                     }
