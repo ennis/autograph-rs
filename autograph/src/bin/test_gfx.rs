@@ -32,6 +32,8 @@ use autograph::gl;
 use autograph::gl::types::*;
 use autograph::id_table::{ID,IDTable};
 use autograph::scene_object::{SceneObject,SceneObjects};
+use autograph::scene_loader;
+use autograph::rc_cache;
 
 struct CompiledShaders {
     vertex: gfx::Shader,
@@ -189,6 +191,8 @@ fn main()
     // load a scene!
     let mut ids = IDTable::new();
     let mut scene_objects = SceneObjects::new();
+    let mut cache = rc_cache::Cache::new();
+    scene_loader::load_scene_file(Path::new("data/scenes/sponza/sponza.obj"), &mut ids, ctx.clone(), &cache, &mut scene_objects);
 
     println!("Pipeline: {:#?}", pipeline);
 

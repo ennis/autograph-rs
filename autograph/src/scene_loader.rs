@@ -9,10 +9,12 @@ use gfx;
 use std::rc::Rc;
 use rc_cache::{Cache, Cached};
 use std::slice;
+use std::path::Path;
+use std::ffi::{CString,CStr};
 
 struct AssimpSceneImporter<'a>
 {
-    path: String,
+    path: &'a Path,
     ids: &'a mut IDTable,
     cache: &'a Cache,
     ctx: Rc<gfx::Context>,
@@ -22,11 +24,11 @@ struct AssimpSceneImporter<'a>
 unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiScene, index: usize)
     -> (Cached<Mesh>, AABB<f32>)
 {
-    let mesh_name = format!("{}:mesh_{}", &importer.path, index);
+    let mesh_name = format!("{:?}:mesh_{}", &importer.path, index);
     assert!(index < (*scene).num_meshes as usize);
     let aimesh = *((*scene).meshes.offset(index as isize));
 
-    let cached_mesh = importer.cache.get_or(&importer.path, || {
+    let cached_mesh = importer.cache.get_or(&mesh_name, || {
         let vertices = slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
         let normals = slice::from_raw_parts((*aimesh).normals, (*aimesh).num_vertices as usize);
         let tangents = slice::from_raw_parts((*aimesh).tangents, (*aimesh).num_vertices as usize);
@@ -128,3 +130,33 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
     id
 }
 
+pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: Rc<gfx::Context>, cache: &Cache, scene_objects: &mut SceneObjects) -> Result<ID, String>
+{
+    let c_path = CString::new(path.to_str().unwrap()).unwrap();
+    //let postproc_flags = AIPROCESS_OPTIMIZE_MESHES | AIPROCESS_OPTIMIZE_GRAPH |
+    //   AIPROCESS_TRIANGULATE | AIPROCESS_JOIN_IDENTICAL_VERTICES |
+    //    AIPROCESS_CALC_TANGENT_SPACE | AIPROCESS_SORT_BY_PTYPE;
+    let postproc_flags = AIPROCESS_TARGET_REALTIME_QUALITY;
+    unsafe {
+        let aiscene = aiImportFile(c_path.as_ptr(), postproc_flags);
+        let log = CStr::from_ptr(aiGetErrorString()).to_str().unwrap();
+        if aiscene.is_null() {
+            return Err(format!("Failed to import scene: {}", log));
+        }
+        let p_root_node = (*aiscene).root_node;
+
+        let root_id = {
+            let mut scene_importer_state = AssimpSceneImporter {
+                path,
+                cache,
+                ctx: context.clone(),
+                scene_objects,
+                ids
+            };
+            import_node(&mut scene_importer_state, aiscene, p_root_node, None)
+        };
+        // commit scene_objects
+        scene_objects.commit_changes();
+        Ok(root_id)
+    }
+}
