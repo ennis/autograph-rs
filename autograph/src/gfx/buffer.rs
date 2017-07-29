@@ -11,9 +11,9 @@ use std::rc::Rc;
 #[derive(Copy,Clone,Debug)]
 pub struct RawBufferSlice
 {
-    obj: GLuint,
-    offset: usize,
-    size: usize
+    pub obj: GLuint,
+    pub offset: usize,
+    pub size: usize
 }
 
 // This type is useless since it can't be bound to a pipeline

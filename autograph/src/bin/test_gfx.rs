@@ -1,3 +1,6 @@
+#![feature(plugin, custom_attribute)]
+extern crate flame;
+
 extern crate autograph;
 
 // The `vulkano` crate is the main crate that you must use to use Vulkan.
@@ -92,6 +95,8 @@ fn compile_shaders_from_combined_source(src_path: &Path) -> Result<CompiledShade
     )
 }
 
+const UPLOAD_BUFFER_SIZE: usize = 3*1024*1024;
+
 fn main()
 {
     pretty_env_logger::init().unwrap();
@@ -113,7 +118,6 @@ fn main()
 
     unsafe {
         gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
-        gl::ClearColor(0.0, 1.0, 0.0, 1.0);
     }
 
     // for posterity
@@ -122,24 +126,19 @@ fn main()
 
     // create a context
     let ctx = gfx::Context::new(&gfx::ContextConfig {
-        default_upload_buffer_size: 3 * 1024 * 1024,
+        default_upload_buffer_size: UPLOAD_BUFFER_SIZE,
         max_frames_in_flight: 3
     });
+    // create a queue
+    let queue = gfx::FrameQueue::new(ctx.clone());
 
-    // create a texture bound to this context
-    let tex = gfx::Texture::new(ctx.clone(), &gfx::TextureDesc {
-        dimensions: gfx::TextureDimensions::Tex2D,
-        format: gfx::TextureFormat::R8G8B8A8_UNORM,
-        width: 640,
-        height: 480,
-        ..Default::default()
-    });
+    // create an upload buffer for uniforms
+    let upload_buf = gfx::UploadBuffer::new(&queue, UPLOAD_BUFFER_SIZE);
 
     // load a pipeline!
     let pipeline = {
         // now build a pipeline
         let compiled_shaders = compile_shaders_from_combined_source(Path::new("data/shaders/DeferredGeometry.glsl")).unwrap();
-        println!("layout: {:#?}", &compiled_shaders.input_layout);
         gfx::GraphicsPipelineBuilder::new()
             .with_vertex_shader(compiled_shaders.vertex)
             .with_fragment_shader(compiled_shaders.fragment)
@@ -192,9 +191,10 @@ fn main()
     let mut ids = IDTable::new();
     let mut scene_objects = SceneObjects::new();
     let mut cache = rc_cache::Cache::new();
-    scene_loader::load_scene_file(Path::new("data/scenes/sponza/sponza.obj"), &mut ids, ctx.clone(), &cache, &mut scene_objects);
 
-    println!("Pipeline: {:#?}", pipeline);
+    scene_loader::load_scene_file(Path::new("data/scenes/sponza/sponza.obj"), &mut ids, ctx.clone(), &cache, &mut scene_objects).unwrap();
+    scene_objects.calculate_transforms();
+
 
     // draw macro with dynamic pipelines
     // <binding-type> <name> = initializer
@@ -221,6 +221,48 @@ fn main()
         ssbo Name = <some slice>,
     );*/
 
+
+    let mut update = || {
+        // TODO: update objects in the scene (evaluate animations, etc.)
+    };
+
+    let mut render = |frame: &mut gfx::Frame| {
+        #[repr(C)]
+        #[derive(Copy,Clone,Debug)]
+        struct CameraParameters {
+            proj_matrix: nalgebra::Matrix4<f32>,
+            view_matrix: nalgebra::Matrix4<f32>,
+            viewproj_matrix: nalgebra::Matrix4<f32>,
+            inverse_proj_matrix: nalgebra::Matrix4<f32>,
+            prev_viewproj_matrix_velocity: nalgebra::Matrix4<f32>,
+            viewproj_matrix_velocity: nalgebra::Matrix4<f32>,
+            temporal_aa_offset: [f32; 2]
+        }
+
+        // Per-object parameters
+        #[repr(C)]
+        #[derive(Copy,Clone,Debug)]
+        struct PerObjectParameters {
+            model_matrix: nalgebra::Matrix4<f32>
+        }
+
+
+        // Clear the screen
+        unsafe {
+            gl::ClearColor(0.0, 1.0, 0.0, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+        // update transforms
+        scene_objects.calculate_transforms();
+        // TODO render stuff
+
+        for obj in scene_objects.iter() {
+            // build draw command!
+            let data = [0.0f32; 200];
+            upload_buf.upload(frame, &data, 256);
+        }
+    };
+
     while running {
         // poll events
         event_loop.poll_events(|event| {
@@ -232,12 +274,19 @@ fn main()
             }
         });
 
+        // create the frame
+        let mut frame = queue.new_frame();
+
+        // update scene
+        update();
         // once all events in the queue are dispatched, render stuff
-        unsafe {
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
+        render(&mut frame);
+        // submit frame
+        frame.submit();
 
         // swap buffers
         window.swap_buffers().unwrap();
     }
+
+    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
 }

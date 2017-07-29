@@ -27,8 +27,10 @@ unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiSc
     let mesh_name = format!("{:?}:mesh_{}", &importer.path, index);
     assert!(index < (*scene).num_meshes as usize);
     let aimesh = *((*scene).meshes.offset(index as isize));
+    debug!("Importing mesh {}", mesh_name);
 
     let cached_mesh = importer.cache.get_or(&mesh_name, || {
+        debug!("Creating mesh {}", mesh_name);
         let vertices = slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
         let normals = slice::from_raw_parts((*aimesh).normals, (*aimesh).num_vertices as usize);
         let tangents = slice::from_raw_parts((*aimesh).tangents, (*aimesh).num_vertices as usize);
@@ -51,7 +53,8 @@ unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiSc
         Mesh::new(importer.ctx.clone(), verts.as_slice(), Some(indices.as_slice()))
     }).unwrap();
 
-    (cached_mesh, unimplemented!())
+
+    (cached_mesh, AABB::empty())
 }
 
 // go full unsafe
@@ -64,7 +67,13 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
     // load transform
     let tr = (*node).transformation;
     // convert to nalgebra type
-    let local_transform : Affine3<f32> = try_convert(Matrix4::<f32>::identity()).unwrap();
+    /*let local_transform : Affine3<f32> = try_convert(Matrix4::new(
+        tr.a1, tr.a2, tr.a3, tr.a4,
+        tr.b1, tr.b2, tr.b3, tr.b4,
+        tr.c1, tr.c2, tr.c3, tr.c4,
+        tr.d1, tr.d2, tr.d3, tr.d4,
+    )).unwrap();*/
+    let local_transform = Affine3::<f32>::identity();
 
     let meshes = slice::from_raw_parts((*node).meshes, (*node).num_meshes as usize);
 
@@ -128,6 +137,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
 pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: Rc<gfx::Context>, cache: &Cache, scene_objects: &mut SceneObjects) -> Result<ID, String>
 {
     let c_path = CString::new(path.to_str().unwrap()).unwrap();
+    debug!("Import scene {:?}", c_path);
     //let postproc_flags = AIPROCESS_OPTIMIZE_MESHES | AIPROCESS_OPTIMIZE_GRAPH |
     //   AIPROCESS_TRIANGULATE | AIPROCESS_JOIN_IDENTICAL_VERTICES |
     //    AIPROCESS_CALC_TANGENT_SPACE | AIPROCESS_SORT_BY_PTYPE;
@@ -136,6 +146,7 @@ pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: Rc<gfx::Context>
         let aiscene = aiImportFile(c_path.as_ptr(), postproc_flags);
         let log = CStr::from_ptr(aiGetErrorString()).to_str().unwrap();
         if aiscene.is_null() {
+            error!("Importing scene failed");
             return Err(format!("Failed to import scene: {}", log));
         }
         let p_root_node = (*aiscene).root_node;

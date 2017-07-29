@@ -2,7 +2,8 @@ use nalgebra::{Affine3};
 use id_table::ID;
 use std::rc::Rc;
 use aabb::AABB;
-use std::collections::HashMap;
+use std::collections::{HashMap};
+use std::collections::hash_map;
 use std::cell::RefCell;
 use mesh::Mesh;
 use rc_cache::Cached;
@@ -53,6 +54,10 @@ impl SceneObjects
         }
     }
 
+    pub fn iter(&self) -> hash_map::Iter<ID, RefCell<SceneObject>> {
+        self.scene_objects.iter()
+    }
+
     /// Add a parent/child relationship between the two IDs
     pub fn parent(&self, parent: ID, child: ID)
     {
@@ -74,8 +79,7 @@ impl SceneObjects
         self.changes.borrow_mut().push(SceneGraphChange::Insert(scene_object));
     }
 
-    fn calculate_transforms_rec(&self, ids: &[ID], parent_transform: &Affine3<f32>)
-    {
+    fn calculate_transforms_rec(&self, ids: &[ID], parent_transform: &Affine3<f32>) {
         for id in ids.iter() {
             let mut so = self.scene_objects.get(&id).unwrap().borrow_mut();  // borrow mut self
             so.world_transform = parent_transform * so.local_transform;
@@ -83,10 +87,10 @@ impl SceneObjects
         }
     }
 
-    pub fn calculate_transforms(&mut self)
-    {
+    pub fn calculate_transforms(&mut self) {
         // isolate roots
         let roots : Vec<_> = self.scene_objects.values().filter(|obj| obj.borrow().parent_id == None).map(|obj| obj.borrow().id).collect();
+        debug!("calculate_transforms: {} roots", roots.len());
         self.calculate_transforms_rec(&roots, &Affine3::identity());
     }
 

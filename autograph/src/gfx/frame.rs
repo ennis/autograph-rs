@@ -1,12 +1,4 @@
 
-use std::marker::PhantomData;
-
-pub struct Frame {
-    // The ID of the current frame
-    pub id: i64,
-    // TODO list of drop continuations
-}
-
 
 // A 'frame' object begins when the user starts sending draw commands
 // and 'dies' when the GPU has finished rendering and presented the results to the screen
@@ -33,11 +25,27 @@ pub struct Frame {
 //
 // Issue: upload buffer work with only one stream of frames (one 'queue'): it relies on
 // strictly increasing frame IDs for cleanup
+// Bind an upload buffer to a queue before
+// Right now, queue = context
+//
+// Don't rely on IDs => rely on sync objects
+// But: don't want a sync object for each
 //
 // What about async compute? => compute that runs outside a frame
 // Maybe a compute frame?
+// Different frames for each queue, with different lifetimes
 //
+// How to prevent a buffer created in one queue to be used in another queue?
+// => lifetimes?
 //
+
+// In the end, a frame is just a synchronisation primitive to avoid too much granularity in syncs
+// so: it should be possible to sync on a frame
+// another form of syncing would be to simply store a frame ID and check that the corresponding
+// fence has reached that ID => semaphores
+//
+// TODO: inter-queue synchronization? => tricky
+
 
 //
 // Consider using vulkano?

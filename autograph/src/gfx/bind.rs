@@ -1,6 +1,6 @@
 use gl;
 use gl::types::*;
-use super::frame::Frame;
+use super::queue::Frame;
 use super::buffer::*;
 use super::Texture;
 use super::pipeline::GraphicsPipeline;
@@ -246,9 +246,9 @@ impl DrawCommand for DrawIndexed
 ///
 /// Draw command builder
 /// lifetime-bound to a frame
-pub struct DrawCommandBuilder<'a>
+pub struct DrawCommandBuilder<'frame>
 {
-    frame: &'a Frame,
+    frame: &'frame Frame<'frame>,
     uniforms: Uniforms,     // holds arrays of uniforms
     vertex_input: VertexInput,  // vertex buffers + index buffer (optional)
     pipeline: Rc<GraphicsPipeline>,

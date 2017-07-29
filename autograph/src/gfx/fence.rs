@@ -6,46 +6,90 @@ use std::mem;
 use std::collections::vec_deque::VecDeque;
 use super::context::Context;
 use std::rc::Rc;
+use std::cell::RefCell;
+
+#[derive(Copy,Clone,Debug,PartialOrd,Ord,PartialEq,Eq)]
+pub struct FenceValue(pub i64);
 
 struct SyncPoint
 {
     sync: GLsync,
-    target: i64
+    value: FenceValue
 }
 
-///
-///
 pub struct Fence
 {
     sync_points: VecDeque<SyncPoint>,
-    current_value: i64,
+    current_value: FenceValue,
+    next_value: FenceValue
 }
 
-/*
 impl Fence
 {
-    pub fn new(ctx: Rc<Context>, init_value: i64) -> Fence {
+    pub fn new(ctx: Rc<Context>, init_value: FenceValue) -> Fence {
         Fence {
             sync_points: VecDeque::new(),
-            current_value: init_value
+            current_value: init_value,
+            next_value: FenceValue(init_value.0+1)
         }
     }
 
-    pub fn signal(&self, value: i64) {
-
+    pub fn advance_async(&mut self) -> FenceValue {
+        let sync = unsafe {
+            gl::FenceSync(gl::SYNC_GPU_COMMANDS_COMPLETE, 0)
+        };
+        self.sync_points.push_back(SyncPoint { sync, value: self.next_value });
+        self.next_value.0 += 1;
+        self.next_value
     }
 
-    pub fn advance(&mut self) {
+    pub fn next_value(&self) -> FenceValue {
+        self.next_value
+    }
+
+    // This should not be mut!
+    pub fn current_value(&mut self) -> FenceValue {
+        while !self.sync_points.is_empty() {
+            if !self.wait_one(0) {
+                break;
+            }
+        }
+        self.current_value
+    }
+
+    // Returns true if the current_value was bumped
+    fn wait_one(&mut self, timeout: u64) -> bool {
+        let advanced = if let Some(target_sync) = self.sync_points.front() {
+            let wait_result = unsafe {
+                gl::ClientWaitSync(target_sync.sync, gl::SYNC_FLUSH_COMMANDS_BIT, timeout)
+            };
+
+            if wait_result == gl::CONDITION_SATISFIED ||
+                wait_result == gl::ALREADY_SIGNALED {
+                self.current_value = target_sync.value;
+                true
+            } else if wait_result == gl::WAIT_FAILED {
+                panic!("Fence wait failed")
+            }
+            else {
+                false
+            }
+        } else {
+            // nothing in the wait list
+            false
+        };
+        if advanced {
+            self.sync_points.pop_front();
+        };
+        advanced
+    }
+
+
+    fn wait_until(&mut self, timeout: u64) {
         unimplemented!()
     }
 
-    pub fn wait(&self) {
-        unimplemented!()
-    }
-
-    pub fn get_value(&self) -> i64 {
-        unimplemented!()
-    }
 }
 
-*/
+//pub fn signal_fence
+

@@ -13,6 +13,7 @@ pub mod program;
 pub mod pipeline;
 pub mod bind;
 pub mod framebuffer;
+pub mod queue;
 
 pub use self::state_group::*;
 pub use self::texture::*;
@@ -24,3 +25,5 @@ pub use self::vertex_array::*;
 pub use self::upload_buffer::*;
 pub use self::texture_format::*;
 pub use self::pipeline::*;
+pub use self::frame::*;
+pub use self::queue::*;

@@ -1,7 +1,9 @@
 #![feature(const_fn)]
 #![feature(intrinsics)]
 #![feature(box_syntax)]
+#![feature(plugin, custom_attribute)]
 
+extern crate flame;
 extern crate glutin;
 extern crate typed_arena;
 extern crate smallvec;
