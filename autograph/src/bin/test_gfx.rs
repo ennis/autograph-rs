@@ -180,7 +180,7 @@ fn main()
                     relative_offset: 36,
                     normalized: false
                 }])
-            .build(ctx).map_err(|e| match e {
+            .build(ctx.clone()).map_err(|e| match e {
                 gfx::GraphicsPipelineBuildError::ProgramLinkError(ref log) => {
                     println!("Program link error: {}", log);
                 }

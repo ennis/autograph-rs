@@ -59,6 +59,11 @@ pub struct Cache
 
 impl Cache
 {
+    pub fn new() -> Cache {
+        Cache {
+            cached_objects: RefCell::new(HashMap::new())
+        }
+    }
     /// panics if element already there
     pub fn add<T>(&self, path: String, obj: T) -> Cached<T>
         where T: Any

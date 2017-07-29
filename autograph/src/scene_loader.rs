@@ -64,12 +64,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
     // load transform
     let tr = (*node).transformation;
     // convert to nalgebra type
-    let local_transform : Affine3<f32> = try_convert(Matrix4::new(
-        tr.a1, tr.a2, tr.a3, tr.a4,
-        tr.b1, tr.b2, tr.b3, tr.b4,
-        tr.c1, tr.c2, tr.c3, tr.c4,
-        tr.d1, tr.d2, tr.d3, tr.d4,
-    )).unwrap();
+    let local_transform : Affine3<f32> = try_convert(Matrix4::<f32>::identity()).unwrap();
 
     let meshes = slice::from_raw_parts((*node).meshes, (*node).num_meshes as usize);
 
