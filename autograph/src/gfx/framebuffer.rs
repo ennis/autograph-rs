@@ -24,7 +24,7 @@ impl Renderbuffer
 }
 
 #[derive(Debug)]
-struct Framebuffer
+pub struct Framebuffer
 {
     context: Rc<Context>,
     size: (u32,u32),
@@ -147,7 +147,7 @@ impl FramebufferBuilder {
 
 impl Framebuffer
 {
-    pub fn from_gl_window(context: Rc<Context>, window: GlWindow) -> Framebuffer {
+    pub fn from_gl_window(context: Rc<Context>, window: &GlWindow) -> Framebuffer {
         let pixel_size = window.get_inner_size_pixels().unwrap();
         Framebuffer {
             context: context.clone(),
@@ -156,6 +156,10 @@ impl Framebuffer
             depth_attachment: FramebufferAttachment::Default,
             obj: 0
         }
+    }
+
+    pub fn size(&self) -> (u32,u32) {
+        self.size
     }
 }
 

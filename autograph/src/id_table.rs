@@ -4,8 +4,8 @@ use std::collections::HashMap;
 #[derive(Copy,Clone,Hash,Debug,Default,PartialEq,Eq)]
 pub struct ID
 {
-    idx: u32,
-    gen: u32
+    pub idx: u32,
+    pub gen: u32
 }
 
 impl ID

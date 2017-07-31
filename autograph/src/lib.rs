@@ -42,3 +42,4 @@ pub mod gl;
 pub mod gfx;
 pub mod scene_loader;
 pub mod mesh;
+pub mod camera;

@@ -12,15 +12,16 @@ layout(std140, binding = 0) uniform CameraParameters {
   mat4 uInvProjMatrix;
   mat4 uPrevViewProjMatrixVelocity;
   mat4 uViewProjMatrixVelocity;
+  vec2 uTAAOffset;
 };
 
-uniform int uObjectID;
+layout(std140, binding = 1) uniform ObjectParameters {
+	mat4 uModelMatrix;
+	mat4 uPrevModelMatrix;
+	int uObjectID;
+};
 
 #ifdef _VERTEX_
-
-	uniform mat4 uPrevModelMatrix;
-	uniform mat4 uModelMatrix;
-
 	layout(location = 0) in vec3 iPosition;
 	layout(location = 1) in vec3 iNormal;
 	layout(location = 2) in vec3 iTangent;
@@ -30,9 +31,8 @@ uniform int uObjectID;
 	//out vec3 Pv;
 	out vec3 Tv0;
 	out vec2 uv;
-
-	smooth out vec4 prevPos;
-	smooth out vec4 curPos;
+	out vec4 prevPos;
+	out vec4 curPos;
 
 	void main() {
 	  gl_Position = uViewProjMatrix * uModelMatrix * vec4(iPosition, 1.0f);
@@ -54,9 +54,8 @@ uniform int uObjectID;
 	//in vec3 Pv;
 	in vec3 Tv0;
 	in vec2 uv;
-
-	smooth in vec4 prevPos;
-	smooth in vec4 curPos;
+	in vec4 prevPos;
+	in vec4 curPos;
 
 	layout(location = 0) out vec4 rtAlbedo; 	// RGBA8
 	layout(location = 1) out vec4 rtNormals;	// RG16F

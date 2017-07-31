@@ -1,6 +1,5 @@
 #![feature(plugin, custom_attribute)]
 extern crate flame;
-
 extern crate autograph;
 
 // The `vulkano` crate is the main crate that you must use to use Vulkan.
@@ -26,6 +25,7 @@ use std::io::Read;
 use std::sync::Arc;
 use std::collections::BTreeSet;
 use std::cmp::Ord;
+use std::rc::Rc;
 
 use glutin::GlContext;
 
@@ -34,9 +34,13 @@ use autograph::gfx;
 use autograph::gl;
 use autograph::gl::types::*;
 use autograph::id_table::{ID,IDTable};
-use autograph::scene_object::{SceneObject,SceneObjects};
+use autograph::scene_object::{SceneObject,SceneObjects,SceneMesh};
 use autograph::scene_loader;
 use autograph::rc_cache;
+use autograph::gfx::AsSlice;
+use autograph::camera::*;
+
+use nalgebra::*;
 
 struct CompiledShaders {
     vertex: gfx::Shader,
@@ -97,6 +101,47 @@ fn compile_shaders_from_combined_source(src_path: &Path) -> Result<CompiledShade
 
 const UPLOAD_BUFFER_SIZE: usize = 3*1024*1024;
 
+#[repr(C)]
+#[derive(Copy,Clone,Debug)]
+struct CameraParameters {
+    view_matrix: Matrix4<f32>,
+    proj_matrix: Matrix4<f32>,
+    viewproj_matrix: Matrix4<f32>,
+    inverse_proj_matrix: Matrix4<f32>,
+    prev_viewproj_matrix_velocity: Matrix4<f32>,
+    viewproj_matrix_velocity: Matrix4<f32>,
+    temporal_aa_offset: [f32; 2]
+}
+
+impl CameraParameters
+{
+    pub fn from_camera(cam: &Camera, temporal_aa_offset: (f32,f32)) -> CameraParameters {
+        let view_matrix = cam.view.to_homogeneous();
+        let proj_matrix = cam.projection.unwrap();
+        let viewproj_matrix = proj_matrix * view_matrix;
+        let inverse_proj_matrix = cam.projection.inverse();
+
+        CameraParameters {
+            view_matrix,
+            proj_matrix,
+            viewproj_matrix,
+            inverse_proj_matrix,
+            viewproj_matrix_velocity: viewproj_matrix,
+            prev_viewproj_matrix_velocity: viewproj_matrix,
+            temporal_aa_offset: [0.0;2] // TODO
+        }
+    }
+}
+
+// Per-object parameters
+#[repr(C)]
+#[derive(Copy,Clone,Debug)]
+struct ObjectParameters {
+    model_matrix: Matrix4<f32>,
+    prev_model_matrix: Matrix4<f32>,
+    object_id: i32
+}
+
 fn main()
 {
     pretty_env_logger::init().unwrap();
@@ -109,6 +154,7 @@ fn main()
         .with_dimensions(640, 480);
     let context_builder = glutin::ContextBuilder::new()
         .with_gl_profile(glutin::GlProfile::Core)
+        .with_gl_debug_flag(true)
         .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 5)));
     let window = glutin::GlWindow::new(window_builder, context_builder, &event_loop).unwrap();
 
@@ -139,7 +185,7 @@ fn main()
     let pipeline = {
         // now build a pipeline
         let compiled_shaders = compile_shaders_from_combined_source(Path::new("data/shaders/DeferredGeometry.glsl")).unwrap();
-        gfx::GraphicsPipelineBuilder::new()
+        Rc::new(gfx::GraphicsPipelineBuilder::new()
             .with_vertex_shader(compiled_shaders.vertex)
             .with_fragment_shader(compiled_shaders.fragment)
             .with_geometry_shader(compiled_shaders.geometry)
@@ -184,82 +230,67 @@ fn main()
                     println!("Program link error: {}", log);
                 }
             })
-            .unwrap()
+            .unwrap())
     };
 
     // load a scene!
     let mut ids = IDTable::new();
     let mut scene_objects = SceneObjects::new();
     let mut cache = rc_cache::Cache::new();
-
-    scene_loader::load_scene_file(Path::new("data/scenes/sponza/sponza.obj"), &mut ids, ctx.clone(), &cache, &mut scene_objects).unwrap();
-    scene_objects.calculate_transforms();
-
-
-    // draw macro with dynamic pipelines
-    // <binding-type> <name> = initializer
-    // OR: <binding-type> <index> = initializer
-    // OR: <binding-type>: initializer
-
-    /*gfx_draw!(
-        target:                     fbo,
-        command:                    DrawArrays { ..unimplemented!() },
-        uniform uPrevModelMatrix:   unimplemented!(),
-        uniform uObjectID:          unimplemented!(),
-        uniform_buffer[0]:          unimplemented!(),
-        sampled_texture[0]:         (tex, sampler),
-    );*/
-
-    /*gfx_draw!(
-        target:         fbo,
-        command:        DrawArrays { ... },
-        pipeline:       DynamicPipeline,
-        vertex_buffer(0):  ,
-        index_buffer:   ,
-        uniform Name = "...",
-        uniform_buffer Struct = "...",
-        ssbo Name = <some slice>,
-    );*/
-
+    let rootobjid = scene_loader::load_scene_file(Path::new("data/scenes/sponza/sponza.obj"), &mut ids, ctx.clone(), &cache, &mut scene_objects).unwrap();
+    let mut camera_control = CameraControl::default();
 
     let mut update = || {
-        // TODO: update objects in the scene (evaluate animations, etc.)
     };
 
     let mut render = |frame: &mut gfx::Frame| {
-        #[repr(C)]
-        #[derive(Copy,Clone,Debug)]
-        struct CameraParameters {
-            proj_matrix: nalgebra::Matrix4<f32>,
-            view_matrix: nalgebra::Matrix4<f32>,
-            viewproj_matrix: nalgebra::Matrix4<f32>,
-            inverse_proj_matrix: nalgebra::Matrix4<f32>,
-            prev_viewproj_matrix_velocity: nalgebra::Matrix4<f32>,
-            viewproj_matrix_velocity: nalgebra::Matrix4<f32>,
-            temporal_aa_offset: [f32; 2]
-        }
-
-        // Per-object parameters
-        #[repr(C)]
-        #[derive(Copy,Clone,Debug)]
-        struct PerObjectParameters {
-            model_matrix: nalgebra::Matrix4<f32>
-        }
-
+        scene_objects.calculate_transforms();
 
         // Clear the screen
         unsafe {
             gl::ClearColor(0.0, 1.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
-        // update transforms
-        scene_objects.calculate_transforms();
-        // TODO render stuff
 
-        for obj in scene_objects.iter() {
+        let framebuffer = Rc::new(gfx::Framebuffer::from_gl_window(ctx.clone(), &window));
+        let (width,height) = framebuffer.size();
+        let (fwidth,fheight) = (width as f32, height as f32);
+        let aspect_ratio = fwidth / fheight;
+        let fovy = std::f32::consts::PI/4.0f32;
+
+        // setup camera parameters (center on root object)
+        let root_bounds = scene_objects.get(rootobjid).unwrap().borrow().world_bounds;
+        camera_control.set_aspect_ratio(aspect_ratio);
+        camera_control.center_on_aabb(root_bounds, fovy);
+        let cam = CameraParameters::from_camera(&camera_control.camera(), (0.0,0.0));
+
+        // TODO: UBO alignment
+        let cam_buffer = upload_buf.upload(frame, &cam, 256);
+
+        for (id,obj) in scene_objects.iter() {
             // build draw command!
-            let data = [0.0f32; 200];
-            upload_buf.upload(frame, &data, 256);
+            let obj = obj.borrow();
+
+            if let Some(ref sm) = obj.mesh {
+                debug!("Render id {:?}", id);
+
+                let objparams = upload_buf.upload(frame, &ObjectParameters {
+                    model_matrix: obj.world_transform.to_homogeneous(),
+                    prev_model_matrix: obj.world_transform.to_homogeneous(),
+                    object_id: id.idx as i32
+                }, 256);
+
+                gfx::DrawCommandBuilder::new(frame, framebuffer.clone(), pipeline.clone())
+                    .with_vertex_buffer(0, &sm.mesh.vertex_buffer().as_slice())
+                    .with_index_buffer(&sm.mesh.index_buffer().unwrap().as_slice())
+                    .with_uniform_buffer(0, &cam_buffer)
+                    .with_uniform_buffer(1, &objparams)
+                    .command(&gfx::DrawIndexed {
+                        first: 0,
+                        count: sm.mesh.index_count(),
+                        base_vertex: 0
+                    });
+            }
         }
     };
 

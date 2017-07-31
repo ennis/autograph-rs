@@ -79,8 +79,11 @@ impl Fence
             false
         };
         if advanced {
-            self.sync_points.pop_front();
-        };
+            let sp = self.sync_points.pop_front().unwrap();
+            unsafe {
+                gl::DeleteSync(sp.sync);
+            }
+        }
         advanced
     }
 
@@ -88,7 +91,6 @@ impl Fence
     fn wait_until(&mut self, timeout: u64) {
         unimplemented!()
     }
-
 }
 
 //pub fn signal_fence

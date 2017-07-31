@@ -1,4 +1,4 @@
-use nalgebra::{Scalar, Vector3, Vector4, Point3, Affine3, min, max, Matrix, U1, U2, U3, U4};
+use nalgebra::*;
 use nalgebra::storage::{Storage, OwnedStorage};
 use alga::general::{Field};
 use std::cmp::Ord;
@@ -7,34 +7,34 @@ use num_traits::Bounded;
 #[derive(Copy,Clone,Debug)]
 pub struct AABB<N: Scalar + Field + PartialOrd + Bounded>
 {
-    min: Point3<N>,
-    max: Point3<N>
+    pub min: Point3<N>,
+    pub max: Point3<N>
 }
 
-fn partial_min<T: PartialOrd>(a: T, b: T) -> T {
+pub fn partial_min<T: PartialOrd>(a: T, b: T) -> T {
     if a < b { a } else { b }
 }
 
-fn partial_max<T: PartialOrd>(a: T, b: T) -> T {
+pub fn partial_max<T: PartialOrd>(a: T, b: T) -> T {
     if a < b { b } else { a }
 }
 
-fn cw_min3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
+pub fn cw_min3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
 {
     Vector3::new(partial_min(a.x, b.x), partial_min(a.y, b.y), partial_min(a.z, b.z))
 }
 
-fn cw_max3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
+pub fn cw_max3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
 {
     Vector3::new(partial_max(a.x, b.x), partial_max(a.y, b.y), partial_max(a.z, b.z))
 }
 
-fn cw_min4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
+pub fn cw_min4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
 {
     Vector4::new(partial_min(a.x, b.x), partial_min(a.y, b.y), partial_min(a.z, b.z), partial_min(a.w, b.w))
 }
 
-fn cw_max4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
+pub fn cw_max4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
 {
     Vector4::new(partial_max(a.x, b.x), partial_max(a.y, b.y), partial_max(a.z, b.z), partial_max(a.w, b.w))
 }
@@ -48,7 +48,7 @@ impl<N: Scalar + Field + PartialOrd + Bounded> AABB<N>
     /// Reference:
     /// http://dev.theomader.com/transform-bounding-boxes/
     pub fn transform(&self, tr: &Affine3<N>) -> AABB<N> {
-        let trh = tr.to_homogeneous();
+        let trh = tr.matrix();
         let xa = trh.column(0) * self.min[0];
         let xb = trh.column(0) * self.max[0];
         let ya = trh.column(1) * self.min[1];

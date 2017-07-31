@@ -1,8 +1,8 @@
 use assimp_sys::*;
 use id_table::{ID, IDTable};
-use scene_object::{SceneObject, SceneObjects};
+use scene_object::{SceneObject, SceneObjects, SceneMesh};
 use aabb::AABB;
-use mesh::{Mesh, Vertex3};
+use mesh::{Mesh, Vertex3, calculate_aabb};
 use nalgebra::*;
 use itertools::Zip;
 use gfx;
@@ -22,12 +22,11 @@ struct AssimpSceneImporter<'a>
 }
 
 unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiScene, index: usize)
-    -> (Cached<Mesh>, AABB<f32>)
+    -> Cached<SceneMesh>
 {
     let mesh_name = format!("{:?}:mesh_{}", &importer.path, index);
     assert!(index < (*scene).num_meshes as usize);
     let aimesh = *((*scene).meshes.offset(index as isize));
-    debug!("Importing mesh {}", mesh_name);
 
     let cached_mesh = importer.cache.get_or(&mesh_name, || {
         debug!("Creating mesh {}", mesh_name);
@@ -50,11 +49,16 @@ unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiSc
             vec![f[0] as i32,f[1] as i32, f[2] as i32]
         }).collect();
 
-        Mesh::new(importer.ctx.clone(), verts.as_slice(), Some(indices.as_slice()))
+        let aabb = calculate_aabb(&verts);
+        debug!("Imported mesh AABB {:?}", aabb);
+
+        SceneMesh {
+            mesh: Mesh::new(importer.ctx.clone(), &verts, Some(&indices)),
+            aabb: calculate_aabb(&verts)
+        }
     }).unwrap();
 
-
-    (cached_mesh, AABB::empty())
+    cached_mesh
 }
 
 // go full unsafe
@@ -80,7 +84,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
     // load children
     if meshes.len() == 1 {
         // one mesh attached to this node: import it and attach to the node
-        let (mesh, bounds) = import_mesh(importer, scene, meshes[0] as usize);
+        let mesh = import_mesh(importer, scene, meshes[0] as usize);
         // build node
         importer.scene_objects.insert(SceneObject {
             id,
@@ -88,8 +92,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
             name,
             local_transform,
             world_transform: Affine3::identity(),
-            world_bounds: bounds,
-            mesh_bounds: bounds,
+            world_bounds: mesh.aabb,
             mesh: Some(mesh),
             children: Vec::new()
         });
@@ -103,22 +106,20 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
             local_transform,
             world_transform: Affine3::identity(),
             world_bounds: AABB::empty(),
-            mesh_bounds: AABB::empty(),
             mesh: None,
             children: Vec::new()
         });
 
         for (im,m) in meshes.iter().enumerate() {
             let child_id = importer.ids.create_id();
-            let (mesh, bounds) = import_mesh(importer, scene, *m as usize);
+            let mesh = import_mesh(importer, scene, *m as usize);
             importer.scene_objects.insert(SceneObject {
                 id: child_id,
                 parent_id: Some(id),
                 name: format!("(mesh {})", im),
                 local_transform: Affine3::identity(),
                 world_transform: Affine3::identity(),
-                world_bounds: bounds,
-                mesh_bounds: bounds,
+                world_bounds: mesh.aabb,
                 mesh: Some(mesh),
                 children: Vec::new()
             });

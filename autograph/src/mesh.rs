@@ -1,6 +1,8 @@
-use nalgebra::{Point3,Vector3,Vector2};
+use nalgebra::*;
 use gfx::{Buffer, BufferUsage, Context};
 use std::rc::Rc;
+use aabb::*;
+use std::f32;
 
 #[derive(Copy,Clone,Debug)]
 pub struct Vertex3
@@ -12,15 +14,39 @@ pub struct Vertex3
 }
 
 #[derive(Debug)]
-pub struct Mesh
+pub struct Mesh<V: Copy + 'static>
 {
-    vbo: Buffer,
-    ibo: Option<Buffer>,
+    vbo: Rc<Buffer<[V]>>,
+    ibo: Option<Rc<Buffer<[i32]>>>,
     vertex_count: usize,
     index_count: usize
 }
 
-impl Mesh
+pub fn calculate_aabb(vertices: &[Vertex3]) -> AABB<f32>
+{
+    let mut pmin = Point3::new(f32::INFINITY,
+                              f32::INFINITY,
+                              f32::INFINITY);
+    let mut pmax = Point3::new(f32::NEG_INFINITY,
+                              f32::NEG_INFINITY,
+                              f32::NEG_INFINITY);
+
+    for v in vertices {
+        pmin.x = f32::min(pmin.x, v.pos.x);
+        pmin.y = f32::min(pmin.y, v.pos.y);
+        pmin.z = f32::min(pmin.z, v.pos.z);
+        pmax.x = f32::max(pmax.x, v.pos.x);
+        pmax.y = f32::max(pmax.y, v.pos.y);
+        pmax.z = f32::max(pmax.z, v.pos.z);
+    }
+
+    AABB {
+        min: pmin,
+        max: pmax
+    }
+}
+
+impl<V: Copy + 'static> Mesh<V>
 {
     pub fn vertex_count(&self) -> usize {
         self.vertex_count
@@ -30,12 +56,20 @@ impl Mesh
         self.index_count
     }
 
-    pub fn new<T: Copy>(context: Rc<Context>, vertices: &[T], indices: Option<&[i32]>) -> Mesh {
+    pub fn new(context: Rc<Context>, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
         Mesh {
-            vbo: Buffer::with_data(context.clone(), BufferUsage::DEFAULT, vertices),
-            ibo: indices.map(|indices| Buffer::with_data(context.clone(), BufferUsage::DEFAULT, indices)),
+            vbo: Rc::new(Buffer::with_data(context.clone(), BufferUsage::DEFAULT, vertices)),
+            ibo: indices.map(|indices| Rc::new(Buffer::with_data(context.clone(), BufferUsage::DEFAULT, indices))),
             vertex_count: vertices.len(),
-            index_count: indices.map(|indices| indices.len()).unwrap_or(0)
+            index_count: indices.map(|indices| indices.len()).unwrap_or(0),
         }
+    }
+
+    pub fn vertex_buffer(&self) -> &Rc<Buffer<[V]>> {
+        &self.vbo
+    }
+
+    pub fn index_buffer(&self) -> Option<&Rc<Buffer<[i32]>>> {
+        self.ibo.as_ref()
     }
 }

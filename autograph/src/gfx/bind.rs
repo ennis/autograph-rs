@@ -7,8 +7,9 @@ use super::pipeline::GraphicsPipeline;
 use super::upload_buffer::{UploadBuffer,TransientBuffer};
 use super::context::Context;
 use std::rc::Rc;
-
-
+use super::buffer_data::BufferData;
+use super::framebuffer::Framebuffer;
+use std::mem;
 
 // draw macro with dynamic pipelines
 // <binding-type> <name> = initializer
@@ -100,7 +101,7 @@ bitflags! {
 }
 
 // TODO: optimize away redundant state changes
-unsafe fn bind_graphics_pipeline(pipe: &GraphicsPipeline, ctx: &Context, mask: &StateGroupMask)
+unsafe fn bind_graphics_pipeline(pipe: &GraphicsPipeline, ctx: &Context, mask: StateGroupMask)
 {
     /*if mask.contains(SG_VIEWPORTS) {
             // TODO: maybe something a bit less drastic than transmute could be possible?
@@ -163,8 +164,6 @@ unsafe fn bind_graphics_pipeline(pipe: &GraphicsPipeline, ctx: &Context, mask: &
 
 unsafe fn bind_uniforms(uniforms: &Uniforms)
 {
-
-
     // Textures
     gl::BindTextures(0, MAX_TEXTURE_UNITS as i32, uniforms.textures.as_ptr());
     // Samplers
@@ -211,34 +210,42 @@ unsafe fn bind_vertex_input(vertex_input: &VertexInput)
 pub trait DrawCommand
 {
     // unsafe because this binds things to the pipeline
-    unsafe fn submit(frame: &Frame, builder: &DrawCommandBuilder);
+    unsafe fn submit(&self, frame: &Frame, builder: &DrawCommandBuilder);
 }
 
 pub struct DrawArrays
 {
-    first: usize,
-    count: usize
+    pub first: usize,
+    pub count: usize
 }
 
 impl DrawCommand for DrawArrays
 {
-    unsafe fn submit(frame: &Frame, builder: &DrawCommandBuilder) {
-        //gl::DrawArrays()
-        unimplemented!()
+    unsafe fn submit(&self, frame: &Frame, builder: &DrawCommandBuilder) {
+        gl::DrawArrays(builder.pipeline.primitive_topology, self.first as i32, self.count as i32);
     }
 }
 
 pub struct DrawIndexed
 {
-    first: usize,
-    count: usize,
-    base_vertex: usize
+    pub first: usize,
+    pub count: usize,
+    pub base_vertex: usize
 }
 
 impl DrawCommand for DrawIndexed
 {
-    unsafe fn submit(frame: &Frame, builder: &DrawCommandBuilder) {
-        unimplemented!()
+    unsafe fn submit(&self, frame: &Frame, builder: &DrawCommandBuilder) {
+        let index_stride = match builder.vertex_input.index_buffer_type {
+            gl::UNSIGNED_INT => 4,
+            gl::UNSIGNED_SHORT => 2,
+            _ => panic!("Unexpected index type")
+        };
+        gl::DrawElementsBaseVertex(builder.pipeline.primitive_topology,
+                                   self.count as i32,
+                                   builder.vertex_input.index_buffer_type,
+                                   (self.first * index_stride) as *const GLvoid,
+                                   self.base_vertex as i32);
     }
 }
 
@@ -248,9 +255,11 @@ impl DrawCommand for DrawIndexed
 /// lifetime-bound to a frame
 pub struct DrawCommandBuilder<'frame>
 {
+    // can't mut-borrow the frame since transient buffers borrow the frame
     frame: &'frame Frame<'frame>,
     uniforms: Uniforms,     // holds arrays of uniforms
     vertex_input: VertexInput,  // vertex buffers + index buffer (optional)
+    framebuffer: Rc<Framebuffer>,
     pipeline: Rc<GraphicsPipeline>,
     scissors: [(i32,i32,i32,i32);8],
     viewports: [(f32,f32,f32,f32);8],
@@ -268,26 +277,42 @@ pub struct DrawCommandBuilder<'frame>
 // before actually releasing memory for an object, so it's actually useless
 // But do it anyway to mimic vulkan
 
+
+
 impl<'a> DrawCommandBuilder<'a>
 {
-    pub fn new<'b>(frame: &'b Frame, pipeline: Rc<GraphicsPipeline>) -> DrawCommandBuilder<'b>
+    pub fn new<'b>(frame: &'b Frame, framebuffer: Rc<Framebuffer>, pipeline: Rc<GraphicsPipeline>) -> DrawCommandBuilder<'b>
     {
-        unimplemented!()
-        //DrawCommandBuilder { frame: frame, sg: Default::default(), pipeline:  }
+        let fb_size = framebuffer.size();
+        DrawCommandBuilder {
+            frame: frame,
+            uniforms: Default::default(),
+            vertex_input: Default::default(),
+            pipeline,
+            framebuffer,
+            scissors: [(0,0,0,0);8],
+            viewports: [(0f32,0f32,fb_size.0 as f32, fb_size.1 as f32);8],
+        }
     }
 
-    // TODO TransientBuffer should really be T where T: BindableBufferResource
-    // BindableBufferResource would have an unsafe get_slice()
-    // BindableResource would have a add_ref(Frame)
     // TODO struct type check?
-    pub fn with_storage_buffer<'frame>(mut self, slot: i32, slice: &'a TransientBuffer<'frame>) -> Self
+    pub fn with_storage_buffer<T: BufferData+?Sized>(mut self, slot: usize, resource: &BufferSlice<T>) -> Self
     {
-        unimplemented!()
+        // reference this buffer in the frame
+        self.frame.ref_buffers.borrow_mut().push(resource.owner.clone());
+        self.uniforms.shader_storage_buffers[slot] = resource.owner.object();
+        self.uniforms.shader_storage_buffer_offsets[slot] = resource.byte_offset as GLintptr;
+        self.uniforms.shader_storage_buffer_sizes[slot] = resource.byte_size() as GLsizeiptr;
+        self
     }
 
-    pub fn with_uniform_buffer<'frame>(mut self, slot: i32, slice: &'a TransientBuffer<'frame>) -> Self
+    pub fn with_uniform_buffer<T: BufferData+?Sized>(mut self, slot: usize, resource: &BufferSlice<T>) -> Self
     {
-        unimplemented!()
+        self.frame.ref_buffers.borrow_mut().push(resource.owner.clone());
+        self.uniforms.uniform_buffers[slot] = resource.owner.object();
+        self.uniforms.uniform_buffer_offsets[slot] = resource.byte_offset as GLintptr;
+        self.uniforms.uniform_buffer_sizes[slot] = resource.byte_size() as GLsizeiptr;
+        self
     }
 
     pub fn with_image(mut self, slot: i32, tex: Rc<Texture>) -> Self
@@ -305,14 +330,37 @@ impl<'a> DrawCommandBuilder<'a>
         unimplemented!()
     }
 
-    // TODO BindableBufferResource
-    // TODO layout check?
-    pub fn with_vertex_buffer(mut self, index: i32, buf: Rc<Buffer>) -> Self { unimplemented!() }
+    pub fn with_vertex_buffer<T: BufferData+?Sized>(mut self, slot: usize, vertices: &BufferSlice<T>) -> Self {
+        // TODO layout check w.r.t pipeline
+        // TODO alignment check
+        self.frame.ref_buffers.borrow_mut().push(vertices.owner.clone());
+        self.vertex_input.vertex_buffers[slot] = vertices.owner.object();
+        self.vertex_input.vertex_buffer_offsets[slot] = vertices.byte_offset as GLintptr;
+        self.vertex_input.vertex_buffer_strides[slot] = mem::size_of::<T::Element>() as GLsizei;
+        self
+    }
 
-    //pub fn with_named_uniform_buffer(mut self, )
+    pub fn with_index_buffer<T: BufferData+?Sized>(mut self, indices: &BufferSlice<T>) -> Self {
+        self.frame.ref_buffers.borrow_mut().push(indices.owner.clone());
+        self.vertex_input.index_buffer = indices.owner.object();
+        self.vertex_input.index_buffer_size = indices.byte_size();
+        self.vertex_input.index_buffer_type = match mem::size_of::<T::Element>() {
+            4 => gl::UNSIGNED_INT,
+            2 => gl::UNSIGNED_SHORT,
+            _ => panic!("Unexpected index type!")
+        };
+        self
+    }
 
-    //pub fn named_uniform(self, name: &str, )
-
-    // TODO impl uniform_vecN, storage_buffer<'buf: 'frame>, uniform_buffer<'buf, 'frame:'buf> (the frame must outlive the buf)
+    pub fn command<T: DrawCommand>(mut self, cmd: &T) -> Self
+    {
+        unsafe {
+            bind_graphics_pipeline(&self.pipeline, &self.frame.queue().context(), SG_ALL);
+            bind_uniforms(&self.uniforms);
+            bind_vertex_input(&self.vertex_input);
+            cmd.submit(self.frame, &self);
+        }
+        self
+    }
 
 }

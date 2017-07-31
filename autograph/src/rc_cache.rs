@@ -9,7 +9,7 @@ use std::ops::Deref;
 
 ///
 /// Wrapper around a cached object of type T
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct Cached<T: 'static>
 {
     ptr: Rc<Any>,

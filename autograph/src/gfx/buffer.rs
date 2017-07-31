@@ -7,6 +7,8 @@ use std::mem;
 use std::os::raw::c_void;
 use super::context::Context;
 use std::rc::Rc;
+use super::buffer_data::BufferData;
+use super::bindable::PipelineResource;
 
 #[derive(Copy,Clone,Debug)]
 pub struct RawBufferSlice
@@ -15,16 +17,6 @@ pub struct RawBufferSlice
     pub offset: usize,
     pub size: usize
 }
-
-// This type is useless since it can't be bound to a pipeline
-/*#[derive(Copy,Clone,Debug)]
-pub struct BufferSlice<'buf>
-{
-    obj: GLuint,
-    offset: isize,
-    size: isize,
-    _phantom: PhantomData<&'buf ()>
-}*/
 
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub enum BufferUsage
@@ -35,57 +27,17 @@ pub enum BufferUsage
 }
 
 #[derive(Debug)]
-pub struct Buffer
+pub struct Buffer<T: BufferData + ?Sized>
 {
     context: Rc<Context>,
     obj: GLuint,
-    size: usize,
-    usage: BufferUsage
+    len: usize,
+    usage: BufferUsage,
+    _phantom: PhantomData<T>
 }
 
-/*void *Buffer::map(size_t offset, size_t size) {
-gl::GLbitfield flags = gl::MAP_UNSYNCHRONIZED_BIT;
-if (usage_ == Usage::Readback) {
-flags |= gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT;
-} else if (usage_ == Usage::Upload) {
-flags |= gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT;
-} else {
-// cannot map a DEFAULT buffer
-throw std::logic_error(
-"Trying to map a buffer allocated with gl_buffer_usage::Default");
-}
-return gl::MapNamedBufferRange(object(), offset, size, flags);
-}
 
-Buffer::Buffer(std::size_t byteSize, Buffer::Usage usage,
-const void *initial_data)
-: usage_{usage}, byte_size_{byteSize} {
-gl::GLbitfield flags = 0;
-if (usage == Usage::Readback) {
-flags |= gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT;
-} else if (usage == Usage::Upload) {
-flags |= gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT;
-} else {
-flags = 0;
-}
-
-gl::GLuint buf_obj;
-gl::CreateBuffers(1, &buf_obj);
-gl::NamedBufferStorage(buf_obj, byteSize, initial_data, flags);
-obj_ = buf_obj;
-}*/
-
-pub trait BufferData
-{
-}
-
-impl<T: Copy> BufferData for T {
-}
-
-impl<U: Copy> BufferData for [U] {
-}
-
-unsafe fn create_buffer<T: BufferData + ?Sized>(size: usize, usage: BufferUsage, initial_data: Option<&T>) -> GLuint
+unsafe fn create_buffer<T: BufferData + ?Sized>(byte_size: usize, usage: BufferUsage, initial_data: Option<&T>) -> GLuint
 {
     let mut obj: GLuint = 0;
     unsafe {
@@ -96,39 +48,93 @@ unsafe fn create_buffer<T: BufferData + ?Sized>(size: usize, usage: BufferUsage,
                 BufferUsage::DEFAULT => 0
             };
         gl::CreateBuffers(1, &mut obj);
-        gl::NamedBufferStorage(obj, size as isize, if let Some(data) = initial_data { data as *const T as *const GLvoid } else { 0 as *const GLvoid }, flags);
+        gl::NamedBufferStorage(obj, byte_size as isize, if let Some(data) = initial_data { data as *const T as *const GLvoid } else { 0 as *const GLvoid }, flags);
     }
     obj
 }
 
-
-impl Buffer
+// Represents an OpenGL buffer without any type info
+pub trait BufferAny
 {
-    pub fn new(ctx: Rc<Context>, size: usize, usage: BufferUsage) -> Buffer
+    fn object(&self) -> GLuint;
+}
+
+pub struct BufferSlice<T: BufferData + ?Sized>
+{
+    pub owner: Rc<BufferAny>,
+    pub byte_offset: usize,
+    pub len: usize,         // number of elements
+    _phantom: PhantomData<*const T>
+}
+
+impl<T: BufferData + ?Sized> BufferSlice<T> {
+    pub fn byte_size(&self) -> usize {
+        self.len * mem::size_of::<T::Element>()
+    }
+}
+
+// Untyped buffer slice
+pub struct BufferSliceAny
+{
+    pub owner: Rc<BufferAny>,
+    pub byte_offset: usize,
+    pub byte_size: usize
+}
+
+impl BufferSliceAny
+{
+    pub unsafe fn cast<T: BufferData+?Sized>(self) -> BufferSlice<T> {
+        BufferSlice {
+            owner: self.owner,
+            byte_offset: self.byte_offset,
+            len: {
+                let elem_size = mem::size_of::<T::Element>();
+                assert!(self.byte_size % elem_size == 0);
+                self.byte_size / elem_size
+            },
+            _phantom: PhantomData
+        }
+    }
+}
+
+pub struct BufferMapping<T: BufferData + ?Sized>
+{
+    pub owner: Rc<BufferAny>,
+    pub ptr: *mut T,
+    pub len: usize,
+    _phantom: PhantomData<*const T>
+}
+
+impl<T:BufferData + ?Sized> Buffer<T>
+{
+    pub fn new(ctx: Rc<Context>, len: usize, usage: BufferUsage) -> Buffer<T>
     {
         Buffer {
             context: ctx.clone(),
             obj: unsafe {
-                create_buffer::<()>(size, usage, None)
+                create_buffer::<T>(len * mem::size_of::<T::Element>(), usage, None)
             },
-            size,
-            usage
+            len,
+            usage,
+            _phantom: PhantomData
         }
     }
 
-    pub fn with_data<T: BufferData + ?Sized>(ctx: Rc<Context>, usage: BufferUsage, data: &T) -> Buffer {
+    pub fn with_data(ctx: Rc<Context>, usage: BufferUsage, data: &T) -> Buffer<T> {
         let size = mem::size_of_val(data);
         Buffer {
             context: ctx.clone(),
             obj: unsafe {
-                create_buffer(size, usage, Some(data))
+                create_buffer(mem::size_of_val(data), usage, Some(data))
             },
-            size,
-            usage
+            len: data.len(),
+            usage,
+            _phantom: PhantomData
         }
     }
 
-    pub unsafe fn get_raw_slice(&self, offset: usize, size: usize) -> RawBufferSlice
+    /*
+    pub unsafe fn raw_slice(&self, offset: usize, size: usize) -> RawBufferSlice
     {
         assert!(offset + size <= self.size);
         RawBufferSlice { size, obj: self.obj, offset }
@@ -138,6 +144,7 @@ impl Buffer
     {
         RawBufferSlice { size: self.size, obj: self.obj, offset: 0 }
     }
+    */
 
     // TODO mut and non-mut functions
     pub unsafe fn map_persistent_unsynchronized(&self) -> *mut c_void {
@@ -148,20 +155,62 @@ impl Buffer
                 BufferUsage::DEFAULT => panic!("Cannot map a buffer allocated with BufferUsage::DEFAULT")
             };
 
-        gl::MapNamedBufferRange(self.obj, 0, self.size as isize, flags)
+        gl::MapNamedBufferRange(self.obj, 0, self.byte_size() as isize, flags)
     }
 
-    pub fn size(&self) -> usize { self.size }
+    pub fn len(&self) -> usize { self.len }
 
-    /*pub fn as_slice<'buf>(&'buf self) -> BufferSlice<'buf> { BufferSlice { size: self.size, obj: self.obj, offset: 0, _phantom: PhantomData } }
-
-    pub fn get_slice<'buf>(&'buf self, offset: isize, size: isize) -> BufferSlice<'buf> {
-        assert!(offset + size <= self.size);
-        BufferSlice { size, obj: self.obj, offset, _phantom: PhantomData }
-    }*/
+    pub fn byte_size(&self) -> usize { self.len * mem::size_of::<T::Element>() }
 }
 
-impl Drop for Buffer
+pub trait AsSlice<T: BufferData+?Sized>
+{
+    fn as_slice(&self) -> BufferSlice<T>;
+    fn as_slice_any(&self) -> BufferSliceAny;
+    unsafe fn get_slice_any(&self, byte_offset: usize, byte_size: usize) -> BufferSliceAny;
+}
+
+impl<T: BufferData+?Sized> AsSlice<T> for Rc<Buffer<T>>
+{
+    fn as_slice(&self) -> BufferSlice<T> {
+        BufferSlice {
+            owner: self.clone(),
+            len: self.len,
+            byte_offset: 0,
+            _phantom: PhantomData
+        }
+    }
+
+    // Type-erased version of the above
+    fn as_slice_any(&self) -> BufferSliceAny {
+        BufferSliceAny {
+            owner: self.clone(),
+            byte_size: self.byte_size(),
+            byte_offset: 0
+        }
+    }
+
+    unsafe fn get_slice_any(&self, byte_offset: usize, byte_size: usize) -> BufferSliceAny {
+        // TODO check that the range is inside
+        BufferSliceAny {
+            owner: self.clone(),
+            byte_size: byte_size,
+            byte_offset: byte_offset
+        }
+    }
+}
+
+// TODO Deref<Target=BufferSlice> for Rc<Buffer<T>>
+
+
+impl<T: BufferData+?Sized> BufferAny for Buffer<T>
+{
+    fn object(&self) -> GLuint {
+        self.obj
+    }
+}
+
+impl<T: BufferData+?Sized> Drop for Buffer<T>
 {
     fn drop(&mut self)
     {
