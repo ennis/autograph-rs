@@ -58,37 +58,37 @@ Limitations:
 
 #### Frame graph: custom derive?
 
-inputs:
-    - any kind of resource
-        - Image
-        - Buffer: CpuAccessibleBuffer (UPLOAD), DeviceLocalBuffer (DEFAULT), ImmutableBuffer (DEFAULT+READONLY)
-    - how it should be used in the pass (bound where / resource state)
-        - SampledImage, RWImage, Render target attachement, etc.
-        - Views:
-            BufferView (automatically created?)
-            ImageView
-        - Clear value
-            -
-outputs:
-    - same as inputs
+##### inputs
+- any kind of resource
+    - Image
+    - Buffer: CpuAccessibleBuffer (UPLOAD), DeviceLocalBuffer (DEFAULT), ImmutableBuffer (DEFAULT+READONLY)
+- how it should be used in the pass (bound where / resource state)
+    - SampledImage, RWImage, Render target attachement, etc.
+    - Views:
+        BufferView (automatically created?)
+        ImageView
+    - Clear value
 
-creates:
-    - metadata (width, height, etc.)
+##### outputs
+- same as inputs
 
-execute:
-    - access to resources
-    - the function should be able to access views of the declared resources in the correct state
+##### creates:
+- metadata (width, height, etc.)
 
-pipeline:
-    - how should it be managed? can it be dynamically selected?
-    - use a lazy_static in the execute() function
-    - subpasses automatically created
-    - issue: vulkan pipelines must be created with a reference to a subpass
-    - layout? push values?
+##### execute:
+- access to resources
+- the function should be able to access views of the declared resources in the correct state
+
+##### pipeline:
+- how should it be managed? can it be dynamically selected?
+- use a lazy_static in the execute() function
+- subpasses automatically created
+- issue: vulkan pipelines must be created with a reference to a subpass
+- layout? push values?
 
 **must be able to recreate the framegraph on each frame**
-    - issue: must recreate pipelines
-    - the pipelines are valid for one frame only (but likely more than one)
+- issue: must recreate pipelines
+- the pipelines are valid for one frame only (but likely more than one)
 
 must have an interface to dynamically create passes (variable number of resources, different access flags, etc.)
 
@@ -97,4 +97,41 @@ must have an interface to dynamically create passes (variable number of resource
     * setup() + execute()
     * No corresponding allocation, just a prototype
 *
+
+### Scene graphs / Scene components
+- Must not manage hashmaps by hand for every scene component
+- Automatically manage atomic updates
+    - updates that require exclusive write access
+    - done at the end of the frame to keep coherence
+
+### Module organization
+- autograph::core
+    - shared types
+- autograph::gfx
+    - OpenGL wrapper
+    - textures, buffers, draw commands
+- autograph::scene
+    - Scene objects
+    - scene_object, scene_loader, light, mesh
+- autograph::frame_graph
+    - Frame graph
+- autograph::render
+    - Render nodes
+
+### Pipeline hot-reload
+- Modify cached objects?
+- Proposition: cached objects can listen for changes on a file, then trigger a reload if necessary
+    - The previous cached object is still there, but clients are signaled that a more recent version is available
+    - `Cached<T>::update(&mut self)`
+    - `Cached<T>::updated(&self) -> Cached<T>`
+    - Must have mutable exclusive access to the object: `RefCell<Cached?>`
+    - Cannot one-sidedly request an exclusive write borrow to cached objects
+    - Other solution: `Cached<RefCell<T>>` for hot-reloadable resources
+
+### Remote user interface through FFI or sockets
+- Remotely inspect/modify the scene graph
+- undo/redo
+- macros to simplify
+
+
 

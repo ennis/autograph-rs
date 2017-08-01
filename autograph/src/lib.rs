@@ -2,6 +2,8 @@
 #![feature(intrinsics)]
 #![feature(box_syntax)]
 #![feature(plugin, custom_attribute)]
+#![feature(trace_macros)]
+#![feature(log_syntax)]
 
 extern crate flame;
 extern crate glutin;

@@ -1,8 +1,7 @@
 #![feature(plugin, custom_attribute)]
-extern crate flame;
-extern crate autograph;
 
-// The `vulkano` crate is the main crate that you must use to use Vulkan.
+extern crate autograph;
+extern crate flame;
 extern crate time;
 extern crate pretty_env_logger;
 extern crate glutin;
@@ -272,7 +271,7 @@ fn main()
             let obj = obj.borrow();
 
             if let Some(ref sm) = obj.mesh {
-                debug!("Render id {:?}", id);
+                //debug!("Render id {:?}", id);
 
                 let objparams = upload_buf.upload(frame, &ObjectParameters {
                     model_matrix: obj.world_transform.to_homogeneous(),
@@ -293,6 +292,10 @@ fn main()
             }
         }
     };
+
+    let mut loop_start_time = time::PreciseTime::now();
+    let mut last_debug_time = time::PreciseTime::now();
+    let mut num_frames_since_last_debug_time = 0;
 
     while running {
         // poll events
@@ -317,7 +320,24 @@ fn main()
 
         // swap buffers
         window.swap_buffers().unwrap();
+
+        num_frames_since_last_debug_time += 1;
+        let end_time = time::PreciseTime::now();
+        let frame_duration = loop_start_time.to(end_time);
+        loop_start_time = end_time;
+        let duration_since_last_debug = last_debug_time.to(end_time);
+
+        if last_debug_time.to(end_time) > time::Duration::seconds(3) {
+            println!("Last frame time was {:?} ms ({:?} FPS) | average over {} frames: {:?} ms ({:?} FPS)",
+                     frame_duration.num_milliseconds(), 1_000_000_000f32 / frame_duration.num_nanoseconds().unwrap() as f32,
+                     num_frames_since_last_debug_time,
+                     duration_since_last_debug.num_milliseconds() as f32 / num_frames_since_last_debug_time as f32,
+                     num_frames_since_last_debug_time as f32 * 1_000_000_000f32 / duration_since_last_debug.num_nanoseconds().unwrap() as f32,
+            );
+            num_frames_since_last_debug_time = 0;
+            last_debug_time = end_time;
+        }
     }
 
-    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
+    //flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
 }

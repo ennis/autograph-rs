@@ -11,38 +11,6 @@ use super::buffer_data::BufferData;
 use super::framebuffer::Framebuffer;
 use std::mem;
 
-// draw macro with dynamic pipelines
-// <binding-type> <name> = initializer
-// OR: <binding-type> <index> = initializer
-// OR: <binding-type>: initializer
-
-/*gfx_draw!(
-    target:                     fbo,
-    command:                    DrawArrays { ..unimplemented!() },
-    uniform uPrevModelMatrix:   unimplemented!(),
-    uniform uObjectID:          unimplemented!(),
-    uniform_buffer[0]:          unimplemented!(),
-    sampled_texture[0]:         (tex, sampler),
-);*/
-
-/*gfx_draw!(
-    target:         fbo,
-    command:        DrawArrays { ... },
-    pipeline:       DynamicPipeline,
-    vertex_buffer(0):  ,
-    index_buffer:   ,
-    uniform Name = "...",
-    uniform_buffer Struct = "...",
-    ssbo Name = <some slice>,
-);*/
-
-/*
-  gfx_pipeline!(
-    blend[index]: BlendState,
-
-  )
-*/
-
 const MAX_TEXTURE_UNITS: usize = 16;
 const MAX_IMAGE_UNITS: usize = 8;
 const MAX_VERTEX_BUFFER_SLOTS: usize = 8;

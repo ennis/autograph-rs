@@ -140,7 +140,7 @@ impl<'queue> UploadBuffer<'queue>
 
     unsafe fn allocate(&self, size: usize, align: usize, fence_value: FenceValue) -> Option<BufferSliceAny>
     {
-        debug!("alloc size={}, align={}, fence_value={:?}", size, align, fence_value);
+        //debug!("alloc size={}, align={}, fence_value={:?}", size, align, fence_value);
         if let Some(offset) = self.try_allocate_contiguous(size, align, fence_value) {
             Some(self.buffer.get_slice_any(offset, size))
         } else {
@@ -208,11 +208,11 @@ impl<'queue> UploadBuffer<'queue>
 #[should_panic]
 fn test_upload_buffer_lifetimes()
 {
-    let ctx: Rc<Context> = unimplemented!();
+    /*let ctx: Rc<Context> = unimplemented!();
     let frame: Frame = unimplemented!();    // 'frame
     let uploadbuf = UploadBuffer::new(ctx.clone(), 3 * 1024 * 1024);
     let u0 = uploadbuf.upload(&frame, &0, 16);
-    let u1 = uploadbuf.upload(&frame, &1, 16);
+    let u1 = uploadbuf.upload(&frame, &1, 16);*/
     // upload buf drops here
     // frame drops here
     // ctx drops here

@@ -14,7 +14,6 @@ pub mod pipeline;
 pub mod bind;
 pub mod framebuffer;
 pub mod queue;
-pub mod bindable;
 pub mod buffer_data;
 
 pub use self::state_group::*;
@@ -31,3 +30,4 @@ pub use self::frame::*;
 pub use self::queue::*;
 pub use self::framebuffer::*;
 pub use self::bind::*;
+pub use self::buffer_data::*;

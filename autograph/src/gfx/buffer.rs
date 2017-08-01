@@ -8,7 +8,6 @@ use std::os::raw::c_void;
 use super::context::Context;
 use std::rc::Rc;
 use super::buffer_data::BufferData;
-use super::bindable::PipelineResource;
 
 #[derive(Copy,Clone,Debug)]
 pub struct RawBufferSlice
