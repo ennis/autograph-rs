@@ -20,6 +20,8 @@ enum ResourceUsage {
     ImageReadWrite,
     SampledTexture,
     RenderTarget,
+    UniformBuffer,
+    ShaderStorageBuffer,
     TransformFeedbackOutput
 }
 
@@ -147,35 +149,53 @@ impl Default for TextureConstraints
     }
 }
 
-struct BufferConstraints
+struct BufferConstraints<T: gfx::BufferData+?Sized>
 {
-    pub len: Option<usize>
+    pub len: Option<usize>,
+    _phantom: PhantomData<T>
 }
 
-impl Default for BufferConstraints
+impl<T: gfx::BufferData+?Sized> Default for BufferConstraints<T>
 {
-    fn default() -> BufferConstraints {
+    fn default() -> BufferConstraints<T> {
         BufferConstraints {
-            len: None
+            len: None,
+            _phantom: PhantomData
         }
     }
 }
 
-trait FrameGraphPassResourceType
+pub trait PassConstraintType
 {
     type Resource;
-    type Constraints: Default;
 }
 
-impl FrameGraphPassResourceType for Texture2D {
+impl PassConstraintType for TextureConstraints
+{
     type Resource = gfx::Texture;
-    type Constraints = TextureConstraints;
 }
 
-impl<T: gfx::BufferData+?Sized> FrameGraphPassResourceType for Buffer<T>
+impl<T: gfx::BufferData+?Sized> PassConstraintType for BufferConstraints<T>
 {
     type Resource = gfx::Buffer<T>;
-    type Constraints = BufferConstraints;
+}
+
+pub trait PassCreateType
+{
+    type Resource;
+}
+
+impl PassCreateType for Texture {
+    type Resource = gfx::Texture;
+}
+
+impl PassCreateType for Texture2D {
+    type Resource = gfx::Texture;
+}
+
+impl<T: gfx::BufferData+?Sized> PassCreateType for Buffer<T>
+{
+    type Resource = gfx::Buffer<T>;
 }
 
 macro_rules! gfx_pass {
@@ -183,19 +203,21 @@ macro_rules! gfx_pass {
     // root
     (pass $PassName:ident ( $( $ParamName:ident : $ParamType:ty ),* ) {
         read {
-            $( $ReadName:ident : $ReadTy:ident = { $($ReadInit:tt)* } ),*
+            $( $ReadName:ident : $ReadTy:ty = $ReadInit:expr),*
         }
         write {
-            $( $WriteName:ident :  $WriteTy:ident = { $($WriteInit:tt)* } ),*
+            $( $WriteName:ident : $WriteTy:ty = $WriteInit:expr),*
         }
         create {
-            $( $CreateName:ident : $CreateTy:ident = { $($CreateInit:tt)* } ),*
+            $( $CreateName:ident : $CreateTy:ty = $CreateInit:expr),*
         }
     }) => {
         // Dummy struct
-        log_syntax!($($ReadInit)*);
+        //log_syntax!($($ReadInit)*);
         struct $PassName ();
         mod types {
+            use $crate::framegraph::*;
+
             pub(super) struct Inputs {
                 $($ReadName : u32,)*
                 $($WriteName : u32,)*
@@ -207,9 +229,9 @@ macro_rules! gfx_pass {
             }
 
             pub(super) struct Resources {
-                $($ReadName : u32,)*
-                $($WriteName : u32,)*
-                $($CreateName : u32,)*
+                $($ReadName : ::std::rc::Rc<<$ReadTy as $crate::framegraph::PassConstraintType>::Resource>,)*
+                $($WriteName : ::std::rc::Rc<<$WriteTy as $crate::framegraph::PassConstraintType>::Resource>,)*
+                $($CreateName : ::std::rc::Rc<<$CreateTy as $crate::framegraph::PassCreateType>::Resource>,)*
             }
 
             pub(super) struct Parameters {
@@ -227,11 +249,11 @@ macro_rules! gfx_pass {
             pub fn new( $($ParamName : $ParamType,)* inputs: <$PassName as Pass>::Inputs) -> <$PassName as Pass>::Outputs
             {
                 // Read constraints
-                //$(let $ReadName = <$ReadTy as FrameGraphPassResourceType>::Constraints { $ReadInit .. Default::default() };)*
+                $(let mut $ReadName : $ReadTy = $ReadInit;)*
                 // Write constraints
-                //$(let $WriteName = <$WriteTy as FrameGraphPassResourceType>::Constraints { $WriteInit  .. Default::default() };)*
+                $(let mut $WriteName : $WriteTy = $WriteInit;)*
                 // Create info
-                $(let $CreateName = $CreateTy { $($CreateInit)* };)*
+                $(let mut $CreateName : $CreateTy = $CreateInit;)*
 
                 // Create output nodes
                 // Check constraints on inputs
@@ -265,21 +287,18 @@ gfx_pass! {
     pass GBufferSetupPass(width: u32, height: u32)
     {
         read {
-
+            object_transforms : BufferConstraints<i32> = Default::default()
         }
         write {
-            ttrtrtrtr: Texture2D = {
+            test : TextureConstraints = TextureConstraints {
                 usage: ResourceUsage::RenderTarget,
-                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
-                width,
-                height,
-                sample_count: 1,
-                mip_map_count: 1,
-                options: gfx::TextureOptions::empty()
+                width: Some(width),
+                height: Some(height),
+                .. Default::default()
             }
         }
         create {
-            diffuse: Texture2D = {
+            diffuse : Texture2D = Texture2D {
                 usage: ResourceUsage::RenderTarget,
                 format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
                 width,
@@ -288,7 +307,7 @@ gfx_pass! {
                 mip_map_count: 1,
                 options: gfx::TextureOptions::empty()
             },
-            normals: Texture2D = {
+            normals : Texture2D = Texture2D {
                 usage: ResourceUsage::RenderTarget,
                 format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
                 width,
