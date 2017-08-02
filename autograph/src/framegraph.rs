@@ -39,7 +39,7 @@ enum ResourcePayload {
 
 struct Resource
 {
-    lifetime: Lifetime,
+    lifetime: Option<Lifetime>,
     name: String,
     payload: ResourcePayload,
 }
@@ -90,10 +90,7 @@ impl FrameGraph
         // Create a new resource
         let ptr = self.resources.alloc(Resource {
             name,
-            lifetime: Lifetime {
-                begin: 0,
-                end: 0
-            },
+            lifetime: None,
             payload
         }) as *mut Resource;
 
@@ -127,6 +124,83 @@ impl FrameGraph
     fn link_output(&mut self, pass: NodeIndex, output: NodeIndex, usage: ResourceUsage)
     {
         self.graph.add_edge( pass, output, Edge { usage });
+    }
+
+    // returns the read-write dependency of the node to the given resource
+    fn is_resource_modified_by_pass(&self, pass_node: NodeIndex, resource: *const Resource) -> bool {
+        // For all outgoing neighbors
+        self.graph.neighbors_directed(pass_node, Direction::Outgoing)
+            // Return true if any...
+            .any(|n| match self.graph.node_weight(n).unwrap() {
+                // ... outgoing neighbor is a node pointing to the same resource
+                // (i.e. the pass writes to the node)
+                &Node::Resource { resource_ptr, .. } if resource_ptr as *const _ == resource => true,
+                &Node::Pass { .. } => panic!("Malformed frame graph"),
+                _ => false
+            })
+    }
+
+    pub fn compile(&mut self)
+    {
+        //--------------------------------------
+        // STEP 1: Toposort nodes
+        use petgraph::algo::toposort;
+        let sorted_nodes = toposort(&self.graph, None);
+        let sorted_nodes = sorted_nodes.expect("Frame graph contains cycles (how is that possible?)");
+
+        //--------------------------------------
+        // STEP 2: Concurrent resource write detection
+        for &n in sorted_nodes.iter() {
+            if let &Node::Resource { resource_ptr, .. } = self.graph.node_weight(n).unwrap() {
+                //let mut write_count = 0;
+                let mut writers = Vec::new();
+                //let mut read_count = 0;
+                let mut readers = Vec::new();
+                for pass in self.graph.neighbors_directed(n, Direction::Outgoing) {
+                    if self.is_resource_modified_by_pass(pass, resource_ptr) {
+                        writers.push(pass);
+                    } else {
+                        readers.push(pass);
+                    }
+                }
+                if (writers.len() > 1) || (readers.len() > 0 && writers.len() > 0) {
+                    error!("Concurrent read/write hazard detected in frame graph");
+                    unsafe {
+                        error!("Resource {:?} readers {:?} writers {:?}", &(*resource_ptr).name, readers, writers);
+                    }
+                }
+            }
+        }
+
+        //--------------------------------------
+        // STEP 3: Lifetime calculation
+        let mut pass_index = 0;
+        for (topo_index,&n) in sorted_nodes.iter().enumerate() {
+            match self.graph.node_weight(n).unwrap() {
+                &Node::Resource { .. } => (),
+                &Node::Pass { .. } => {
+                    for dep in self.graph.neighbors(n) {
+                        if let &Node::Resource { resource_ptr, .. } = self.graph.node_weight(dep).unwrap() {
+                            let resource_ptr = unsafe { &mut *resource_ptr };
+                            resource_ptr.lifetime = match resource_ptr.lifetime {
+                                None => Some(Lifetime { begin: topo_index as i32, end: topo_index as i32 }),
+                                Some(Lifetime { begin, end }) => {
+                                    assert!(end < topo_index as i32);
+                                    Some(Lifetime { begin, end: topo_index as i32 })
+                                }
+                            }
+                        } else {
+                            panic!("Malformed graph")
+                        }
+                    }
+                }
+            }
+        }
+
+        //--------------------------------------
+        // STEP 4: Resource allocation
+        // TODO
+
     }
 }
 
@@ -251,6 +325,7 @@ macro_rules! gfx_pass {
         create {
             $( #[$CreateUsage:ident] $CreateName:ident : $CreateTy:ty = $CreateInit:expr),*
         }
+        // Other items go into the Pass impl
     }) => {
         // Dummy struct
         //log_syntax!($($ReadInit)*);
@@ -327,7 +402,7 @@ macro_rules! gfx_pass {
 
 impl PassExecute for GBufferSetup::Pass
 {
-    fn execute(queue: &gfx::FrameQueue, resources: &<Self as Pass>::Resources)
+    fn execute(queue: &gfx::FrameQueue, resources: &GBufferSetup::Resources)
     {
         unimplemented!()
     }
