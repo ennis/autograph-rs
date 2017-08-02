@@ -8,6 +8,7 @@ use std::os::raw::c_void;
 use super::context::Context;
 use std::rc::Rc;
 use super::buffer_data::BufferData;
+use std::fmt::Debug;
 
 #[derive(Copy,Clone,Debug)]
 pub struct RawBufferSlice

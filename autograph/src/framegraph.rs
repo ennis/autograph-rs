@@ -7,6 +7,7 @@ use petgraph::dot::*;
 use gfx;
 use std::rc::Rc;
 use std::marker::PhantomData;
+use std::mem;
 
 #[derive(Copy,Clone,Debug)]
 struct Lifetime {
@@ -17,29 +18,40 @@ struct Lifetime {
 #[derive(Copy,Clone,Debug)]
 enum ResourceUsage {
     Default,
-    ImageReadWrite,
-    SampledTexture,
+    RWImage,
+    SampledImage,
     RenderTarget,
     UniformBuffer,
     ShaderStorageBuffer,
     TransformFeedbackOutput
 }
 
-#[derive(Debug)]
-struct LogicalResource
-{
-    lifetime: Lifetime,
-    name: String
+enum ResourcePayload {
+    Buffer {
+        byte_size: usize,
+        buffer: Option<gfx::BufferSliceAny>
+    },
+    Texture {
+        desc: gfx::TextureDesc,
+        texture: Option<Rc<gfx::Texture>>
+    }
 }
 
-#[derive(Debug)]
+struct Resource
+{
+    lifetime: Lifetime,
+    name: String,
+    payload: ResourcePayload,
+}
+
+#[derive(Clone, Debug)]
 enum Node
 {
     Pass {
         name: String
     },
     Resource {
-        logical_resource: *mut LogicalResource, // lifetime is bound to the framegraph
+        resource_ptr: *mut Resource, // lifetime is bound to the framegraph
         rename_index: i32
     }
 }
@@ -51,9 +63,9 @@ struct Edge
     //access: ResourceAccess
 }
 
-struct FrameGraph
+pub struct FrameGraph
 {
-    logical_resources: Arena<LogicalResource>,
+    resources: Arena<Resource>,
     graph: Graph<Node, Edge, Directed>,
 }
 
@@ -61,23 +73,60 @@ impl FrameGraph
 {
     pub fn new() -> FrameGraph {
         FrameGraph {
-            logical_resources: Arena::new(),
+            resources: Arena::new(),
             graph: Graph::new()
         }
     }
 
-    fn create_resource_node(&mut self, name: String) -> NodeIndex {
-        let ptr = self.logical_resources.alloc(LogicalResource {
+    // create a pass node
+    fn create_pass_node(&mut self, name: String) -> NodeIndex
+    {
+        self.graph.add_node(Node::Pass { name })
+    }
+
+    // Create a resource node
+    fn create_resource_node(&mut self, name: String, payload: ResourcePayload) -> NodeIndex
+    {
+        // Create a new resource
+        let ptr = self.resources.alloc(Resource {
             name,
             lifetime: Lifetime {
                 begin: 0,
                 end: 0
             },
-        }) as *mut LogicalResource;
+            payload
+        }) as *mut Resource;
+
+        // add resource node
         self.graph.add_node(Node::Resource {
-            logical_resource: ptr,
+            resource_ptr: ptr,
             rename_index: 0
         })
+    }
+
+    // Clone a resource node and increase its rename index
+    fn clone_resource_node(&mut self, resource: NodeIndex) -> NodeIndex {
+        let (resource_ptr,rename_index) = {
+            let node = self.graph.node_weight(resource).unwrap();
+            if let &Node::Resource { resource_ptr, rename_index } = node {
+                (resource_ptr, rename_index)
+            } else {
+                panic!("Not a resource node")
+            }
+        };
+        self.graph.add_node(Node::Resource { resource_ptr, rename_index: rename_index + 1 })
+    }
+
+    // add an input to a pass node
+    fn link_input(&mut self, pass: NodeIndex, input: NodeIndex, usage: ResourceUsage)
+    {
+        self.graph.add_edge(input, pass, Edge { usage });
+    }
+
+    // add an output to a pass node
+    fn link_output(&mut self, pass: NodeIndex, output: NodeIndex, usage: ResourceUsage)
+    {
+        self.graph.add_edge( pass, output, Edge { usage });
     }
 }
 
@@ -93,39 +142,47 @@ pub trait PassExecute: Pass
     fn execute(queue: &gfx::FrameQueue, resources: &<Self as Pass>::Resources);
 }
 
-// Dummy marker types for gfx_pass macro
-struct Texture
+pub trait ResourceDesc
 {
-    pub usage: ResourceUsage,
-    pub dimensions: gfx::TextureDimensions,
-    pub format: gfx::TextureFormat,
-    pub width: u32,
-    pub height: u32,
-    pub depth: u32,
-    pub sample_count: u32,
-    pub mip_map_count: u32,
-    pub options: gfx::TextureOptions
+    type Target;
 }
 
-struct Texture2D
+trait ToResource
 {
-    pub usage: ResourceUsage,
-    pub format: gfx::TextureFormat,
-    pub width: u32,
-    pub height: u32,
-    pub sample_count: u32,
-    pub mip_map_count: u32,
-    pub options: gfx::TextureOptions
+    fn to_payload(&self) -> ResourcePayload;
 }
 
-struct Buffer<T: gfx::BufferData+?Sized>
+impl ResourceDesc for gfx::TextureDesc
+{
+    type Target=Rc<gfx::Texture>;
+}
+
+impl ToResource for gfx::TextureDesc {
+    fn to_payload(&self) -> ResourcePayload {
+        ResourcePayload::Texture { desc: *self, texture: None }
+    }
+}
+
+struct BufferDesc<T: gfx::BufferData+?Sized>
 {
     pub len: usize,
     _phantom: PhantomData<T>
 }
 
+impl<T: gfx::BufferData+?Sized> ResourceDesc for BufferDesc<T>
+{
+    type Target=gfx::BufferSliceAny;
+}
+
+impl<T: gfx::BufferData+?Sized> ToResource for BufferDesc<T>
+{
+    fn to_payload(&self) -> ResourcePayload {
+        ResourcePayload::Buffer { byte_size: self.len * mem::size_of::<T::Element>(), buffer: None }
+    }
+}
+
 #[derive(Clone,Debug)]
-struct TextureConstraints
+pub struct TextureConstraints
 {
     usage: ResourceUsage,
     dimensions: Option<gfx::TextureDimensions>,
@@ -149,7 +206,8 @@ impl Default for TextureConstraints
     }
 }
 
-struct BufferConstraints<T: gfx::BufferData+?Sized>
+#[derive(Debug)]
+pub struct BufferConstraints<T: gfx::BufferData+?Sized>
 {
     pub len: Option<usize>,
     _phantom: PhantomData<T>
@@ -167,35 +225,17 @@ impl<T: gfx::BufferData+?Sized> Default for BufferConstraints<T>
 
 pub trait PassConstraintType
 {
-    type Resource;
+    type Target;
 }
 
 impl PassConstraintType for TextureConstraints
 {
-    type Resource = gfx::Texture;
+    type Target = Rc<gfx::Texture>;
 }
 
 impl<T: gfx::BufferData+?Sized> PassConstraintType for BufferConstraints<T>
 {
-    type Resource = gfx::Buffer<T>;
-}
-
-pub trait PassCreateType
-{
-    type Resource;
-}
-
-impl PassCreateType for Texture {
-    type Resource = gfx::Texture;
-}
-
-impl PassCreateType for Texture2D {
-    type Resource = gfx::Texture;
-}
-
-impl<T: gfx::BufferData+?Sized> PassCreateType for Buffer<T>
-{
-    type Resource = gfx::Buffer<T>;
+    type Target = gfx::BufferSliceAny;
 }
 
 macro_rules! gfx_pass {
@@ -203,124 +243,89 @@ macro_rules! gfx_pass {
     // root
     (pass $PassName:ident ( $( $ParamName:ident : $ParamType:ty ),* ) {
         read {
-            $( $ReadName:ident : $ReadTy:ty = $ReadInit:expr),*
+            $( #[$ReadUsage:ident] $ReadName:ident : $ReadTy:ty = $ReadInit:expr),*
         }
         write {
-            $( $WriteName:ident : $WriteTy:ty = $WriteInit:expr),*
+            $( #[$WriteUsage:ident] $WriteName:ident : $WriteTy:ty = $WriteInit:expr),*
         }
         create {
-            $( $CreateName:ident : $CreateTy:ty = $CreateInit:expr),*
+            $( #[$CreateUsage:ident] $CreateName:ident : $CreateTy:ty = $CreateInit:expr),*
         }
     }) => {
         // Dummy struct
         //log_syntax!($($ReadInit)*);
-        struct $PassName ();
-        mod types {
+        pub mod $PassName {
             use $crate::framegraph::*;
 
-            pub(super) struct Inputs {
-                $($ReadName : u32,)*
-                $($WriteName : u32,)*
+            pub struct Inputs {
+                $(pub $ReadName : $crate::petgraph::graph::NodeIndex,)*
+                $(pub $WriteName : $crate::petgraph::graph::NodeIndex,)*
             }
 
-            pub(super) struct Outputs {
-                $($WriteName : u32,)*
-                $($CreateName : u32,)*
+            pub struct Outputs {
+                $(pub $WriteName : $crate::petgraph::graph::NodeIndex,)*
+                $(pub $CreateName : $crate::petgraph::graph::NodeIndex,)*
             }
 
-            pub(super) struct Resources {
-                $($ReadName : ::std::rc::Rc<<$ReadTy as $crate::framegraph::PassConstraintType>::Resource>,)*
-                $($WriteName : ::std::rc::Rc<<$WriteTy as $crate::framegraph::PassConstraintType>::Resource>,)*
-                $($CreateName : ::std::rc::Rc<<$CreateTy as $crate::framegraph::PassCreateType>::Resource>,)*
+            pub struct Resources {
+                $(pub $ReadName : <$ReadTy as $crate::framegraph::PassConstraintType>::Target,)*
+                $(pub $WriteName : <$WriteTy as $crate::framegraph::PassConstraintType>::Target,)*
+                $(pub $CreateName : <$CreateTy as $crate::framegraph::ResourceDesc>::Target,)*
             }
 
-            pub(super) struct Parameters {
-                $($ParamName : $ParamType,)*
+            pub struct Parameters {
+                $(pub $ParamName : $ParamType,)*
             }
-        }
 
-        impl Pass for $PassName {
-            type Inputs = types::Inputs;
-            type Outputs = types::Outputs;
-            type Resources = types::Resources;
-        }
+            pub struct Pass();
 
-        impl $PassName {
-            pub fn new( $($ParamName : $ParamType,)* inputs: <$PassName as Pass>::Inputs) -> <$PassName as Pass>::Outputs
-            {
-                // Read constraints
-                $(let mut $ReadName : $ReadTy = $ReadInit;)*
-                // Write constraints
-                $(let mut $WriteName : $WriteTy = $WriteInit;)*
-                // Create info
-                $(let mut $CreateName : $CreateTy = $CreateInit;)*
+            impl $crate::framegraph::Pass for Pass {
+                type Inputs = Inputs;
+                type Outputs = Outputs;
+                type Resources = Resources;
+            }
 
-                // Create output nodes
-                // Check constraints on inputs
-                // Evaluate parameters for created resources
-                // Return outputs
-                // Optionally call PassSetup::setup() if $PassName implements PassSetup
-                unimplemented!()
+            impl Pass {
+                pub fn new(frame_graph: &mut $crate::framegraph::FrameGraph, $($ParamName : $ParamType,)* $($ReadName : $crate::petgraph::graph::NodeIndex,)* $($WriteName : $crate::petgraph::graph::NodeIndex,)* ) -> Outputs
+                {
+                    // move inputs into their own struct for convenience
+                    // within this macro, we can explicitly name the type
+                    let inputs = Inputs {
+                        $($ReadName,)*
+                        $($WriteName,)*
+                    };
+
+                    // Read constraints
+                    $(let mut $ReadName : $ReadTy = $ReadInit;)*
+                    // Write constraints
+                    $(let mut $WriteName : $WriteTy = $WriteInit;)*
+                    // Create info
+                    $(let mut $CreateName : $CreateTy = $CreateInit;)*
+
+                    // 1. Create pass node
+                    let node = frame_graph.create_pass_node(stringify!($PassName).to_owned());
+                    // 2. link inputs
+                    $( frame_graph.link_input(node, inputs.$ReadName,  $crate::framegraph::ResourceUsage::$ReadUsage); )*
+                    $( frame_graph.link_input(node, inputs.$WriteName, $crate::framegraph::ResourceUsage::$WriteUsage); )*
+                    // 3. create new resource nodes
+                    let outputs = Outputs {
+                        $( $CreateName: frame_graph.create_resource_node(stringify!($CreateName).to_owned(), $CreateName.to_payload() ), )*
+                        $( $WriteName: frame_graph.clone_resource_node(inputs.$WriteName), )*
+                    };
+
+                    // 4. link outputs
+                    $(frame_graph.link_output(node, outputs.$CreateName, $crate::framegraph::ResourceUsage::$CreateUsage);)*
+                    $(frame_graph.link_output(node, outputs.$WriteName, $crate::framegraph::ResourceUsage::$WriteUsage);)*
+
+                    // 5. return outputs
+                    outputs
+                }
             }
         }
     };
 }
 
-/*impl TextureCreateInfo
-{
-    fn default_2d() -> TextureCreateInfo {
-        TextureCreateInfo {
-            usage: ResourceUsage::SampledTexture,
-            dimensions: gfx::TextureDimensions::Tex2D,
-            format: gfx::TextureFormat::R8G8B8A8_SRGB,
-            width: 1,
-            height: 1,
-            depth: 1,
-            sample_count: 1,
-            mip_map_count: 1,
-            options: gfx::TextureOptions::empty()
-        }
-    }
-}*/
-
-gfx_pass! {
-    pass GBufferSetupPass(width: u32, height: u32)
-    {
-        read {
-            object_transforms : BufferConstraints<i32> = Default::default()
-        }
-        write {
-            test : TextureConstraints = TextureConstraints {
-                usage: ResourceUsage::RenderTarget,
-                width: Some(width),
-                height: Some(height),
-                .. Default::default()
-            }
-        }
-        create {
-            diffuse : Texture2D = Texture2D {
-                usage: ResourceUsage::RenderTarget,
-                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
-                width,
-                height,
-                sample_count: 1,
-                mip_map_count: 1,
-                options: gfx::TextureOptions::empty()
-            },
-            normals : Texture2D = Texture2D {
-                usage: ResourceUsage::RenderTarget,
-                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
-                width,
-                height,
-                sample_count: 1,
-                mip_map_count: 1,
-                options: gfx::TextureOptions::empty()
-            }
-        }
-    }
-}
-
-impl PassExecute for GBufferSetupPass
+impl PassExecute for GBufferSetup::Pass
 {
     fn execute(queue: &gfx::FrameQueue, resources: &<Self as Pass>::Resources)
     {
@@ -328,31 +333,97 @@ impl PassExecute for GBufferSetupPass
     }
 }
 
-// will impl:
-// impl PassParameters for GBuffersSetupPass
-//      PassParameters::Parameters (Generated type)
-// impl PassResources for GBuffersSetupPass
-//
 
-
-
-/*
-impl Pass for GBufferSetupPass
-{
-    fn setup(&mut self, inputs: &GBuffersSetupPass::Inputs)
+gfx_pass! {
+    pass GBufferSetup(width: u32, height: u32)
     {
-        // self.diffuse.
+        read {
+        }
+        write {
+        }
+        create {
+            #[RenderTarget]
+            diffuse : gfx::TextureDesc = gfx::TextureDesc {
+                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
+                width,
+                height,
+                .. gfx::TextureDesc::default_2d()
+            },
+            #[RenderTarget]
+            normals : gfx::TextureDesc = gfx::TextureDesc {
+                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
+                width,
+                height,
+                .. gfx::TextureDesc::default_2d()
+            },
+            #[RenderTarget]
+            material_id : gfx::TextureDesc = gfx::TextureDesc {
+                format: gfx::TextureFormat::R16_UINT,
+                width,
+                height,
+                .. gfx::TextureDesc::default_2d()
+            }
+        }
     }
+}
 
-    fn execute(&self, resources: &GBufferSetupPass::Resources)
+gfx_pass!{
+    pass RenderScene(width: u32, height: u32)
     {
-
+        read {}
+        write {
+            #[RenderTarget]
+            diffuse: TextureConstraints = Default::default(),
+            #[RenderTarget]
+            normals: TextureConstraints = Default::default(),
+            #[RenderTarget]
+            material_id: TextureConstraints = Default::default()
+        }
+        create {}
     }
-}*/
+}
 
-// maybe a custom derive?
-// will derive impl RenderPass for GBuffersSetupPass
-//
+gfx_pass!{
+    pass DeferredEval(width: u32, height: u32)
+    {
+        read {
+            #[SampledImage]
+            diffuse: TextureConstraints = Default::default(),
+            #[SampledImage]
+            normals: TextureConstraints = Default::default(),
+            #[SampledImage]
+            material_id: TextureConstraints = Default::default()
+        }
+        write {
+        }
+        create {
+            #[RenderTarget]
+            color0 : gfx::TextureDesc = gfx::TextureDesc {
+                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
+                width,
+                height,
+                .. gfx::TextureDesc::default_2d()
+            }
+         }
+    }
+}
+
+gfx_pass!{
+    pass OutputToScreen(width: u32, height: u32)
+    {
+        read {
+            #[SampledImage]
+            color0: TextureConstraints = Default::default(),
+            #[SampledImage]
+            material_id: TextureConstraints = Default::default()
+        }
+        write {
+        }
+        create {
+        }
+    }
+}
+
 
 #[cfg(test)] use std::fs::File;
 #[cfg(test)] use std::path::Path;
@@ -363,15 +434,14 @@ fn test_frame_graph_borrows()
 {
     let mut fg = FrameGraph::new();
 
-    let p1 = fg.graph.add_node(Node::Pass { name: "GBuffersSetup".to_owned() });
-    let p1_out0 = fg.create_resource_node("Diffuse".to_owned());
-    let p1_out1 = fg.create_resource_node("Normals".to_owned());
-    let p1_out2 = fg.create_resource_node("MaterialID".to_owned());
-    fg.graph.add_edge(p1, p1_out0, Edge {usage: ResourceUsage::RenderTarget});
-    fg.graph.add_edge(p1, p1_out1, Edge {usage: ResourceUsage::RenderTarget});
-    fg.graph.add_edge(p1, p1_out2, Edge {usage: ResourceUsage::RenderTarget});
+    let gbuffers = GBufferSetup::Pass::new(&mut fg, 640, 480);
+    let after_scene = RenderScene::Pass::new(&mut fg, 640, 480, gbuffers.diffuse, gbuffers.normals, gbuffers.material_id);
+    let after_deferred = DeferredEval::Pass::new(&mut fg, 640, 480, after_scene.diffuse, after_scene.normals, after_scene.material_id);
+    OutputToScreen::Pass::new(&mut fg, 640, 480, after_deferred.color0, after_scene.material_id);
 
     let path = Path::new("debug_graph.dot");
     let mut out = File::create(path).unwrap();
     write!(out, "{:#?}", Dot::new(&fg.graph));
 }
+
+

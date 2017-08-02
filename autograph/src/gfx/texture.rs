@@ -18,6 +18,13 @@ bitflags! {
 }
 
 #[derive(Copy,Clone,Debug)]
+pub enum MipMaps
+{
+    Auto,
+    Count(u32)
+}
+
+#[derive(Copy,Clone,Debug)]
 pub struct TextureDesc
 {
     /// Texture dimensions
@@ -35,17 +42,41 @@ pub struct TextureDesc
     pub sample_count: u32,
     /// Number of mipmap levels that should be allocated for this texture
     /// See also: `get_texture_mip_map_count`
-    pub mip_map_count: u32,
+    pub mip_map_count: MipMaps,
     ///
     pub options: TextureOptions
 }
 
 impl Default for TextureDesc {
     fn default() -> TextureDesc {
-        TextureDesc { dimensions: TextureDimensions::Tex2D, format: TextureFormat::R8G8B8A8_UNORM, width: 0, height: 0, depth: 0, sample_count: 0, mip_map_count: 0, options: TextureOptions::empty() }
+        TextureDesc {
+            dimensions: TextureDimensions::Tex2D,
+            format: TextureFormat::R8G8B8A8_UNORM,
+            width: 0,
+            height: 0,
+            depth: 0,
+            sample_count: 0,
+            mip_map_count: MipMaps::Count(1),
+            options: TextureOptions::empty()
+        }
     }
 }
 
+impl TextureDesc
+{
+    pub fn default_2d() -> TextureDesc {
+        TextureDesc {
+            dimensions: TextureDimensions::Tex2D,
+            format: TextureFormat::R8G8B8A8_UNORM,
+            width: 0,
+            height: 0,
+            depth: 1,
+            sample_count: 1,
+            mip_map_count: MipMaps::Count(1),
+            options: TextureOptions::empty()
+        }
+    }
+}
 
 ///
 /// Wrapper for OpenGL textures
@@ -108,6 +139,15 @@ impl Texture
 
         let glfmt = GlFormatInfo::from_texture_format(desc.format);
         let mut obj = 0;
+        let mip_map_count = match desc.mip_map_count {
+            MipMaps::Auto => get_texture_mip_map_count(desc.width, desc.height),
+            MipMaps::Count(count) => {
+                // Multisampled textures can't have more than one mip level
+                assert!(desc.sample_count <= 1 || count == 1);
+                count
+            }
+        };
+
         unsafe {
             gl::CreateTextures(target, 1, &mut obj);
 
@@ -117,10 +157,10 @@ impl Texture
 
             match target {
                 gl::TEXTURE_1D => {
-                    gl::TextureStorage1D(obj, desc.mip_map_count as i32, glfmt.internal_fmt, desc.width as i32);
+                    gl::TextureStorage1D(obj, mip_map_count as i32, glfmt.internal_fmt, desc.width as i32);
                 },
                 gl::TEXTURE_2D => {
-                    gl::TextureStorage2D(obj, desc.mip_map_count as i32, glfmt.internal_fmt, desc.width as i32, desc.height as i32);
+                    gl::TextureStorage2D(obj, mip_map_count as i32, glfmt.internal_fmt, desc.width as i32, desc.height as i32);
                 },
                 gl::TEXTURE_2D_MULTISAMPLE => {
                     gl::TextureStorage2DMultisample(obj, desc.sample_count as i32, glfmt.internal_fmt, desc.width as i32, desc.height as i32, true as u8);
