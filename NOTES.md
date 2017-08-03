@@ -122,7 +122,7 @@ must have an interface to dynamically create passes (variable number of resource
 - Modify cached objects?
 - Proposition: cached objects can listen for changes on a file, then trigger a reload if necessary
     - The previous cached object is still there, but clients are signaled that a more recent version is available
-    - `Cached<T>::update(&mut self)`
+    - `Cached<T>::update(&mut self)`: updates/upgrades the resource
     - `Cached<T>::updated(&self) -> Cached<T>`
     - Must have mutable exclusive access to the object: `RefCell<Cached?>`
     - Cannot one-sidedly request an exclusive write borrow to cached objects

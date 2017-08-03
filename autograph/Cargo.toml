@@ -34,5 +34,7 @@ glutin = "*"
 assimp-sys = { path = '../ext/assimp-sys' }
 num-traits = "*"
 flame = "*"
+url = "*"
+notify = "*"
 
 

@@ -7,7 +7,7 @@ use nalgebra::*;
 use itertools::Zip;
 use gfx;
 use std::rc::Rc;
-use rc_cache::{Cache, Cached};
+use rc_cache::{Cache, Cached, CacheTrait};
 use std::slice;
 use std::path::Path;
 use std::ffi::{CString,CStr};
@@ -16,7 +16,7 @@ struct AssimpSceneImporter<'a>
 {
     path: &'a Path,
     ids: &'a mut IDTable,
-    cache: &'a Cache,
+    cache: Rc<Cache>,
     ctx: Rc<gfx::Context>,
     scene_objects: &'a SceneObjects
 }
@@ -135,7 +135,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
     id
 }
 
-pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: Rc<gfx::Context>, cache: &Cache, scene_objects: &mut SceneObjects) -> Result<ID, String>
+pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: Rc<gfx::Context>, cache: Rc<Cache>, scene_objects: &mut SceneObjects) -> Result<ID, String>
 {
     let c_path = CString::new(path.to_str().unwrap()).unwrap();
     debug!("Import scene {:?}", c_path);

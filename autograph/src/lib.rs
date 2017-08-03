@@ -24,6 +24,8 @@ extern crate bitflags;
 extern crate itertools;
 extern crate petgraph;
 extern crate num_traits;
+extern crate url;
+extern crate notify;
 
 use std::iter;
 use std::sync::Arc;

@@ -236,7 +236,7 @@ fn main()
     let mut ids = IDTable::new();
     let mut scene_objects = SceneObjects::new();
     let mut cache = rc_cache::Cache::new();
-    let rootobjid = scene_loader::load_scene_file(Path::new("data/scenes/sponza/sponza.obj"), &mut ids, ctx.clone(), &cache, &mut scene_objects).unwrap();
+    let rootobjid = scene_loader::load_scene_file(Path::new("data/scenes/youmu/youmu.fbx"), &mut ids, ctx.clone(), cache.clone(), &mut scene_objects).unwrap();
     let mut camera_control = CameraControl::default();
 
     let mut update = || {
@@ -320,6 +320,7 @@ fn main()
 
         // swap buffers
         window.swap_buffers().unwrap();
+        cache.process_filesystem_events();
 
         num_frames_since_last_debug_time += 1;
         let end_time = time::PreciseTime::now();
