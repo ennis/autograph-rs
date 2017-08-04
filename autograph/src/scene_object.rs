@@ -6,7 +6,7 @@ use std::collections::{HashMap};
 use std::collections::hash_map;
 use std::cell::RefCell;
 use mesh::{Mesh, Vertex3};
-use rc_cache::{Cache, CacheTrait};
+use cache::{Cache, CacheTrait};
 
 #[derive(Debug)]
 pub struct SceneMesh
@@ -118,7 +118,7 @@ impl SceneObjects
     pub fn calculate_transforms(&mut self) {
         // isolate roots
         let roots : Vec<_> = self.scene_objects.values().filter(|obj| obj.borrow().parent_id == None).map(|obj| obj.borrow().id).collect();
-        debug!("calculate_transforms: {} roots", roots.len());
+        //debug!("calculate_transforms: {} roots", roots.len());
         self.calculate_transforms_rec(&roots, &Affine3::identity());
         // now update bounds
         for r in roots {

@@ -87,7 +87,7 @@ impl CameraControl
         self.far_plane = 10.0 * cam_dist;
         self.fovy = fovy;
 
-        debug!("Center on AABB: {:?} -> {:?}", &aabb, &self);
+        //debug!("Center on AABB: {:?} -> {:?}", &aabb, &self);
     }
 
     fn orbit_to_cartesian(&self) -> Vector3<f32>

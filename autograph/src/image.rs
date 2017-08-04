@@ -1,5 +1,5 @@
 use gfx;
-use rc_cache::{CacheTrait, Cache, ReloadReason};
+use cache::{CacheTrait, Cache, ReloadReason};
 use std::cell::RefCell;
 use std::rc::Rc;
 

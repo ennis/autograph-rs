@@ -4,9 +4,12 @@ use std::ffi::CStr;
 use std::mem;
 use typed_arena::Arena;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::os::raw::c_void;
 use std::str;
 use std::slice;
+use super::sampler::{SamplerDesc,Sampler};
+use std::collections::HashMap;
 
 
 extern "system" fn debug_callback(
@@ -18,10 +21,10 @@ extern "system" fn debug_callback(
     msg: *const GLchar,
     data: *mut GLvoid)
 {
-    /*let str = unsafe {
+    let str = unsafe {
         str::from_utf8(slice::from_raw_parts(msg as *const u8, length as usize)).unwrap()
     };
-    debug!("GL: {}", str);*/
+    debug!("GL: {}", str);
 }
 
 #[derive(Copy,Clone,Debug)]
@@ -34,7 +37,8 @@ pub struct ContextConfig
 #[derive(Debug)]
 pub struct Context
 {
-    cfg: ContextConfig
+    cfg: ContextConfig,
+    sampler_cache: RefCell<HashMap<SamplerDesc, Rc<Sampler>>>
 }
 
 impl Context
@@ -49,7 +53,12 @@ impl Context
                                    "Started logging OpenGL messages".as_ptr() as *const i8);
         }
 
-        Rc::new(Context { cfg: *cfg })
+        Rc::new(Context { cfg: *cfg, sampler_cache: RefCell::new(HashMap::new())})
+    }
+
+    pub fn get_sampler(&self, desc: &SamplerDesc) -> Rc<Sampler>
+    {
+        self.sampler_cache.borrow_mut().entry(*desc).or_insert_with(|| Rc::new(Sampler::new(desc))).clone()
     }
 }
 

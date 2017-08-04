@@ -69,6 +69,8 @@ unsafe fn gen_vertex_array(attribs: &[VertexAttribute]) -> GLuint
     let mut vao = 0;
     gl::CreateVertexArrays(1, &mut vao);
 
+    debug!("attribs: {:#?}", attribs);
+
     for (i,a) in attribs.iter().enumerate() {
         unsafe {
             gl::EnableVertexArrayAttrib(vao, i as u32);

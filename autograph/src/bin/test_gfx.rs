@@ -17,6 +17,8 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 extern crate itertools;
+#[macro_use]
+extern crate imgui;
 
 use std::path::Path;
 use std::fs::File;
@@ -36,7 +38,7 @@ use autograph::gl::types::*;
 use autograph::id_table::{ID,IDTable};
 use autograph::scene_object::{SceneObject,SceneObjects,SceneMesh};
 use autograph::scene_loader;
-use autograph::rc_cache;
+use autograph::cache;
 use autograph::gfx::AsSlice;
 use autograph::camera::*;
 
@@ -125,6 +127,15 @@ fn main()
     // create an upload buffer for uniforms
     let upload_buf = gfx::UploadBuffer::new(&queue, UPLOAD_BUFFER_SIZE);
 
+    // create a cache for various stuff
+    let mut cache = cache::Cache::new();
+
+    // setup ImGui
+    let mut imgui = imgui::ImGui::init();
+
+    // create an imgui renderer
+    let mut imgui_renderer = autograph::renderer::imgui::Renderer::new(&mut imgui, ctx.clone(), cache.clone());
+
     // load a pipeline!
     let pipeline = {
         // now build a pipeline
@@ -180,25 +191,31 @@ fn main()
     // load a scene!
     let mut ids = IDTable::new();
     let mut scene_objects = SceneObjects::new();
-    let mut cache = rc_cache::Cache::new();
     let rootobjid = scene_loader::load_scene_file(Path::new("data/scenes/youmu/youmu.fbx"), &mut ids, ctx.clone(), cache.clone(), &mut scene_objects).unwrap();
     let mut camera_control = CameraControl::default();
 
     let mut update = || {
     };
 
-    let mut render = |frame: &mut gfx::Frame| {
+    let mut render = |delta_s: f32, frame: &mut gfx::Frame| {
+
         scene_objects.calculate_transforms();
 
         // Clear the screen
         unsafe {
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+            gl::Disable(gl::SCISSOR_TEST);
             gl::ClearColor(0.0, 1.0, 0.0, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
         let framebuffer = Rc::new(gfx::Framebuffer::from_gl_window(ctx.clone(), &window));
         let (width,height) = framebuffer.size();
         let (fwidth,fheight) = (width as f32, height as f32);
+
+        // create an imgui frame
+        let ui = imgui.frame(window.get_inner_size_points().unwrap(), window.get_inner_size_pixels().unwrap(), delta_s);
+
         let aspect_ratio = fwidth / fheight;
         let fovy = std::f32::consts::PI/4.0f32;
 
@@ -236,11 +253,25 @@ fn main()
                     });
             }
         }
+        // UI test
+        ui.window(im_str!("Hello world"))
+            .size((300.0, 100.0), imgui::ImGuiSetCond_FirstUseEver)
+            .build(|| {
+                ui.text(im_str!("Hello world!"));
+                ui.text(im_str!("This...is...imgui-rs!"));
+                ui.separator();
+                let mouse_pos = ui.imgui().mouse_pos();
+                ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos.0, mouse_pos.1));
+            });
+
+        imgui_renderer.render(frame, framebuffer.clone(), &upload_buf, ui);
+
     };
 
     let mut loop_start_time = time::PreciseTime::now();
     let mut last_debug_time = time::PreciseTime::now();
     let mut num_frames_since_last_debug_time = 0;
+    let mut frame_duration = time::Duration::seconds(0);
 
     while running {
         // poll events
@@ -255,11 +286,12 @@ fn main()
 
         // create the frame
         let mut frame = queue.new_frame();
-
+        // last frame time in seconds
+        let delta_s = 1_000_000_000f32 * frame_duration.num_nanoseconds().unwrap() as f32;
         // update scene
         update();
         // once all events in the queue are dispatched, render stuff
-        render(&mut frame);
+        render(delta_s, &mut frame);
         // submit frame
         frame.submit();
 
@@ -269,7 +301,7 @@ fn main()
 
         num_frames_since_last_debug_time += 1;
         let end_time = time::PreciseTime::now();
-        let frame_duration = loop_start_time.to(end_time);
+        frame_duration = loop_start_time.to(end_time);
         loop_start_time = end_time;
         let duration_since_last_debug = last_debug_time.to(end_time);
 

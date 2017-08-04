@@ -7,7 +7,7 @@ use nalgebra::*;
 use itertools::Zip;
 use gfx;
 use std::rc::Rc;
-use rc_cache::{Cache, CacheTrait};
+use cache::{Cache, CacheTrait};
 use std::slice;
 use std::path::Path;
 use std::ffi::{CString,CStr};

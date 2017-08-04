@@ -147,6 +147,8 @@ fn preprocess_shader_internal<'a>(preprocessed: &mut String, source: &str, last_
                         "rgb16_snorm" => { (gl::SHORT, 3, true) },
                         "rg16_snorm" => { (gl::SHORT, 2, true) },
                         "r16_snorm" => { (gl::SHORT, 1, true) },
+                        "rgba8_unorm" => { (gl::UNSIGNED_BYTE, 4, true) },
+                        "rgba8_snorm" => { (gl::BYTE, 4, true) },
                         _ => {
                             error!("{:?}({:?}): Error parsing input_layout directive (unsupported format?)", this_file.path, cur_line);
                             num_errors += 1;

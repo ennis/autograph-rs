@@ -10,6 +10,7 @@ use std::rc::Rc;
 use super::buffer_data::BufferData;
 use super::framebuffer::Framebuffer;
 use std::mem;
+use super::sampler::SamplerDesc;
 
 const MAX_TEXTURE_UNITS: usize = 16;
 const MAX_IMAGE_UNITS: usize = 8;
@@ -315,6 +316,16 @@ impl<'a> DrawCommandBuilder<'a>
     pub fn with_viewport(mut self, index: i32, v: (f32,f32,f32,f32)) -> Self
     {
         unimplemented!()
+    }
+
+    pub fn with_texture(mut self, slot: usize, tex: Rc<Texture>, sampler: &SamplerDesc) -> Self
+    {
+        let context = self.frame.queue().context();
+        self.uniforms.textures[slot] = tex.object();
+        // sampler objects are never deleted, and the context still lives
+        // while the frame is still in flight
+        self.uniforms.samplers[slot] = context.get_sampler(sampler).obj;
+        self
     }
 
     pub fn with_vertex_buffer<T: BufferData+?Sized>(mut self, slot: usize, vertices: &BufferSlice<T>) -> Self {

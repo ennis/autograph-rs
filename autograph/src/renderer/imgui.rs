@@ -1,6 +1,6 @@
 use imgui;
 use gfx;
-use rc_cache::{Cache, CacheTrait};
+use cache::{Cache, CacheTrait};
 use std::rc::Rc;
 use shader_compiler::*;
 use std::path::Path;
@@ -81,8 +81,7 @@ impl Renderer
         //self.pipeline.update();
 
         ui.render(move |ui, draw_list| -> Result<(),String> {
-            self.render_draw_list(frame, target.clone(), upload_buf, ui, &draw_list);
-            unimplemented!()
+            self.render_draw_list(frame, target.clone(), upload_buf, ui, &draw_list)
         });
 
     }
@@ -98,7 +97,7 @@ impl Renderer
             return Ok(());
         }
 
-        let matrix =
+        let matrix : [[f32; 4]; 4] =
             [[2.0 / width as f32, 0.0, 0.0, 0.0],
              [0.0, 2.0 / -(height as f32), 0.0, 0.0],
              [0.0, 0.0, -1.0, 0.0],
@@ -117,6 +116,13 @@ impl Renderer
                     .with_vertex_buffer(0, &vertex_buffer)
                     .with_index_buffer(&index_buffer)
                     .with_uniform_buffer(0, &upload_buf.upload(frame, &matrix, 256))
+                    .with_texture(0, self.texture.clone(), &gfx::SamplerDesc {
+                        addr_u: gfx::TextureAddressMode::Wrap,
+                        addr_v: gfx::TextureAddressMode::Wrap,
+                        addr_w: gfx::TextureAddressMode::Wrap,
+                        mag_filter: gfx::TextureMagFilter::Nearest,
+                        min_filter: gfx::TextureMinFilter::Linear,
+                    })
                     .with_all_scissors(Some (
                         (
                             (cmd.clip_rect.x * scale_width) as i32,

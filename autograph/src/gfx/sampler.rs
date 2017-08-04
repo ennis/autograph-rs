@@ -1,7 +1,7 @@
 use gl;
 use gl::types::*;
 
-#[derive(Copy, Clone, Debug, Hash)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub enum TextureAddressMode
 {
     Clamp = gl::CLAMP_TO_EDGE as isize,
@@ -9,7 +9,7 @@ pub enum TextureAddressMode
     Wrap = gl::REPEAT as isize
 }
 
-#[derive(Copy, Clone, Debug, Hash)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub enum TextureMinFilter
 {
     Nearest = gl::NEAREST as isize,
@@ -17,7 +17,7 @@ pub enum TextureMinFilter
 }
 
 
-#[derive(Copy, Clone, Debug, Hash)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub enum TextureMagFilter
 {
     Nearest = gl::NEAREST as isize,
@@ -25,7 +25,7 @@ pub enum TextureMagFilter
 }
 
 // 2D sampler
-#[derive(Copy, Clone, Hash)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct SamplerDesc
 {
     pub addr_u: TextureAddressMode,
@@ -48,10 +48,11 @@ impl Default for SamplerDesc
     }
 }
 
+#[derive(Debug)]
 pub struct Sampler
 {
-    desc: SamplerDesc,
-    obj: GLuint
+    pub(super) desc: SamplerDesc,
+    pub(super) obj: GLuint
 }
 
 impl Sampler

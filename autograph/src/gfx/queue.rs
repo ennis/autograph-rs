@@ -22,7 +22,7 @@ impl<'queue> Frame<'queue>
 {
     // consume self, also releases the borrow on queue
     pub fn submit(self) {
-        debug!("Submit frame: sync index={:?}", self.queue.fence.borrow().next_value());
+        //debug!("Submit frame: sync index={:?}", self.queue.fence.borrow().next_value());
         // setup fence in command stream
         let sync = self.queue.fence.borrow_mut().advance_async();
         // release lock
@@ -119,7 +119,7 @@ impl FrameQueue
         // collect frames that are done
         let mut submitted_frames = self.submitted_frames.borrow_mut();
         submitted_frames.retain(|frame| frame.sync > current_sync);
-        debug!("Number of live submitted frames: {}", submitted_frames.len());
+        //debug!("Number of live submitted frames: {}", submitted_frames.len());
 
         Frame {
             queue: &self,
