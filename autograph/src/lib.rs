@@ -26,6 +26,7 @@ extern crate petgraph;
 extern crate num_traits;
 extern crate url;
 extern crate notify;
+extern crate imgui;
 
 use std::iter;
 use std::sync::Arc;
@@ -48,3 +49,6 @@ pub mod scene_loader;
 pub mod mesh;
 pub mod camera;
 pub mod renderer;
+pub mod image;
+pub mod shader_compiler;
+

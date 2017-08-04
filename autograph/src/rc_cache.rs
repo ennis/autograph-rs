@@ -13,18 +13,18 @@ use std::sync::mpsc::{Receiver,channel};
 use std::time::Duration;
 
 #[derive(Debug)]
-pub struct CacheBox<T: ?Sized>
+pub struct CacheCell<T: ?Sized>
 {
     cache: Weak<Cache>,
     id: String,
     inner: T
 }
 
-impl<T> CacheBox<T>
+impl<T> CacheCell<T>
 {
-    pub fn new(cache: Weak<Cache>, id: String, inner: T) -> CacheBox<T>
+    pub fn new(cache: Weak<Cache>, id: String, inner: T) -> CacheCell<T>
     {
-        CacheBox {
+        CacheCell {
             cache, id, inner
         }
     }
@@ -32,7 +32,7 @@ impl<T> CacheBox<T>
 
 ///
 /// Wrapper around a cached object of type T
-#[derive(Clone,Debug)]
+/*#[derive(Clone,Debug)]
 pub struct Cached<T: 'static>
 {
     ptr: Rc<CacheBox<Any>>,
@@ -72,7 +72,7 @@ impl<T> Deref for Cached<T>
     fn deref(&self) -> &T {
         self.ptr.inner.downcast_ref::<T>().unwrap()
     }
-}
+}*/
 
 ///
 /// The problem with caches:
@@ -89,7 +89,7 @@ impl<T> Deref for Cached<T>
 /// Cached objects live as long as the cache
 pub struct Cache
 {
-    cached_objects: RefCell<HashMap<String, Rc<CacheBox<Any>>>>,
+    cached_objects: RefCell<HashMap<String, Box<CacheCell<Any>>>>,
     fs_watcher: RefCell<notify::RecommendedWatcher>,
     fs_events: Receiver<notify::DebouncedEvent>
 }
@@ -135,15 +135,15 @@ pub enum ReloadReason
 
 pub trait CacheTrait
 {
-    fn add<T>(&self, path: String, obj: T) -> Cached<T> where T: Any;
-    fn get_or<T, F>(&self, path: &str, f: F) -> Option<Cached<T>>
+    fn add<T>(&self, path: String, obj: T) -> T where T: Any + Clone;
+    fn get_or<T, F>(&self, path: &str, f: F) -> Option<T>
         where
-            T: Any,
+            T: Any + Clone,
             F: FnOnce() -> T;
-    fn get<T>(&self, path: &str) -> Option<Cached<T>>;
+    fn get<T>(&self, path: &str) -> Option<T> where T: Any + Clone;
 
-    fn add_and_watch<T, F>(&self, path: String, f: F) -> Option<Cached<T>>
-        where T: Any,
+    fn add_and_watch<T, F>(&self, path: String, f: F) -> Option<T>
+        where T: Any + Clone,
               F: Fn(&str, ReloadReason) -> Option<T>;
 
 }
@@ -152,47 +152,53 @@ pub trait CacheTrait
 /// Proposition: the cache handles the file watching
 /// add_and_watch(url, Fn(url, change) -> T) -> Cached<T>
 ///
+/// Proposition: how about returning a value instead of an Rc?
+/// Sometimes it's more convenient
+/// The user can still wrap it into an Rc
+/// Hot-reload: just query the cache again for an updated value
 impl CacheTrait for Rc<Cache>
 {
     /// replaces existing elements (does not invalidate previous versions,
     /// as they are allocated with Rc)
-    fn add<T>(&self, path: String, obj: T) -> Cached<T>
-        where T: Any
+    /// returns a copy of the element
+    fn add<T>(&self, path: String, obj: T) -> T
+        where T: Any + Clone
     {
         let mut hash = self.cached_objects.borrow_mut();
-        let newobj = Rc::new( CacheBox::new( Rc::downgrade(self),path.to_owned(), obj));
-        hash.insert(path, newobj.clone());
-        Cached::from_any(newobj).unwrap()
+        let newobj = Box::new( CacheCell::new( Rc::downgrade(self),path.to_owned(), obj.clone()));
+        hash.insert(path, newobj);
+        obj
     }
 
-    fn add_and_watch<T, F>(&self, path: String, f: F) -> Option<Cached<T>>
-        where T: Any,
+    fn add_and_watch<T, F>(&self, path: String, f: F) -> Option<T>
+        where T: Any + Clone,
               F: Fn(&str, ReloadReason) -> Option<T>
     {
-        let loaded = f(&path, ReloadReason::Initial);
-        let result = loaded.map(|val| self.add(path.clone(), val));
+        let result = f(&path, ReloadReason::Initial).map(|val| self.add(path.clone(), val));
         // setup watch
         self.fs_watcher.borrow_mut().watch(&path, notify::RecursiveMode::NonRecursive);
         result
     }
 
-    fn get_or<T, F>(&self, path: &str, f: F) -> Option<Cached<T>>
+    fn get_or<T, F>(&self, path: &str, f: F) -> Option<T>
         where
-            T: Any,
+            T: Any + Clone,
             F: FnOnce() -> T
     {
         let mut hash = self.cached_objects.borrow_mut();
         // if the hashmap doesn't have an entry, call f(), box the returned value, add it to the hash,
         // downcast it to the concrete type and return it
         let obj = hash.entry(path.to_owned()).or_insert_with(|| {
-            Rc::new( CacheBox::new(Rc::downgrade(self),path.to_owned(), f()))
-        }).clone();
+            Box::new( CacheCell::new(Rc::downgrade(self),path.to_owned(), f().clone()))
+        });
 
-        Cached::from_any(obj)
+        obj.inner.downcast_ref::<T>().map(|v| v.clone())
     }
 
-    fn get<T>(&self, path: &str) -> Option<Cached<T>>
+    fn get<T>(&self, path: &str) -> Option<T>
+        where T: Any + Clone
     {
-        self.cached_objects.borrow().get(path).and_then(|c| Cached::from_any(c.clone()))
+        // noice
+        self.cached_objects.borrow().get(path).and_then(|obj| obj.inner.downcast_ref::<T>().map(|v| v.clone()))
     }
 }

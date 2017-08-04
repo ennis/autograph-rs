@@ -6,7 +6,7 @@ use std::collections::{HashMap};
 use std::collections::hash_map;
 use std::cell::RefCell;
 use mesh::{Mesh, Vertex3};
-use rc_cache::Cached;
+use rc_cache::{Cache, CacheTrait};
 
 #[derive(Debug)]
 pub struct SceneMesh
@@ -28,7 +28,7 @@ pub struct SceneObject
     pub world_transform: Affine3<f32>,
     pub world_bounds: AABB<f32>,        // TODO Should be Option<AABB<f32>>, since an object may not have world bounds
     pub children: Vec<ID>,
-    pub mesh: Option<Cached<SceneMesh>>      // TODO should this be in its own component map?
+    pub mesh: Option<Rc<SceneMesh>>      // TODO should this be in its own component map?
 }
 
 impl SceneObject

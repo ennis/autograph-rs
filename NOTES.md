@@ -132,6 +132,33 @@ must have an interface to dynamically create passes (variable number of resource
 - Remotely inspect/modify the scene graph
 - undo/redo
 - macros to simplify
-
+- Architecture: Model (Rust) - View (Kotlin)
+- expose rust types implementing the `Model` trait
+    - serialize/deserialize
+    - use serde
+    - generate corresponding model class on the Kotlin side
+    - how to expose UI?
+        - create socket
+        - call expose(object, objectName)
+        - e.g. expose(open_files) 
+    - issue: borrow of exposed objects
+        - observables? 
+    - ideally: atomic operations
+        - call `ui.expose(object, name)` in a loop
+        - bikeshed: `ui.synchronize(...)`
+        - will fetch and apply all modifications done by the UI, and send back the result
+            - issue: which version to keep? client version? server version?
+            - issue: the client has a cached version of the model
+            - can have divergent modification trees (like merge conflicts)
+            - `pull` vs `push`
+        - can expose anything as long as we have exclusive mutable access
+        - can expose at *any time* in the program => IMGUI?
+        - modifications are only seen after calling `synchronize`
+            - must be called in a loop
+            - alternative: observables
+- e.g. Frame graph:
+    - serialize: convert into list of nodes + edges, then send to UI (through socket?)
+    - deserialize: update model data / commit
+    - references? must be turned to IDs before serialization
 
 

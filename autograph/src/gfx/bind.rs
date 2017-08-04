@@ -40,6 +40,7 @@ struct VertexInput
     vertex_buffer_strides: [GLsizei; MAX_VERTEX_BUFFER_SLOTS],
     vertex_buffer_offsets: [GLintptr; MAX_VERTEX_BUFFER_SLOTS],
     index_buffer: GLuint,
+    index_buffer_offset: usize,
     index_buffer_size: usize,
     index_buffer_type: GLenum
 }
@@ -212,11 +213,31 @@ impl DrawCommand for DrawIndexed
         gl::DrawElementsBaseVertex(builder.pipeline.primitive_topology,
                                    self.count as i32,
                                    builder.vertex_input.index_buffer_type,
-                                   (self.first * index_stride) as *const GLvoid,
+                                   (builder.vertex_input.index_buffer_offset + self.first * index_stride) as *const GLvoid,
                                    self.base_vertex as i32);
     }
 }
 
+enum Scissors {
+    All(Option<(i32,i32,i32,i32)>)
+}
+
+unsafe fn bind_scissors(scissors: &Scissors)
+{
+    match scissors {
+        &Scissors::All(None) => gl::Disable(gl::SCISSOR_TEST),
+        &Scissors::All(Some((x,y,w,h))) => {
+            gl::Enable(gl::SCISSOR_TEST);
+            gl::Scissor(x,y,w,h);
+        }
+    }
+}
+
+unsafe fn bind_target(framebuffer: &Framebuffer, viewport: &[(f32,f32,f32,f32)])
+{
+    gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, framebuffer.obj);
+    gl::ViewportArrayv(0, 8, viewport.as_ptr() as *const GLfloat);
+}
 
 ///
 /// Draw command builder
@@ -229,7 +250,7 @@ pub struct DrawCommandBuilder<'frame>
     vertex_input: VertexInput,  // vertex buffers + index buffer (optional)
     framebuffer: Rc<Framebuffer>,
     pipeline: Rc<GraphicsPipeline>,
-    scissors: [(i32,i32,i32,i32);8],
+    scissors: Scissors,
     viewports: [(f32,f32,f32,f32);8],
     // TODO: dynamic states?
 }
@@ -245,8 +266,6 @@ pub struct DrawCommandBuilder<'frame>
 // before actually releasing memory for an object, so it's actually useless
 // But do it anyway to mimic vulkan
 
-
-
 impl<'a> DrawCommandBuilder<'a>
 {
     pub fn new<'b>(frame: &'b Frame, framebuffer: Rc<Framebuffer>, pipeline: Rc<GraphicsPipeline>) -> DrawCommandBuilder<'b>
@@ -258,7 +277,7 @@ impl<'a> DrawCommandBuilder<'a>
             vertex_input: Default::default(),
             pipeline,
             framebuffer,
-            scissors: [(0,0,0,0);8],
+            scissors: Scissors::All(None),
             viewports: [(0f32,0f32,fb_size.0 as f32, fb_size.1 as f32);8],
         }
     }
@@ -312,11 +331,17 @@ impl<'a> DrawCommandBuilder<'a>
         self.frame.ref_buffers.borrow_mut().push(indices.owner.clone());
         self.vertex_input.index_buffer = indices.owner.object();
         self.vertex_input.index_buffer_size = indices.byte_size();
+        self.vertex_input.index_buffer_offset = indices.byte_offset;
         self.vertex_input.index_buffer_type = match mem::size_of::<T::Element>() {
             4 => gl::UNSIGNED_INT,
             2 => gl::UNSIGNED_SHORT,
             _ => panic!("Unexpected index type!")
         };
+        self
+    }
+
+    pub fn with_all_scissors(mut self, scissor: Option<(i32,i32,i32,i32)>) -> Self {
+        self.scissors = Scissors::All(scissor);
         self
     }
 
@@ -326,6 +351,9 @@ impl<'a> DrawCommandBuilder<'a>
             bind_graphics_pipeline(&self.pipeline, &self.frame.queue().context(), SG_ALL);
             bind_uniforms(&self.uniforms);
             bind_vertex_input(&self.vertex_input);
+            // bind dynamic state
+            bind_scissors(&self.scissors);
+            bind_target(&self.framebuffer, &self.viewports);
             cmd.submit(self.frame, &self);
         }
         self

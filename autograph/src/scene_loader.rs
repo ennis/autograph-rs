@@ -7,7 +7,7 @@ use nalgebra::*;
 use itertools::Zip;
 use gfx;
 use std::rc::Rc;
-use rc_cache::{Cache, Cached, CacheTrait};
+use rc_cache::{Cache, CacheTrait};
 use std::slice;
 use std::path::Path;
 use std::ffi::{CString,CStr};
@@ -22,7 +22,7 @@ struct AssimpSceneImporter<'a>
 }
 
 unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiScene, index: usize)
-    -> Cached<SceneMesh>
+    -> Rc<SceneMesh>
 {
     let mesh_name = format!("{:?}:mesh_{}", &importer.path, index);
     assert!(index < (*scene).num_meshes as usize);
@@ -52,10 +52,10 @@ unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiSc
         let aabb = calculate_aabb(&verts);
         debug!("Imported mesh AABB {:?}", aabb);
 
-        SceneMesh {
+        Rc::new(SceneMesh {
             mesh: Mesh::new(importer.ctx.clone(), &verts, Some(&indices)),
             aabb: calculate_aabb(&verts)
-        }
+        })
     }).unwrap();
 
     cached_mesh

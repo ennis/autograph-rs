@@ -8,7 +8,7 @@ use super::texture::Texture;
 use glutin::GlWindow;
 
 #[derive(Debug)]
-struct Renderbuffer
+pub struct Renderbuffer
 {
     context: Rc<Context>,
     format: TextureFormat,
@@ -18,24 +18,24 @@ struct Renderbuffer
 
 impl Renderbuffer
 {
-    pub fn new(context: Rc<Context>, width: u32, height: u32, format: TextureFormat, num_samples: u32) {
-
+    pub fn new(context: Rc<Context>, width: u32, height: u32, format: TextureFormat, num_samples: u32) -> Renderbuffer {
+        unimplemented!()
     }
 }
 
 #[derive(Debug)]
 pub struct Framebuffer
 {
-    context: Rc<Context>,
-    size: (u32,u32),
-    obj: GLuint,
-    attachments: Vec<FramebufferAttachment>,
-    depth_attachment: FramebufferAttachment
+    pub(super) context: Rc<Context>,
+    pub(super) size: (u32,u32),
+    pub(super) obj: GLuint,
+    pub(super) attachments: Vec<FramebufferAttachment>,
+    pub(super) depth_attachment: FramebufferAttachment
 }
 
 // TODO: FramebufferAttachment trait?
 #[derive(Clone,Debug)]
-enum FramebufferAttachment
+pub enum FramebufferAttachment
 {
     Renderbuffer(Rc<Renderbuffer>),
     Texture(Rc<Texture>),
@@ -44,7 +44,7 @@ enum FramebufferAttachment
     Empty
 }
 
-struct FramebufferBuilder
+pub struct FramebufferBuilder
 {
     context: Rc<Context>,
     size: (u32,u32),

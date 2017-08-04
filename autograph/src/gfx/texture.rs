@@ -297,7 +297,7 @@ impl Texture
             }*/
     }
 
-    pub unsafe fn object(&self) -> GLuint {
+    pub fn object(&self) -> GLuint {
         self.obj
     }
 }
