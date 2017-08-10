@@ -1,4 +1,5 @@
 extern crate gl_generator;
+extern crate embed_resource;
 
 use gl_generator::{Registry, Api, Profile, Fallbacks, GlobalGenerator};
 use std::env;
@@ -12,4 +13,6 @@ fn main() {
     Registry::new(Api::Gl, (4, 5), Profile::Core, Fallbacks::All, ["GL_ARB_sparse_texture"])
         .write_bindings(GlobalGenerator, &mut file)
         .unwrap();
+
+    embed_resource::compile("hidpi.rc");
 }

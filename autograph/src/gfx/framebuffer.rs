@@ -18,7 +18,7 @@ pub struct Renderbuffer
 
 impl Renderbuffer
 {
-    pub fn new(context: Rc<Context>, width: u32, height: u32, format: TextureFormat, num_samples: u32) -> Renderbuffer {
+    pub fn new(context: &Rc<Context>, width: u32, height: u32, format: TextureFormat, num_samples: u32) -> Renderbuffer {
         unimplemented!()
     }
 }
@@ -53,7 +53,7 @@ pub struct FramebufferBuilder
 }
 
 impl FramebufferBuilder {
-    pub fn new(ctx: Rc<Context>) -> Self {
+    pub fn new(ctx: &Rc<Context>) -> Self {
         FramebufferBuilder {
             context: ctx.clone(),
             size: (0,0),
@@ -77,25 +77,25 @@ impl FramebufferBuilder {
         self.attachments.insert(slot as usize, attachment);
     }
 
-    pub fn attach_renderbuffer(mut self, slot: u32, renderbuffer: Rc<Renderbuffer>) -> Self {
+    pub fn attach_renderbuffer(mut self, slot: u32, renderbuffer: &Rc<Renderbuffer>) -> Self {
         assert!(self.check_or_update_size(renderbuffer.size));
         self.attach(slot, FramebufferAttachment::Renderbuffer(renderbuffer.clone()));
         self
     }
 
-    pub fn attach_texture(mut self, slot: u32, texture: Rc<Texture>) -> Self {
+    pub fn attach_texture(mut self, slot: u32, texture: &Rc<Texture>) -> Self {
         assert!(self.check_or_update_size((texture.width(), texture.height())));
         self.attach(slot, FramebufferAttachment::Texture(texture.clone()));
         self
     }
 
-    pub fn attach_depth_renderbuffer(mut self, renderbuffer: Rc<Renderbuffer>) -> Self {
+    pub fn attach_depth_renderbuffer(mut self, renderbuffer: &Rc<Renderbuffer>) -> Self {
         assert!(self.check_or_update_size(renderbuffer.size));
         self.depth_attachment = FramebufferAttachment::Renderbuffer(renderbuffer.clone());
         self
     }
 
-    pub fn attach_depth_texture(mut self, texture: Rc<Texture>) -> Self {
+    pub fn attach_depth_texture(mut self, texture: &Rc<Texture>) -> Self {
         assert!(self.check_or_update_size((texture.width(), texture.height())));
         self.depth_attachment = FramebufferAttachment::Texture(texture.clone());
         self
@@ -147,7 +147,7 @@ impl FramebufferBuilder {
 
 impl Framebuffer
 {
-    pub fn from_gl_window(context: Rc<Context>, window: &GlWindow) -> Framebuffer {
+    pub fn from_gl_window(context: &Rc<Context>, window: &GlWindow) -> Framebuffer {
         let pixel_size = window.get_inner_size_pixels().unwrap();
         Framebuffer {
             context: context.clone(),

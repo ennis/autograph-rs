@@ -53,7 +53,7 @@ unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiSc
         debug!("Imported mesh AABB {:?}", aabb);
 
         Rc::new(SceneMesh {
-            mesh: Mesh::new(importer.ctx.clone(), &verts, Some(&indices)),
+            mesh: Mesh::new(&importer.ctx, &verts, Some(&indices)),
             aabb: calculate_aabb(&verts)
         })
     }).unwrap();
@@ -135,7 +135,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
     id
 }
 
-pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: Rc<gfx::Context>, cache: Rc<Cache>, scene_objects: &mut SceneObjects) -> Result<ID, String>
+pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: &Rc<gfx::Context>, cache: &Rc<Cache>, scene_objects: &mut SceneObjects) -> Result<ID, String>
 {
     let c_path = CString::new(path.to_str().unwrap()).unwrap();
     debug!("Import scene {:?}", c_path);
@@ -155,7 +155,7 @@ pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: Rc<gfx::Context>
         let root_id = {
             let mut scene_importer_state = AssimpSceneImporter {
                 path,
-                cache,
+                cache: cache.clone(),
                 ctx: context.clone(),
                 scene_objects,
                 ids

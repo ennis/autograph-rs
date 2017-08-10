@@ -1,7 +1,7 @@
 use gl;
 use gl::types::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum TextureDimensions
 {
     Tex1D,
@@ -12,7 +12,7 @@ pub enum TextureDimensions
     TexCube
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 // These are actually Vulkan formats
 pub enum TextureFormat {
     UNDEFINED = 0,

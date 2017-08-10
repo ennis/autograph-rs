@@ -117,6 +117,9 @@ must have an interface to dynamically create passes (variable number of resource
     - Frame graph
 - autograph::render
     - Render nodes
+- autograph_main
+    - Test program crate, WIP modules before integration into autograph (lib)
+    - e.g. imgui_glue, test render passes
 
 ### Pipeline hot-reload
 - Modify cached objects?
@@ -151,6 +154,7 @@ must have an interface to dynamically create passes (variable number of resource
             - issue: the client has a cached version of the model
             - can have divergent modification trees (like merge conflicts)
             - `pull` vs `push`
+            - compare and coalesce changes before sending to UI
         - can expose anything as long as we have exclusive mutable access
         - can expose at *any time* in the program => IMGUI?
         - modifications are only seen after calling `synchronize`
@@ -161,4 +165,44 @@ must have an interface to dynamically create passes (variable number of resource
     - deserialize: update model data / commit
     - references? must be turned to IDs before serialization
 
+- simple case:
+```
+    let mut i = 0
+    ui.expose("i")
+```
+- UI side:
+```
+    var ui = remote("i").observable<Int>("i")
+    <some thread receives updates and sends updates to the observable>
+```
 
+ui.expose("i", i)
+    compare i with cached version
+    if not the same, send message Modify("i", Serialize(i))
+    
+
+- More complex example: lists
+    - basically, do a diff between two lists?
+    - send the diff as a sequence of modifications
+
+- Issue: string ID
+- Issue: Queries
+    - must not send large amounts of updates that are not needed
+    - on-demand update
+    - lag?
+
+- Undo/redo model changes? Could be implemented automatically
+
+### Native user interface?
+- HiDPI support
+- IME support
+- Popup
+- Configurable rendering backend
+    - Display list of graphics elements
+- Retained or Immediate?
+    - at least not purely immediate
+    - observables?
+    - easy to implement behaviors => state machines?
+    - immediate incurs frame lag
+- Excellent text rendering
+- Must easily handle dynamic data

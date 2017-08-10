@@ -67,7 +67,7 @@ impl<'queue> Frame<'queue>
 
 impl FrameQueue
 {
-    pub fn new(ctx: Rc<Context>) -> FrameQueue {
+    pub fn new(ctx: &Rc<Context>) -> FrameQueue {
         FrameQueue {
             ctx: ctx.clone(),
             fence: RefCell::new(Fence::new(ctx.clone(), FenceValue(-1))),
@@ -76,10 +76,8 @@ impl FrameQueue
         }
     }
 
-    // TODO: return a reference
-    pub fn context(&self) -> Rc<Context>
-    {
-        self.ctx.clone()
+    pub fn context(&self) -> &Rc<Context> {
+        &self.ctx
     }
 
     pub fn current_frame_index(&self) -> u64 {

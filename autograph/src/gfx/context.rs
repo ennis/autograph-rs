@@ -31,7 +31,6 @@ extern "system" fn debug_callback(
 pub struct ContextConfig
 {
     pub max_frames_in_flight: u32,
-    pub default_upload_buffer_size: usize
 }
 
 #[derive(Debug)]

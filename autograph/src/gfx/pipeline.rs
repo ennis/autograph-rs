@@ -229,7 +229,7 @@ impl<'a> GraphicsPipelineBuilder<'a>
         self
     }
 
-    pub fn build(self, ctx: Rc<Context>) -> Result<GraphicsPipeline, GraphicsPipelineBuildError>
+    pub fn build(self, ctx: &Rc<Context>) -> Result<GraphicsPipeline, GraphicsPipelineBuildError>
     {
         let vao = unsafe {
             gen_vertex_array(self.input_layout.expect("No input layout specified!"))

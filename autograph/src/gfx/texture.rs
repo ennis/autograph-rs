@@ -17,14 +17,14 @@ bitflags! {
     }
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone,Debug, Eq, PartialEq)]
 pub enum MipMaps
 {
     Auto,
     Count(u32)
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone,Debug, Eq, PartialEq)]
 pub struct TextureDesc
 {
     /// Texture dimensions
@@ -129,7 +129,7 @@ impl Texture
     }
 
     /// Create a new texture object based on the given description
-    pub fn new(ctx: Rc<Context>, desc: &TextureDesc) -> Texture {
+    pub fn new(ctx: &Rc<Context>, desc: &TextureDesc) -> Texture {
         let target = match desc.dimensions {
             TextureDimensions::Tex1D => gl::TEXTURE_1D,
             TextureDimensions::Tex2D => if desc.sample_count > 1 { gl::TEXTURE_2D_MULTISAMPLE } else { gl::TEXTURE_2D },

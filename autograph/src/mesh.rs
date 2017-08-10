@@ -56,10 +56,10 @@ impl<V: Copy + 'static> Mesh<V>
         self.index_count
     }
 
-    pub fn new(context: Rc<Context>, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
+    pub fn new(context: &Rc<Context>, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
         Mesh {
-            vbo: Rc::new(Buffer::with_data(context.clone(), BufferUsage::DEFAULT, vertices)),
-            ibo: indices.map(|indices| Rc::new(Buffer::with_data(context.clone(), BufferUsage::DEFAULT, indices))),
+            vbo: Rc::new(Buffer::with_data(context, BufferUsage::DEFAULT, vertices)),
+            ibo: indices.map(|indices| Rc::new(Buffer::with_data(context, BufferUsage::DEFAULT, indices))),
             vertex_count: vertices.len(),
             index_count: indices.map(|indices| indices.len()).unwrap_or(0),
         }

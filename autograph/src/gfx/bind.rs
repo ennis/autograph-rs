@@ -269,15 +269,15 @@ pub struct DrawCommandBuilder<'frame>
 
 impl<'a> DrawCommandBuilder<'a>
 {
-    pub fn new<'b>(frame: &'b Frame, framebuffer: Rc<Framebuffer>, pipeline: Rc<GraphicsPipeline>) -> DrawCommandBuilder<'b>
+    pub fn new<'b>(frame: &'b Frame, framebuffer: &Rc<Framebuffer>, pipeline: &Rc<GraphicsPipeline>) -> DrawCommandBuilder<'b>
     {
         let fb_size = framebuffer.size();
         DrawCommandBuilder {
-            frame: frame,
+            frame,
             uniforms: Default::default(),
             vertex_input: Default::default(),
-            pipeline,
-            framebuffer,
+            pipeline: pipeline.clone(),
+            framebuffer: framebuffer.clone(),
             scissors: Scissors::All(None),
             viewports: [(0f32,0f32,fb_size.0 as f32, fb_size.1 as f32);8],
         }
@@ -303,7 +303,7 @@ impl<'a> DrawCommandBuilder<'a>
         self
     }
 
-    pub fn with_image(mut self, slot: i32, tex: Rc<Texture>) -> Self
+    pub fn with_image(mut self, slot: i32, tex: &Rc<Texture>) -> Self
     {
         unimplemented!()
     }
@@ -318,7 +318,7 @@ impl<'a> DrawCommandBuilder<'a>
         unimplemented!()
     }
 
-    pub fn with_texture(mut self, slot: usize, tex: Rc<Texture>, sampler: &SamplerDesc) -> Self
+    pub fn with_texture(mut self, slot: usize, tex: &Rc<Texture>, sampler: &SamplerDesc) -> Self
     {
         let context = self.frame.queue().context();
         self.uniforms.textures[slot] = tex.object();

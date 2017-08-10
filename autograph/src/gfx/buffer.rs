@@ -105,9 +105,14 @@ pub struct BufferMapping<T: BufferData + ?Sized>
     _phantom: PhantomData<*const T>
 }
 
+/*#[derive(Copy,Clone,Debug)]
+pub struct BufferDesc {
+
+}*/
+
 impl<T:BufferData + ?Sized> Buffer<T>
 {
-    pub fn new(ctx: Rc<Context>, len: usize, usage: BufferUsage) -> Buffer<T>
+    pub fn new(ctx: &Rc<Context>, len: usize, usage: BufferUsage) -> Buffer<T>
     {
         Buffer {
             context: ctx.clone(),
@@ -120,7 +125,7 @@ impl<T:BufferData + ?Sized> Buffer<T>
         }
     }
 
-    pub fn with_data(ctx: Rc<Context>, usage: BufferUsage, data: &T) -> Buffer<T> {
+    pub fn with_data(ctx: &Rc<Context>, usage: BufferUsage, data: &T) -> Buffer<T> {
         let size = mem::size_of_val(data);
         Buffer {
             context: ctx.clone(),

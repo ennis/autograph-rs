@@ -1,14 +1,10 @@
 [package]
-name = "autograph"
+name = "autograph-main"
 version = "0.1.0"
 authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
-build = "build.rs"
-
-[build-dependencies]
-gl_generator = "0.5.0"
-embed-resource = "*"
 
 [dependencies]
+autograph = { path = "../autograph" }
 typed-arena = "1.3.0"
 bitflags = "0.9"
 lazy_static = "0.2.8"
@@ -22,13 +18,8 @@ log = "0.3.8"
 itertools = "*"
 winit = "*"
 time = "*"
-glsl-to-spirv = "*"
-rspirv = "*"
-spirv_headers = "*"
-spirv-reflect = { path = "../spirv-reflect" }
 petgraph = "*"
 glutin = "*"
-assimp-sys = { path = '../ext/assimp-sys' }
 num-traits = "*"
 flame = "*"
 url = "*"
@@ -37,3 +28,4 @@ imgui = "*"
 imgui-sys = "*"
 serde = "*"
 serde_derive = "*"
+autograph_codegen = { path = "../autograph_codegen" }

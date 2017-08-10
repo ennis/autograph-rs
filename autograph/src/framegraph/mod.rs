@@ -1,29 +1,35 @@
 use std::any;
 use typed_arena::Arena;
-use std::cell::UnsafeCell;
 use petgraph::*;
 use petgraph::graph::*;
 use petgraph::dot::*;
 use gfx;
 use std::rc::Rc;
+use std::cell::{RefCell,Cell};
 use std::marker::PhantomData;
 use std::mem;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
-pub mod allocator;
-pub mod macros;
+pub mod macro_prelude;
 pub mod compiled;
+pub use self::compiled::CompiledGraph;
+pub use petgraph::graph::NodeIndex;
 
-use self::compiled::CompiledGraph;
-use self::allocator::FrameGraphAllocator;
-
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 struct Lifetime {
     begin: i32,
-    end: i32
+    end: i32    // inclusive
 }
 
-#[derive(Copy,Clone,Debug)]
-enum ResourceUsage {
+impl Lifetime {
+    fn overlaps(&self, other: &Lifetime) -> bool {
+        self.begin <= other.end && other.begin <= self.end
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum ResourceUsage {
     Default,
     RWImage,
     SampledImage,
@@ -44,7 +50,7 @@ enum ResourceUsage {
     }
 }*/
 
-enum ResourceInfo
+pub enum ResourceInfo
 {
     Buffer {
         byte_size: usize,
@@ -58,26 +64,59 @@ struct Resource
 {
     lifetime: Option<Lifetime>,
     name: String,
-    info: ResourceInfo
+    info: ResourceInfo,
+    alloc_index: Cell<Option<usize>>
 }
 
-#[derive(Clone, Debug)]
 enum Node
 {
     Pass {
-        name: String
+        name: String,
+        execute: Box<Fn(&CompiledGraph)>
     },
     Resource {
-        index: usize, // lifetime is bound to the framegraph
+        index: usize,
+        // lifetime is bound to the framegraph
         rename_index: i32
     }
 }
 
-#[derive(Copy,Clone,Debug)]
+impl ::std::fmt::Debug for Node {
+    fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error>{
+        // TODO
+        Ok(())
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 struct Edge
 {
     usage: ResourceUsage,
     //access: ResourceAccess
+}
+
+pub enum Alloc
+{
+    Buffer {
+        buf: gfx::BufferSliceAny
+    },
+    Texture {
+        tex: Rc<gfx::Texture>
+    }
+}
+
+pub struct FrameGraphAllocator
+{
+    allocations: Vec<Alloc>
+}
+
+impl FrameGraphAllocator
+{
+    pub fn new() -> FrameGraphAllocator {
+        FrameGraphAllocator {
+            allocations: Vec::new()
+        }
+    }
 }
 
 pub struct FrameGraph
@@ -85,6 +124,7 @@ pub struct FrameGraph
     resources: Vec<Resource>,
     graph: Graph<Node, Edge, Directed>,
 }
+
 
 impl FrameGraph
 {
@@ -96,31 +136,43 @@ impl FrameGraph
     }
 
     // create a pass node
-    fn create_pass_node(&mut self, name: String) -> NodeIndex
+    pub fn create_pass_node(&mut self, name: String, execute: Box<Fn(&CompiledGraph)>) -> NodeIndex
     {
-        self.graph.add_node(Node::Pass { name })
+        self.graph.add_node(Node::Pass { name, execute })
     }
 
     // Create a resource node
-    fn create_resource_node(&mut self, name: String, info: ResourceInfo) -> NodeIndex
+    pub fn create_resource_node(&mut self, name: String, info: ResourceInfo) -> NodeIndex
     {
         // Create a new resource
         self.resources.push(Resource {
             name,
             lifetime: None,
-            info
+            info,
+            alloc_index: Cell::new(None)
         });
-
+        let index = self.resources.len() - 1;
         // add resource node
         self.graph.add_node(Node::Resource {
-            index: self.resources.len()-1,
+            index,
             rename_index: 0
         })
     }
 
+    pub fn get_resource_info(&self, node: NodeIndex) -> Option<&ResourceInfo>
+    {
+        self.graph.node_weight(node).and_then(|node| {
+           if let &Node::Resource { index, .. } = node {
+               Some(&self.resources[index].info)
+           } else {
+               None
+           }
+        })
+    }
+
     // Clone a resource node and increase its rename index
-    fn clone_resource_node(&mut self, resource: NodeIndex) -> NodeIndex {
-        let (index,rename_index) = {
+    pub fn clone_resource_node(&mut self, resource: NodeIndex) -> NodeIndex {
+        let (index, rename_index) = {
             let node = self.graph.node_weight(resource).unwrap();
             if let &Node::Resource { index, rename_index } = node {
                 (index, rename_index)
@@ -132,13 +184,13 @@ impl FrameGraph
     }
 
     // add an input to a pass node
-    fn link_input(&mut self, pass: NodeIndex, input: NodeIndex, usage: ResourceUsage) {
+    pub fn link_input(&mut self, pass: NodeIndex, input: NodeIndex, usage: ResourceUsage) {
         self.graph.add_edge(input, pass, Edge { usage });
     }
 
     // add an output to a pass node
-    fn link_output(&mut self, pass: NodeIndex, output: NodeIndex, usage: ResourceUsage) {
-        self.graph.add_edge( pass, output, Edge { usage });
+    pub fn link_output(&mut self, pass: NodeIndex, output: NodeIndex, usage: ResourceUsage) {
+        self.graph.add_edge(pass, output, Edge { usage });
     }
 
     // returns the read-write dependency of the node to the given resource
@@ -157,7 +209,9 @@ impl FrameGraph
 
     // consumes self, return a 'compiled frame graph' that is ready to execute
     // borrows FrameGraphAlloc mutably, borrow is dropped when the compiled graph is executed
-    pub fn compile<'a>(mut self, allocator: &'a mut FrameGraphAllocator) -> CompiledGraph<'a>
+    // The compiled graph's lifetime is bound to the frame queue
+    // Issue: the nodes may contain references
+    pub fn compile<'a>(mut self, queue: &'a gfx::FrameQueue, allocator: &'a mut FrameGraphAllocator) -> CompiledGraph<'a>
     {
         //--------------------------------------
         // STEP 1: Toposort nodes
@@ -190,7 +244,7 @@ impl FrameGraph
         //--------------------------------------
         // STEP 3: Lifetime calculation
         let mut pass_index = 0;
-        for (topo_index,&n) in sorted_nodes.iter().enumerate() {
+        for (topo_index, &n) in sorted_nodes.iter().enumerate() {
             match self.graph.node_weight(n).unwrap() {
                 &Node::Resource { .. } => (),
                 &Node::Pass { .. } => {
@@ -212,32 +266,56 @@ impl FrameGraph
             }
         }
 
-        // allocation map:
-        // resource_id (FrameGraph) => alloc_id (FrameGraphAlloc)
-        // however, many ids; could do instead:
-        // resource: *Resource => alloc: &Alloc
-        // however, must put resources in a vec, since we want to iterate on them
-        // resource_id => &Alloc
-        // where Alloc can be Alloc::Texture or Alloc::Buffer
-        // allocator.alloc(&self, &Resource) -> &Alloc
-
-
-
         //--------------------------------------
         // STEP 4: Resource allocation
-        for (index,resource) in self.resources.iter_mut().enumerate() {
-            // it is allocated?
-            // lookup index in cache, if present => continue
-            // else: match resource
-            // if texture => iter over texture entries, find matching desc
-            // check all other users of the concrete resource (alloc) for lifetime conflicts
-            // self.check_lifetime_conflicts(resource_id, alloc_id)
-            // if any => continue iter
-            // none found => create new texture
-            // always create new buffers
+        // Assign 'allocations' (concrete buffers or textures) to resources
+        for (index, resource) in self.resources.iter().enumerate() {
+            if resource.alloc_index.get().is_none() {
+                // No allocation for the resource, create one
+                match resource.info {
+                    ResourceInfo::Texture { desc: ref texdesc } => {
+                        // iter over texture entries, find matching desc
+                        let alloc_index = allocator.allocations.iter().enumerate().find(|&(alloc_index, alloc)| if let &Alloc::Texture { ref tex } = alloc {
+                            // check if desc matches, and that...
+                            *tex.desc() == *texdesc && {
+                                // ... the lifetime does not conflict with other users of the alloc
+                                self.resources.iter().find(|&other| {
+                                    resource.lifetime.unwrap().overlaps(&other.lifetime.unwrap())
+                                }).is_none()
+                            }
+                        } else {
+                            false   // not a texture alloc
+                        }).map(|(alloc_index, _)| alloc_index); // keep only index, drop borrow of allocations
+
+                        match alloc_index {
+                            Some(index) => {
+                                debug!("alloc: reusing texture {}", index);
+                                resource.alloc_index.set(Some(index));
+                            },
+                            None => {
+                                // alloc a new texture
+                                debug!("alloc: new texture {:?}", texdesc);
+                                allocator.allocations.push(Alloc::Texture { tex: Rc::new(gfx::Texture::new(queue.context(), texdesc)) });
+                                resource.alloc_index.set(Some(allocator.allocations.len()-1));
+                            }
+                        }
+                    }
+                    ResourceInfo::Buffer { byte_size } => {
+                        use gfx::buffer::AsSlice;
+                        // allocating a buffer
+                        let buffer = Rc::new(gfx::Buffer::<[u8]>::new(queue.context(), byte_size, gfx::BufferUsage::UPLOAD));
+                        allocator.allocations.push(Alloc::Buffer {
+                            // TODO allocate in transient pool?
+                            // TODO reuse buffers?
+                            buf: buffer.as_slice_any()
+                        });
+                    }
+                }
+            }
         }
 
-        unimplemented!()
+        // now everything should be allocated, build the CompiledGraph object
+        CompiledGraph::new(self, sorted_nodes, allocator)
     }
 
     //fn check_lifetime_conflict(&self, )
@@ -298,100 +376,15 @@ impl<T: gfx::BufferData+?Sized> ToResource for BufferDesc<T>
 
 
 /*
-gfx_pass! {
-    pass GBufferSetup(width: u32, height: u32)
-    {
-        read {
-        }
-        write {
-        }
-        create {
-            #[RenderTarget]
-            diffuse : gfx::TextureDesc = gfx::TextureDesc {
-                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
-                width,
-                height,
-                .. gfx::TextureDesc::default_2d()
-            },
-            #[RenderTarget]
-            normals : gfx::TextureDesc = gfx::TextureDesc {
-                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
-                width,
-                height,
-                .. gfx::TextureDesc::default_2d()
-            },
-            #[RenderTarget]
-            material_id : gfx::TextureDesc = gfx::TextureDesc {
-                format: gfx::TextureFormat::R16_UINT,
-                width,
-                height,
-                .. gfx::TextureDesc::default_2d()
-            }
-        }
-    }
-}
 
-gfx_pass!{
-    pass RenderScene(width: u32, height: u32)
-    {
-        read {}
-        write {
-            #[RenderTarget]
-            diffuse: TextureConstraints = Default::default(),
-            #[RenderTarget]
-            normals: TextureConstraints = Default::default(),
-            #[RenderTarget]
-            material_id: TextureConstraints = Default::default()
-        }
-        create {}
-    }
-}
-
-gfx_pass!{
-    pass DeferredEval(width: u32, height: u32)
-    {
-        read {
-            #[SampledImage]
-            diffuse: TextureConstraints = Default::default(),
-            #[SampledImage]
-            normals: TextureConstraints = Default::default(),
-            #[SampledImage]
-            material_id: TextureConstraints = Default::default()
-        }
-        write {
-        }
-        create {
-            #[RenderTarget]
-            color0 : gfx::TextureDesc = gfx::TextureDesc {
-                format: gfx::TextureFormat::R16G16B16A16_SFLOAT,
-                width,
-                height,
-                .. gfx::TextureDesc::default_2d()
-            }
-         }
-    }
-}
-
-gfx_pass!{
-    pass OutputToScreen(width: u32, height: u32)
-    {
-        read {
-            #[SampledImage]
-            color0: TextureConstraints = Default::default(),
-            #[SampledImage]
-            material_id: TextureConstraints = Default::default()
-        }
-        write {
-        }
-        create {
-        }
-    }
-}
 */
 
-#[cfg(test)] use std::fs::File;
-#[cfg(test)] use std::path::Path;
-#[cfg(test)] use std::io::Write;
+#[cfg(test)]
+use std::fs::File;
+#[cfg(test)]
+use std::path::Path;
+#[cfg(test)]
+use std::io::Write;
 
 #[test]
 fn test_frame_graph_borrows()
