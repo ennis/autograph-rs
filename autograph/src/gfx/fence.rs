@@ -1,44 +1,38 @@
 use gl;
 use gl::types::*;
-use libc::c_void;
-use std::marker::PhantomData;
-use std::mem;
 use std::collections::vec_deque::VecDeque;
 use super::context::Context;
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::sync::Arc;
 
-#[derive(Copy,Clone,Debug,PartialOrd,Ord,PartialEq,Eq)]
+#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FenceValue(pub i64);
 
-struct SyncPoint
-{
+struct SyncPoint {
     sync: GLsync,
-    value: FenceValue
+    value: FenceValue,
 }
 
-pub struct Fence
-{
+pub struct Fence {
     sync_points: VecDeque<SyncPoint>,
     current_value: FenceValue,
-    next_value: FenceValue
+    next_value: FenceValue,
 }
 
-impl Fence
-{
-    pub fn new(ctx: Rc<Context>, init_value: FenceValue) -> Fence {
+impl Fence {
+    pub fn new(ctx: Arc<Context>, init_value: FenceValue) -> Fence {
         Fence {
             sync_points: VecDeque::new(),
             current_value: init_value,
-            next_value: FenceValue(init_value.0+1)
+            next_value: FenceValue(init_value.0 + 1),
         }
     }
 
     pub fn advance_async(&mut self) -> FenceValue {
-        let sync = unsafe {
-            gl::FenceSync(gl::SYNC_GPU_COMMANDS_COMPLETE, 0)
-        };
-        self.sync_points.push_back(SyncPoint { sync, value: self.next_value });
+        let sync = unsafe { gl::FenceSync(gl::SYNC_GPU_COMMANDS_COMPLETE, 0) };
+        self.sync_points.push_back(SyncPoint {
+            sync,
+            value: self.next_value,
+        });
         self.next_value.0 += 1;
         self.next_value
     }
@@ -64,14 +58,12 @@ impl Fence
                 gl::ClientWaitSync(target_sync.sync, gl::SYNC_FLUSH_COMMANDS_BIT, timeout)
             };
 
-            if wait_result == gl::CONDITION_SATISFIED ||
-                wait_result == gl::ALREADY_SIGNALED {
+            if wait_result == gl::CONDITION_SATISFIED || wait_result == gl::ALREADY_SIGNALED {
                 self.current_value = target_sync.value;
                 true
             } else if wait_result == gl::WAIT_FAILED {
                 panic!("Fence wait failed")
-            }
-            else {
+            } else {
                 false
             }
         } else {
@@ -94,4 +86,3 @@ impl Fence
 }
 
 //pub fn signal_fence
-

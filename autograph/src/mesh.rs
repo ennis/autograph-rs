@@ -1,35 +1,28 @@
 use nalgebra::*;
 use gfx::{Buffer, BufferUsage, Context};
-use std::rc::Rc;
+use std::sync::Arc;
 use aabb::*;
 use std::f32;
 
-#[derive(Copy,Clone,Debug)]
-pub struct Vertex3
-{
+#[derive(Copy, Clone, Debug)]
+pub struct Vertex3 {
     pub pos: Point3<f32>,
     pub normal: Vector3<f32>,
     pub tangent: Vector3<f32>,
-    pub uv: Vector2<f32>
+    pub uv: Vector2<f32>,
 }
 
 #[derive(Debug)]
-pub struct Mesh<V: Copy + 'static>
-{
-    vbo: Rc<Buffer<[V]>>,
-    ibo: Option<Rc<Buffer<[i32]>>>,
+pub struct Mesh<V: Copy + 'static> {
+    vbo: Arc<Buffer<[V]>>,
+    ibo: Option<Arc<Buffer<[i32]>>>,
     vertex_count: usize,
-    index_count: usize
+    index_count: usize,
 }
 
-pub fn calculate_aabb(vertices: &[Vertex3]) -> AABB<f32>
-{
-    let mut pmin = Point3::new(f32::INFINITY,
-                              f32::INFINITY,
-                              f32::INFINITY);
-    let mut pmax = Point3::new(f32::NEG_INFINITY,
-                              f32::NEG_INFINITY,
-                              f32::NEG_INFINITY);
+pub fn calculate_aabb(vertices: &[Vertex3]) -> AABB<f32> {
+    let mut pmin = Point3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+    let mut pmax = Point3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
 
     for v in vertices {
         pmin.x = f32::min(pmin.x, v.pos.x);
@@ -42,12 +35,11 @@ pub fn calculate_aabb(vertices: &[Vertex3]) -> AABB<f32>
 
     AABB {
         min: pmin,
-        max: pmax
+        max: pmax,
     }
 }
 
-impl<V: Copy + 'static> Mesh<V>
-{
+impl<V: Copy + 'static> Mesh<V> {
     pub fn vertex_count(&self) -> usize {
         self.vertex_count
     }
@@ -56,20 +48,22 @@ impl<V: Copy + 'static> Mesh<V>
         self.index_count
     }
 
-    pub fn new(context: &Rc<Context>, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
+    pub fn new(context: &Arc<Context>, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
         Mesh {
-            vbo: Rc::new(Buffer::with_data(context, BufferUsage::DEFAULT, vertices)),
-            ibo: indices.map(|indices| Rc::new(Buffer::with_data(context, BufferUsage::DEFAULT, indices))),
+            vbo: Arc::new(Buffer::with_data(context, BufferUsage::DEFAULT, vertices)),
+            ibo: indices.map(|indices| {
+                Arc::new(Buffer::with_data(context, BufferUsage::DEFAULT, indices))
+            }),
             vertex_count: vertices.len(),
             index_count: indices.map(|indices| indices.len()).unwrap_or(0),
         }
     }
 
-    pub fn vertex_buffer(&self) -> &Rc<Buffer<[V]>> {
+    pub fn vertex_buffer(&self) -> &Arc<Buffer<[V]>> {
         &self.vbo
     }
 
-    pub fn index_buffer(&self) -> Option<&Rc<Buffer<[i32]>>> {
+    pub fn index_buffer(&self) -> Option<&Arc<Buffer<[i32]>>> {
         self.ibo.as_ref()
     }
 }

@@ -1,69 +1,86 @@
 use assimp_sys::*;
-use id_table::{ID, IDTable};
-use scene_object::{SceneObject, SceneObjects, SceneMesh};
+use id_table::{IDTable, ID};
+use scene_object::{SceneMesh, SceneObject, SceneObjects};
 use aabb::AABB;
-use mesh::{Mesh, Vertex3, calculate_aabb};
+use mesh::{calculate_aabb, Mesh, Vertex3};
 use nalgebra::*;
 use itertools::Zip;
 use gfx;
-use std::rc::Rc;
+use std::sync::Arc;
 use cache::{Cache, CacheTrait};
 use std::slice;
 use std::path::Path;
-use std::ffi::{CString,CStr};
+use std::ffi::{CStr, CString};
 
-struct AssimpSceneImporter<'a>
-{
+struct AssimpSceneImporter<'a> {
     path: &'a Path,
     ids: &'a mut IDTable,
-    cache: Rc<Cache>,
-    ctx: Rc<gfx::Context>,
-    scene_objects: &'a SceneObjects
+    cache: Arc<Cache>,
+    ctx: Arc<gfx::Context>,
+    scene_objects: &'a SceneObjects,
 }
 
-unsafe fn import_mesh<'a>(importer: &AssimpSceneImporter<'a>, scene: *const AiScene, index: usize)
-    -> Rc<SceneMesh>
-{
+unsafe fn import_mesh<'a>(
+    importer: &AssimpSceneImporter<'a>,
+    scene: *const AiScene,
+    index: usize,
+) -> Arc<SceneMesh> {
     let mesh_name = format!("{:?}:mesh_{}", &importer.path, index);
     assert!(index < (*scene).num_meshes as usize);
     let aimesh = *((*scene).meshes.offset(index as isize));
 
-    let cached_mesh = importer.cache.get_or(&mesh_name, || {
-        debug!("Creating mesh {}", mesh_name);
-        let vertices = slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
-        let normals = slice::from_raw_parts((*aimesh).normals, (*aimesh).num_vertices as usize);
-        let tangents = slice::from_raw_parts((*aimesh).tangents, (*aimesh).num_vertices as usize);
-        let texcoords0 = slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
-        let verts: Vec<Vertex3> = Zip::new((vertices, normals, tangents, texcoords0)).map(|(v,n,t,uv)|
-            Vertex3 {
-                pos: Point3::new(v.x, v.y, v.z),
-                normal: Vector3::new(n.x, n.y, n.z),
-                uv: Vector2::new(uv.x, uv.y),
-                tangent: Vector3::new(t.x,t.y,t.z)
-            }
-        ).collect();
+    let cached_mesh = importer
+        .cache
+        .get_or(&mesh_name, || {
+            debug!("Creating mesh {}", mesh_name);
+            let vertices =
+                slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
+            let normals = slice::from_raw_parts((*aimesh).normals, (*aimesh).num_vertices as usize);
+            let tangents =
+                slice::from_raw_parts((*aimesh).tangents, (*aimesh).num_vertices as usize);
+            let texcoords0 =
+                slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
+            let verts: Vec<Vertex3> = Zip::new((vertices, normals, tangents, texcoords0))
+                .map(|(v, n, t, uv)| {
+                    Vertex3 {
+                        pos: Point3::new(v.x, v.y, v.z),
+                        normal: Vector3::new(n.x, n.y, n.z),
+                        uv: Vector2::new(uv.x, uv.y),
+                        tangent: Vector3::new(t.x, t.y, t.z),
+                    }
+                })
+                .collect();
 
-        let indices: Vec<i32> = slice::from_raw_parts((*aimesh).faces, (*aimesh).num_faces as usize).iter().flat_map(|f| {
-            assert!((*f).num_indices == 3);
-            let f = slice::from_raw_parts((*f).indices, (*f).num_indices as usize);
-            vec![f[0] as i32,f[1] as i32, f[2] as i32]
-        }).collect();
+            let indices: Vec<i32> =
+                slice::from_raw_parts((*aimesh).faces, (*aimesh).num_faces as usize)
+                    .iter()
+                    .flat_map(|f| {
+                        assert!((*f).num_indices == 3);
+                        let f = slice::from_raw_parts((*f).indices, (*f).num_indices as usize);
+                        vec![f[0] as i32, f[1] as i32, f[2] as i32]
+                    })
+                    .collect();
 
-        let aabb = calculate_aabb(&verts);
-        debug!("Imported mesh AABB {:?}", aabb);
+            let aabb = calculate_aabb(&verts);
+            debug!("Imported mesh AABB {:?}", aabb);
 
-        Rc::new(SceneMesh {
-            mesh: Mesh::new(&importer.ctx, &verts, Some(&indices)),
-            aabb: calculate_aabb(&verts)
+            Arc::new(SceneMesh {
+                mesh: Mesh::new(&importer.ctx, &verts, Some(&indices)),
+                aabb: calculate_aabb(&verts),
+            })
         })
-    }).unwrap();
+        .unwrap();
 
     cached_mesh
 }
 
 // go full unsafe
-unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const AiScene, node: *const AiNode, parent_id: Option<ID>) -> ID
-{
+unsafe fn import_node<'a>(
+    importer: &mut AssimpSceneImporter<'a>,
+    scene: *const AiScene,
+    node: *const AiNode,
+    parent_id: Option<ID>,
+) -> ID {
     // create entity
     let id = importer.ids.create_id();
     let name = (*node).name.as_ref().to_owned();
@@ -94,7 +111,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
             world_transform: Affine3::identity(),
             world_bounds: mesh.aabb,
             mesh: Some(mesh),
-            children: Vec::new()
+            children: Vec::new(),
         });
     } else {
         // more than one mesh: import meshes in child nodes
@@ -107,10 +124,10 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
             world_transform: Affine3::identity(),
             world_bounds: AABB::empty(),
             mesh: None,
-            children: Vec::new()
+            children: Vec::new(),
         });
 
-        for (im,m) in meshes.iter().enumerate() {
+        for (im, m) in meshes.iter().enumerate() {
             let child_id = importer.ids.create_id();
             let mesh = import_mesh(importer, scene, *m as usize);
             importer.scene_objects.insert(SceneObject {
@@ -121,7 +138,7 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
                 world_transform: Affine3::identity(),
                 world_bounds: mesh.aabb,
                 mesh: Some(mesh),
-                children: Vec::new()
+                children: Vec::new(),
             });
         }
     }
@@ -135,8 +152,13 @@ unsafe fn import_node<'a>(importer: &mut AssimpSceneImporter<'a>, scene: *const 
     id
 }
 
-pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: &Rc<gfx::Context>, cache: &Rc<Cache>, scene_objects: &mut SceneObjects) -> Result<ID, String>
-{
+pub fn load_scene_file(
+    path: &Path,
+    ids: &mut IDTable,
+    context: &Arc<gfx::Context>,
+    cache: &Arc<Cache>,
+    scene_objects: &mut SceneObjects,
+) -> Result<ID, String> {
     let c_path = CString::new(path.to_str().unwrap()).unwrap();
     debug!("Import scene {:?}", c_path);
     //let postproc_flags = AIPROCESS_OPTIMIZE_MESHES | AIPROCESS_OPTIMIZE_GRAPH |
@@ -158,7 +180,7 @@ pub fn load_scene_file(path: &Path, ids: &mut IDTable, context: &Rc<gfx::Context
                 cache: cache.clone(),
                 ctx: context.clone(),
                 scene_objects,
-                ids
+                ids,
             };
             import_node(&mut scene_importer_state, aiscene, p_root_node, None)
         };

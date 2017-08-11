@@ -11,39 +11,35 @@ use gl;
 use gl::types::*;
 use super::state_group::*;
 use super::context::Context;
-use std::rc::Rc;
+use std::sync::Arc;
 
-#[derive(Copy,Clone,Debug)]
-pub struct VertexAttribute
-{
+#[derive(Copy, Clone, Debug)]
+pub struct VertexAttribute {
     pub slot: u32,
     pub ty: GLenum,
     pub size: u32,
     pub relative_offset: i32,
-    pub normalized: bool
+    pub normalized: bool,
 }
 
 #[derive(Debug)]
-pub struct GraphicsPipeline
-{
+pub struct GraphicsPipeline {
     // TODO
-    pub(super) context: Rc<Context>,
-    pub(super) blend_states: [BlendState; 8],  // TODO hardcoded limit
+    pub(super) context: Arc<Context>,
+    pub(super) blend_states: [BlendState; 8], // TODO hardcoded limit
     pub(super) rasterizer_state: RasterizerState,
     pub(super) depth_stencil_state: DepthStencilState,
     pub(super) vao: GLuint,
     pub(super) program: GLuint,
-    pub(super) primitive_topology: GLenum
+    pub(super) primitive_topology: GLenum,
 }
 
-pub enum PrimitiveTopology
-{
+pub enum PrimitiveTopology {
     Triangle,
-    Line
+    Line,
 }
 
-pub struct GraphicsPipelineBuilder<'a>
-{
+pub struct GraphicsPipelineBuilder<'a> {
     // with_vertex_shader
     // with_fragment_shader
     // with_combined_shader_source
@@ -52,7 +48,7 @@ pub struct GraphicsPipelineBuilder<'a>
     // with_depth_stencil_state
     // with_all_blend_states(...)
     // with_blend_state
-    blend_states: [BlendState; 8],  // TODO hardcoded limit
+    blend_states: [BlendState; 8], // TODO hardcoded limit
     rasterizer_state: RasterizerState,
     depth_stencil_state: DepthStencilState,
     vertex_shader: Option<Shader>,
@@ -61,60 +57,67 @@ pub struct GraphicsPipelineBuilder<'a>
     tess_control_shader: Option<Shader>,
     tess_eval_shader: Option<Shader>,
     input_layout: Option<&'a [VertexAttribute]>,
-    primitive_topology: GLenum
+    primitive_topology: GLenum,
 }
 
-unsafe fn gen_vertex_array(attribs: &[VertexAttribute]) -> GLuint
-{
+unsafe fn gen_vertex_array(attribs: &[VertexAttribute]) -> GLuint {
     let mut vao = 0;
     gl::CreateVertexArrays(1, &mut vao);
 
     debug!("attribs: {:#?}", attribs);
 
-    for (i,a) in attribs.iter().enumerate() {
-        unsafe {
-            gl::EnableVertexArrayAttrib(vao, i as u32);
-            gl::VertexArrayAttribFormat(vao, i as u32, a.size as i32, a.ty, a.normalized as u8, a.relative_offset as u32);
-            gl::VertexArrayAttribBinding(vao, i as u32, a.slot);
-        }
+    for (i, a) in attribs.iter().enumerate() {
+        gl::EnableVertexArrayAttrib(vao, i as u32);
+        gl::VertexArrayAttribFormat(
+            vao,
+            i as u32,
+            a.size as i32,
+            a.ty,
+            a.normalized as u8,
+            a.relative_offset as u32,
+        );
+        gl::VertexArrayAttribBinding(vao, i as u32, a.slot);
     }
 
     vao
 }
 
-pub struct Shader
-{
+pub struct Shader {
     obj: GLuint,
-    stage: GLenum
+    stage: GLenum,
 }
 
-impl Shader
-{
+impl Shader {
     pub fn compile(source: &str, stage: GLenum) -> Result<Shader, String> {
         unsafe {
             let obj = gl::CreateShader(stage);
             let srcs = [source.as_ptr() as *const i8];
             let lens = [source.len() as GLint];
-            gl::ShaderSource(obj, 1, &srcs[0] as *const *const i8, &lens[0] as *const GLint);
+            gl::ShaderSource(
+                obj,
+                1,
+                &srcs[0] as *const *const i8,
+                &lens[0] as *const GLint,
+            );
             gl::CompileShader(obj);
             let mut status: GLint = 0;
-            let mut log_size: GLint  = 0;
+            let mut log_size: GLint = 0;
             gl::GetShaderiv(obj, gl::COMPILE_STATUS, &mut status);
             gl::GetShaderiv(obj, gl::INFO_LOG_LENGTH, &mut log_size);
-            if status != gl::TRUE as GLint
-            {
+            if status != gl::TRUE as GLint {
                 error!("Error compiling shader");
                 let mut log_buf: Vec<u8> = Vec::with_capacity(log_size as usize);
-                gl::GetShaderInfoLog(obj, log_size, &mut log_size, log_buf.as_mut_ptr() as *mut i8);
+                gl::GetShaderInfoLog(
+                    obj,
+                    log_size,
+                    &mut log_size,
+                    log_buf.as_mut_ptr() as *mut i8,
+                );
                 log_buf.set_len(log_size as usize);
                 gl::DeleteShader(obj);
                 Err(String::from_utf8(log_buf).unwrap())
-            }
-            else {
-                Ok(Shader {
-                    stage,
-                    obj
-                })
+            } else {
+                Ok(Shader { stage, obj })
             }
         }
     }
@@ -131,34 +134,35 @@ impl Drop for Shader {
     }
 }
 
-fn link_program(obj: GLuint) -> Result<(),String>
-{
+fn link_program(obj: GLuint) -> Result<(), String> {
     unsafe {
         gl::LinkProgram(obj);
         let mut status: GLint = 0;
-        let mut log_size: GLint  = 0;
+        let mut log_size: GLint = 0;
         gl::GetProgramiv(obj, gl::LINK_STATUS, &mut status);
         gl::GetProgramiv(obj, gl::INFO_LOG_LENGTH, &mut log_size);
         //trace!("LINK_STATUS: log_size: {}, status: {}", log_size, status);
         if status != gl::TRUE as GLint {
             let mut log_buf: Vec<u8> = Vec::with_capacity(log_size as usize);
-            gl::GetProgramInfoLog(obj, log_size, &mut log_size, log_buf.as_mut_ptr() as *mut i8);
+            gl::GetProgramInfoLog(
+                obj,
+                log_size,
+                &mut log_size,
+                log_buf.as_mut_ptr() as *mut i8,
+            );
             log_buf.set_len(log_size as usize);
             Err(String::from_utf8(log_buf).unwrap())
-        }
-        else {
+        } else {
             Ok(())
         }
     }
 }
 
-pub enum GraphicsPipelineBuildError
-{
+pub enum GraphicsPipelineBuildError {
     ProgramLinkError(String),
 }
 
-impl<'a> GraphicsPipelineBuilder<'a>
-{
+impl<'a> GraphicsPipelineBuilder<'a> {
     pub fn new() -> Self {
         GraphicsPipelineBuilder {
             blend_states: Default::default(),
@@ -209,7 +213,7 @@ impl<'a> GraphicsPipelineBuilder<'a>
         self
     }
 
-    pub fn with_input_layout<'b:'a>(mut self, attribs: &'b [VertexAttribute]) -> Self {
+    pub fn with_input_layout<'b: 'a>(mut self, attribs: &'b [VertexAttribute]) -> Self {
         self.input_layout = Some(attribs);
         self
     }
@@ -229,19 +233,25 @@ impl<'a> GraphicsPipelineBuilder<'a>
         self
     }
 
-    pub fn build(self, ctx: &Rc<Context>) -> Result<GraphicsPipeline, GraphicsPipelineBuildError>
-    {
-        let vao = unsafe {
-            gen_vertex_array(self.input_layout.expect("No input layout specified!"))
-        };
+    pub fn build(self, ctx: &Arc<Context>) -> Result<GraphicsPipeline, GraphicsPipelineBuildError> {
+        let vao =
+            unsafe { gen_vertex_array(self.input_layout.expect("No input layout specified!")) };
 
-        let mut program = unsafe {
-            gl::CreateProgram()
-        };
+        let program = unsafe { gl::CreateProgram() };
 
         unsafe {
-            gl::AttachShader(program, self.vertex_shader.expect("must specify a vertex shader").obj);
-            gl::AttachShader(program, self.fragment_shader.expect("must specify a fragment shader").obj);
+            gl::AttachShader(
+                program,
+                self.vertex_shader
+                    .expect("must specify a vertex shader")
+                    .obj,
+            );
+            gl::AttachShader(
+                program,
+                self.fragment_shader
+                    .expect("must specify a fragment shader")
+                    .obj,
+            );
             if let Some(s) = self.geometry_shader {
                 gl::AttachShader(program, s.obj);
             }
@@ -253,7 +263,8 @@ impl<'a> GraphicsPipelineBuilder<'a>
             }
         }
         // link shaders
-        link_program(program).map_err(|log| GraphicsPipelineBuildError::ProgramLinkError(log))?;
+        link_program(program)
+            .map_err(|log| GraphicsPipelineBuildError::ProgramLinkError(log))?;
 
         Ok(GraphicsPipeline {
             depth_stencil_state: self.depth_stencil_state,
@@ -262,15 +273,13 @@ impl<'a> GraphicsPipelineBuilder<'a>
             vao,
             program,
             primitive_topology: self.primitive_topology,
-            context: ctx.clone()
+            context: ctx.clone(),
         })
     }
 }
 
-impl Drop for GraphicsPipeline
-{
-    fn drop(&mut self)
-    {
+impl Drop for GraphicsPipeline {
+    fn drop(&mut self) {
         unsafe {
             gl::DeleteProgram(self.program);
             gl::DeleteVertexArrays(1, &mut self.vao);

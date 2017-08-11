@@ -1,26 +1,20 @@
 use gfx;
-use cache::{CacheTrait, Cache, ReloadReason};
+use cache::{Cache, CacheTrait, ReloadReason};
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
-pub enum TargetFormat
-{
+pub enum TargetFormat {
     // Texture format = the one that needs the least conversion from the file
     Auto,
     // May fail
-    Required(gfx::TextureFormat)
+    Required(gfx::TextureFormat),
 }
 
 /// A cached image
-struct CachedImage
-{
+struct CachedImage {
     data: Vec<u8>,
     format: gfx::TextureFormat,
-    texture: RefCell<Rc<gfx::Texture>>
+    texture: RefCell<Arc<gfx::Texture>>,
 }
 
-fn load_image()
-{
-
-}
-
+fn load_image() {}

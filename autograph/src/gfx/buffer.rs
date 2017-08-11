@@ -1,70 +1,78 @@
 use gl;
 use gl::types::*;
-use std::slice;
 use std::marker::PhantomData;
-use std::cell::RefCell;
 use std::mem;
 use std::os::raw::c_void;
 use super::context::Context;
-use std::rc::Rc;
+use std::sync::Arc;
 use super::buffer_data::BufferData;
 use std::fmt::Debug;
 
-#[derive(Copy,Clone,Debug)]
-pub struct RawBufferSlice
-{
+#[derive(Copy, Clone, Debug)]
+pub struct RawBufferSlice {
     pub obj: GLuint,
     pub offset: usize,
-    pub size: usize
+    pub size: usize,
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
-pub enum BufferUsage
-{
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BufferUsage {
     UPLOAD,
     DEFAULT,
-    READBACK
+    READBACK,
 }
 
 #[derive(Debug)]
-pub struct Buffer<T: BufferData + ?Sized>
-{
-    context: Rc<Context>,
+pub struct Buffer<T: BufferData + ?Sized> {
+    context: Arc<Context>,
     obj: GLuint,
     len: usize,
     usage: BufferUsage,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 
-unsafe fn create_buffer<T: BufferData + ?Sized>(byte_size: usize, usage: BufferUsage, initial_data: Option<&T>) -> GLuint
-{
+unsafe fn create_buffer<T: BufferData + ?Sized>(
+    byte_size: usize,
+    usage: BufferUsage,
+    initial_data: Option<&T>,
+) -> GLuint {
     let mut obj: GLuint = 0;
     unsafe {
-        let flags = match usage
-            {
-                BufferUsage::READBACK => gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
-                BufferUsage::UPLOAD => gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
-                BufferUsage::DEFAULT => 0
-            };
+        let flags = match usage {
+            BufferUsage::READBACK => {
+                gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
+            }
+            BufferUsage::UPLOAD => {
+                gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
+            }
+            BufferUsage::DEFAULT => 0,
+        };
         gl::CreateBuffers(1, &mut obj);
-        gl::NamedBufferStorage(obj, byte_size as isize, if let Some(data) = initial_data { data as *const T as *const GLvoid } else { 0 as *const GLvoid }, flags);
+        gl::NamedBufferStorage(
+            obj,
+            byte_size as isize,
+            if let Some(data) = initial_data {
+                data as *const T as *const GLvoid
+            } else {
+                0 as *const GLvoid
+            },
+            flags,
+        );
     }
     obj
 }
 
 // Represents an OpenGL buffer without any type info
-pub trait BufferAny
-{
+pub trait BufferAny {
     fn object(&self) -> GLuint;
 }
 
-pub struct BufferSlice<T: BufferData + ?Sized>
-{
-    pub owner: Rc<BufferAny>,
+pub struct BufferSlice<T: BufferData + ?Sized> {
+    pub owner: Arc<BufferAny>,
     pub byte_offset: usize,
-    pub len: usize,         // number of elements
-    _phantom: PhantomData<*const T>
+    pub len: usize, // number of elements
+    _phantom: PhantomData<*const T>,
 }
 
 impl<T: BufferData + ?Sized> BufferSlice<T> {
@@ -74,16 +82,14 @@ impl<T: BufferData + ?Sized> BufferSlice<T> {
 }
 
 // Untyped buffer slice
-pub struct BufferSliceAny
-{
-    pub owner: Rc<BufferAny>,
+pub struct BufferSliceAny {
+    pub owner: Arc<BufferAny>,
     pub byte_offset: usize,
-    pub byte_size: usize
+    pub byte_size: usize,
 }
 
-impl BufferSliceAny
-{
-    pub unsafe fn cast<T: BufferData+?Sized>(self) -> BufferSlice<T> {
+impl BufferSliceAny {
+    pub unsafe fn cast<T: BufferData + ?Sized>(self) -> BufferSlice<T> {
         BufferSlice {
             owner: self.owner,
             byte_offset: self.byte_offset,
@@ -92,17 +98,16 @@ impl BufferSliceAny
                 assert!(self.byte_size % elem_size == 0);
                 self.byte_size / elem_size
             },
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
 
-pub struct BufferMapping<T: BufferData + ?Sized>
-{
-    pub owner: Rc<BufferAny>,
+pub struct BufferMapping<T: BufferData + ?Sized> {
+    pub owner: Arc<BufferAny>,
     pub ptr: *mut T,
     pub len: usize,
-    _phantom: PhantomData<*const T>
+    _phantom: PhantomData<*const T>,
 }
 
 /*#[derive(Copy,Clone,Debug)]
@@ -110,31 +115,25 @@ pub struct BufferDesc {
 
 }*/
 
-impl<T:BufferData + ?Sized> Buffer<T>
-{
-    pub fn new(ctx: &Rc<Context>, len: usize, usage: BufferUsage) -> Buffer<T>
-    {
+impl<T: BufferData + ?Sized> Buffer<T> {
+    pub fn new(ctx: &Arc<Context>, len: usize, usage: BufferUsage) -> Buffer<T> {
         Buffer {
             context: ctx.clone(),
-            obj: unsafe {
-                create_buffer::<T>(len * mem::size_of::<T::Element>(), usage, None)
-            },
+            obj: unsafe { create_buffer::<T>(len * mem::size_of::<T::Element>(), usage, None) },
             len,
             usage,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 
-    pub fn with_data(ctx: &Rc<Context>, usage: BufferUsage, data: &T) -> Buffer<T> {
+    pub fn with_data(ctx: &Arc<Context>, usage: BufferUsage, data: &T) -> Buffer<T> {
         let size = mem::size_of_val(data);
         Buffer {
             context: ctx.clone(),
-            obj: unsafe {
-                create_buffer(mem::size_of_val(data), usage, Some(data))
-            },
+            obj: unsafe { create_buffer(mem::size_of_val(data), usage, Some(data)) },
             len: data.len(),
             usage,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 
@@ -153,36 +152,45 @@ impl<T:BufferData + ?Sized> Buffer<T>
 
     // TODO mut and non-mut functions
     pub unsafe fn map_persistent_unsynchronized(&self) -> *mut c_void {
-        let mut flags =
-            match self.usage {
-                BufferUsage::READBACK => gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
-                BufferUsage::UPLOAD => gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
-                BufferUsage::DEFAULT => panic!("Cannot map a buffer allocated with BufferUsage::DEFAULT")
-            };
+        let mut flags = match self.usage {
+            BufferUsage::READBACK => {
+                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT |
+                    gl::MAP_COHERENT_BIT
+            }
+            BufferUsage::UPLOAD => {
+                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT |
+                    gl::MAP_COHERENT_BIT
+            }
+            BufferUsage::DEFAULT => {
+                panic!("Cannot map a buffer allocated with BufferUsage::DEFAULT")
+            }
+        };
 
         gl::MapNamedBufferRange(self.obj, 0, self.byte_size() as isize, flags)
     }
 
-    pub fn len(&self) -> usize { self.len }
+    pub fn len(&self) -> usize {
+        self.len
+    }
 
-    pub fn byte_size(&self) -> usize { self.len * mem::size_of::<T::Element>() }
+    pub fn byte_size(&self) -> usize {
+        self.len * mem::size_of::<T::Element>()
+    }
 }
 
-pub trait AsSlice<T: BufferData+?Sized>
-{
+pub trait AsSlice<T: BufferData + ?Sized> {
     fn as_slice(&self) -> BufferSlice<T>;
     fn as_slice_any(&self) -> BufferSliceAny;
     unsafe fn get_slice_any(&self, byte_offset: usize, byte_size: usize) -> BufferSliceAny;
 }
 
-impl<T: BufferData+?Sized> AsSlice<T> for Rc<Buffer<T>>
-{
+impl<T: BufferData + ?Sized> AsSlice<T> for Arc<Buffer<T>> {
     fn as_slice(&self) -> BufferSlice<T> {
         BufferSlice {
             owner: self.clone(),
             len: self.len,
             byte_offset: 0,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 
@@ -191,7 +199,7 @@ impl<T: BufferData+?Sized> AsSlice<T> for Rc<Buffer<T>>
         BufferSliceAny {
             owner: self.clone(),
             byte_size: self.byte_size(),
-            byte_offset: 0
+            byte_offset: 0,
         }
     }
 
@@ -200,25 +208,22 @@ impl<T: BufferData+?Sized> AsSlice<T> for Rc<Buffer<T>>
         BufferSliceAny {
             owner: self.clone(),
             byte_size: byte_size,
-            byte_offset: byte_offset
+            byte_offset: byte_offset,
         }
     }
 }
 
-// TODO Deref<Target=BufferSlice> for Rc<Buffer<T>>
+// TODO Deref<Target=BufferSlice> for Arc<Buffer<T>>
 
 
-impl<T: BufferData+?Sized> BufferAny for Buffer<T>
-{
+impl<T: BufferData + ?Sized> BufferAny for Buffer<T> {
     fn object(&self) -> GLuint {
         self.obj
     }
 }
 
-impl<T: BufferData+?Sized> Drop for Buffer<T>
-{
-    fn drop(&mut self)
-    {
+impl<T: BufferData + ?Sized> Drop for Buffer<T> {
+    fn drop(&mut self) {
         unsafe {
             gl::DeleteBuffers(1, &self.obj);
         }

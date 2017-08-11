@@ -1,5 +1,5 @@
 #version 450
-#include "Utils.glsli"
+#include "utils.glsli"
 
 #pragma stages(vertex,fragment)
 #pragma input_layout(rgb32f,0,0, rgb32f,0,12, rgb32f,0,24, rg32f,0,36)

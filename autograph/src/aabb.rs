@@ -1,46 +1,66 @@
 use nalgebra::*;
-use nalgebra::storage::{Storage, OwnedStorage};
-use alga::general::{Field};
+use nalgebra::storage::{OwnedStorage, Storage};
+use alga::general::Field;
 use std::cmp::Ord;
 use num_traits::Bounded;
 
-#[derive(Copy,Clone,Debug)]
-pub struct AABB<N: Scalar + Field + PartialOrd + Bounded>
-{
+#[derive(Copy, Clone, Debug)]
+pub struct AABB<N: Scalar + Field + PartialOrd + Bounded> {
     pub min: Point3<N>,
-    pub max: Point3<N>
+    pub max: Point3<N>,
 }
 
 pub fn partial_min<T: PartialOrd>(a: T, b: T) -> T {
-    if a < b { a } else { b }
+    if a < b {
+        a
+    } else {
+        b
+    }
 }
 
 pub fn partial_max<T: PartialOrd>(a: T, b: T) -> T {
-    if a < b { b } else { a }
+    if a < b {
+        b
+    } else {
+        a
+    }
 }
 
-pub fn cw_min3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
-{
-    Vector3::new(partial_min(a.x, b.x), partial_min(a.y, b.y), partial_min(a.z, b.z))
+pub fn cw_min3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N> {
+    Vector3::new(
+        partial_min(a.x, b.x),
+        partial_min(a.y, b.y),
+        partial_min(a.z, b.z),
+    )
 }
 
-pub fn cw_max3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N>
-{
-    Vector3::new(partial_max(a.x, b.x), partial_max(a.y, b.y), partial_max(a.z, b.z))
+pub fn cw_max3<N: Scalar + PartialOrd>(a: &Vector3<N>, b: &Vector3<N>) -> Vector3<N> {
+    Vector3::new(
+        partial_max(a.x, b.x),
+        partial_max(a.y, b.y),
+        partial_max(a.z, b.z),
+    )
 }
 
-pub fn cw_min4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
-{
-    Vector4::new(partial_min(a.x, b.x), partial_min(a.y, b.y), partial_min(a.z, b.z), partial_min(a.w, b.w))
+pub fn cw_min4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N> {
+    Vector4::new(
+        partial_min(a.x, b.x),
+        partial_min(a.y, b.y),
+        partial_min(a.z, b.z),
+        partial_min(a.w, b.w),
+    )
 }
 
-pub fn cw_max4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N>
-{
-    Vector4::new(partial_max(a.x, b.x), partial_max(a.y, b.y), partial_max(a.z, b.z), partial_max(a.w, b.w))
+pub fn cw_max4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector4<N> {
+    Vector4::new(
+        partial_max(a.x, b.x),
+        partial_max(a.y, b.y),
+        partial_max(a.z, b.z),
+        partial_max(a.w, b.w),
+    )
 }
 
-impl<N: Scalar + Field + PartialOrd + Bounded> AABB<N>
-{
+impl<N: Scalar + Field + PartialOrd + Bounded> AABB<N> {
     pub fn size(&self) -> Vector3<N> {
         self.max - self.min
     }
@@ -59,18 +79,19 @@ impl<N: Scalar + Field + PartialOrd + Bounded> AABB<N>
         let min = cw_min4(&xa, &xb) + cw_min4(&ya, &yb) + cw_min4(&za, &zb) + trh.column(3);
         let max = cw_max4(&xa, &xb) + cw_max4(&ya, &yb) + cw_max4(&za, &zb) + trh.column(3);
 
-        AABB { min: Point3::new(min.x,min.y,min.z), max: Point3::new(max.x,max.y,max.z) }
+        AABB {
+            min: Point3::new(min.x, min.y, min.z),
+            max: Point3::new(max.x, max.y, max.z),
+        }
     }
 
-    pub fn union_with(&mut self, other: &AABB<N>)
-    {
+    pub fn union_with(&mut self, other: &AABB<N>) {
         // This is a tad verbose
         self.min = Point3::from_coordinates(cw_min3(&self.min.coords, &other.min.coords));
         self.max = Point3::from_coordinates(cw_max3(&self.max.coords, &other.max.coords));
     }
 
-    pub fn empty() -> AABB<N>
-    {
+    pub fn empty() -> AABB<N> {
         AABB {
             max: Point3::new(N::min_value(), N::min_value(), N::min_value()),
             min: Point3::new(N::max_value(), N::max_value(), N::max_value()),

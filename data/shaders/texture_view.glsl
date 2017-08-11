@@ -1,6 +1,6 @@
 #version 450
-#include "Utils.glsli"
-#include "Blend.glsli"
+#include "utils.glsli"
+#include "blend.glsli"
 #pragma stages(vertex,fragment)
 
 #ifdef _VERTEX_

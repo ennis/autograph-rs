@@ -4,8 +4,10 @@
 #![allow(unused_attributes)]
 #![allow(deprecated)]
 
-#[macro_use] extern crate log;
-#[macro_use] extern crate rustc;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate rustc;
 //#[macro_use] extern crate quote;
 extern crate syntax;
 extern crate syntax_ext;
@@ -13,13 +15,13 @@ extern crate syntax_pos;
 extern crate rustc_plugin;
 
 use syntax::codemap::{Span, DUMMY_SP};
-use syntax::tokenstream::{TokenTree, TokenStream};
-use syntax::ast::{Path, Expr, FunctionRetTy, Ident, Ty, Attribute, FnDecl, Item, Block};
-use syntax::ext::base::{DummyResult, ExtCtxt, MacResult, MacEager};
+use syntax::tokenstream::{TokenStream, TokenTree};
+use syntax::ast::{Attribute, Block, Expr, FnDecl, FunctionRetTy, Ident, Item, Path, Ty};
+use syntax::ext::base::{DummyResult, ExtCtxt, MacEager, MacResult};
 use syntax::ext::quote;
 use syntax::print::pprust;
 use syntax::parse::parser::Parser;
-use syntax::parse::token::{Token,DelimToken};
+use syntax::parse::token::{DelimToken, Token};
 use syntax::parse::common::SeqSep;
 use syntax::parse::PResult;
 use syntax::ptr::P;
@@ -31,8 +33,7 @@ pub fn plugin_registrar(reg: &mut Registry) {
     reg.register_macro("gfx_pass", expand_gfx_pass);
 }
 
-fn mk_ident(str: &str) -> Token
-{
+fn mk_ident(str: &str) -> Token {
     Token::Ident(Ident::from_str(str))
 }
 
@@ -45,14 +46,17 @@ enum Declarator {
     BufferTy(P<Ty>),
 }
 
-impl Declarator
-{
+impl Declarator {
     // TODO: take attributes into account to determine the type exposed to `execute`
     // Return a Vec<TokenTree>
     pub fn alloc_type(&self, cx: &ExtCtxt) -> Vec<TokenTree> {
         match self {
-            &Declarator::Texture | &Declarator::Texture2D | &Declarator::Texture3D => quote_tokens!{cx, &'a Rc<::autograph::gfx::Texture> },
-            &Declarator::Buffer | &Declarator::BufferTy(_) => quote_tokens! {cx, &'a Rc<::autograph::gfx::Buffer> }
+            &Declarator::Texture | &Declarator::Texture2D | &Declarator::Texture3D => {
+                quote_tokens!{cx, &'a Rc<::autograph::gfx::Texture> }
+            }
+            &Declarator::Buffer | &Declarator::BufferTy(_) => {
+                quote_tokens! {cx, &'a Rc<::autograph::gfx::Buffer> }
+            }
         }
     }
 
@@ -62,43 +66,46 @@ impl Declarator
             &Declarator::Texture => quote_tokens! {cx, TextureInit },
             &Declarator::Texture2D => quote_tokens! {cx, Texture2DInit },
             &Declarator::Texture3D => unimplemented!(),
-            &Declarator::Buffer | &Declarator::BufferTy(_) => quote_tokens! {cx, BufferInit }
+            &Declarator::Buffer | &Declarator::BufferTy(_) => quote_tokens! {cx, BufferInit },
         }
     }
 }
 
-#[derive(Copy,Clone,Debug)]
-enum PassInputOutputKind
-{
+#[derive(Copy, Clone, Debug)]
+enum PassInputOutputKind {
     Read,
     Write,
-    Create
+    Create,
 }
 
 #[derive(Debug)]
-struct PassInputOutputItem
-{
+struct PassInputOutputItem {
     attr: Vec<Attribute>,
     kind: PassInputOutputKind,
     decl: Declarator,
     name: Ident,
-    init: Option<Vec<TokenTree>>
+    init: Option<Vec<TokenTree>>,
 }
 
-struct Pass
-{
+struct PipelineItem {
+    name: Ident,
+    static_name: Ident,
+    init: Vec<TokenTree>,
+}
+
+struct Pass {
     name: Ident,
     read_items: Vec<PassInputOutputItem>,
     write_items: Vec<PassInputOutputItem>,
     create_items: Vec<PassInputOutputItem>,
     execute_block: P<Block>,
-    sig: FnDecl
+    pipelines: Vec<PipelineItem>,
+    sig: FnDecl,
 }
 
 /// Generates the `ExecuteContext` struct that is visible in the `execute` block
 /// of the pass: this contains references to all resources accessible by the pass
-fn gen_pass_execute_context(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
-{
+/*fn gen_pass_execute_context(cx: &mut ExtCtxt, pass: &Pass) -> P<Item> {
     let read_items = &pass.read_items;
     let write_items = &pass.write_items;
     let create_items = &pass.create_items;
@@ -129,12 +136,11 @@ fn gen_pass_execute_context(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
     ).unwrap();
     //warn!("ITEM= {}", pprust::item_to_string(&item));
     item
-}
+}*/
 
 
 /// Generate a struct literal that corresponds to a description of a pass I/O item
-fn gen_input_output_desc_struct(cx: &mut ExtCtxt, item: &PassInputOutputItem) -> P<Expr>
-{
+fn gen_input_output_desc_struct(cx: &mut ExtCtxt, item: &PassInputOutputItem) -> P<Expr> {
     let desc_ty_tokens = item.decl.desc_type(cx);
     let init_tokens = item.init.as_ref().unwrap();
 
@@ -143,48 +149,68 @@ fn gen_input_output_desc_struct(cx: &mut ExtCtxt, item: &PassInputOutputItem) ->
     })
 }
 
-fn gen_execute_closure(cx: &mut ExtCtxt, pass: &Pass) -> P<Expr>
-{
+fn gen_execute_closure(cx: &mut ExtCtxt, pass: &Pass) -> P<Expr> {
     let mut stmts = Vec::new();
 
-    for item in pass.read_items.iter()
-                    .chain(pass.write_items.iter())
-                    .chain(pass.create_items.iter()) {
+    for item in pass.read_items
+        .iter()
+        .chain(pass.write_items.iter())
+        .chain(pass.create_items.iter())
+    {
         let name = &item.name;
         match &item.decl {
             &Declarator::Buffer | &Declarator::BufferTy(_) => {
-                stmts.push(quote_stmt!(cx, let $name = alloc_as_buffer_slice(__cg.get_alloc_for_resource($name));));
-            },
+                // unwrapping like it's christmas
+                stmts.push(quote_stmt!(cx, let $name = alloc_as_buffer_slice(__cg.get_alloc_for_resource($name).unwrap()).unwrap();));
+            }
             &Declarator::Texture | &Declarator::Texture2D | &Declarator::Texture3D => {
-                stmts.push(quote_stmt!(cx, let $name = alloc_as_texture(__cg.get_alloc_for_resource($name));));
+                stmts.push(quote_stmt!(cx, let $name = alloc_as_texture(__cg.get_alloc_for_resource($name).unwrap()).unwrap();));
             }
         };
     }
 
+    // pipeline initialization code
+    for pp in pass.pipelines.iter() {
+        let name = &pp.name;
+        let static_name = &pp.static_name;
+        let init = &pp.init;
+        stmts.push(quote_stmt!(cx, let $name = $static_name.get(|| { GraphicsPipelineInit {$init}.to_graphics_pipeline(__frame.queue().context()) });));
+    }
+
     let execute_block = &pass.execute_block;
 
-    quote_expr!(cx, move |__cg: &CompiledGraph| {
+    quote_expr!(cx, move |__frame: &gfx::Frame, __cg: &CompiledGraph| {
         $stmts
         $execute_block
     })
 }
 
-///
-/// Generates the constructor function `create(...)` for the pass module
-fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
+/// Generate the pipeline initialization items
+fn gen_pipeline_items(cx: &mut ExtCtxt, pass: &Pass) -> Vec<P<Item>>
 {
+    let mut items = Vec::new();
+    for pp in pass.pipelines.iter() {
+        let static_name = &pp.static_name;
+        items.push(quote_item!(cx, pub static $static_name: Lazy<::std::sync::Arc<::autograph::gfx::GraphicsPipeline>> = Lazy::new(); ).unwrap());
+    }
+
+    items
+}
+
+/// Generate the constructor function `create(...)` for the pass module
+fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item> {
     let pass_name = &pass.name;
     use syntax::ext::quote::rt::ToTokens;
     let mut args_tokens = Vec::new();
     // frst argument is a mut ref to the framegraph
-    args_tokens.append(&mut quote_tokens!(cx, __fg: &mut FrameGraph,));
+    args_tokens.append(&mut quote_tokens!(cx, __fg: &mut FrameGraph<'pass>,));
     // paste pass arguments
     for arg in pass.sig.inputs.iter() {
         args_tokens.append(&mut arg.to_tokens(cx));
         args_tokens.push(TokenTree::Token(DUMMY_SP, Token::Comma));
     }
     // paste inputs
-    if !pass.read_items.is_empty() || !pass.write_items.is_empty()  {
+    if !pass.read_items.is_empty() || !pass.write_items.is_empty() {
         args_tokens.append(&mut quote_tokens!(cx, inputs: Inputs));
     }
 
@@ -207,9 +233,7 @@ fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
     }
 
     // TODO put validation block
-    // stmts.push(quote_stmt!(cx, {
-    //
-    //}));
+
 
     // Create new resource nodes
     // __fg.create_resource_node($name.to_resource_info());
@@ -221,7 +245,9 @@ fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
     // Clone output nodes
     for item in pass.write_items.iter() {
         let name = &item.name;
-        stmts.push(quote_stmt!(cx, let $name = __fg.clone_resource_node(inputs.$name);));
+        stmts.push(
+            quote_stmt!(cx, let $name = __fg.clone_resource_node(inputs.$name);),
+        );
     }
 
     // make read inputs visible in context
@@ -229,6 +255,7 @@ fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
         let name = &item.name;
         stmts.push(quote_stmt!(cx, let $name = inputs.$name;));
     }
+
 
     // create execute closure
     let execute_closure = gen_execute_closure(cx, pass);
@@ -239,15 +266,21 @@ fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
     // link dependencies
     for item in pass.read_items.iter().chain(pass.write_items.iter()) {
         let name = &item.name;
-        stmts.push(quote_stmt!(cx, __fg.link_input(__pass, inputs.$name, ResourceUsage::Default);));
+        stmts.push(
+            quote_stmt!(cx, __fg.link_input(__pass, inputs.$name, ResourceUsage::Default);),
+        );
     }
     for item in pass.write_items.iter() {
         let name = &item.name;
-        stmts.push(quote_stmt!(cx, __fg.link_output(__pass, $name, ResourceUsage::Default);));
+        stmts.push(
+            quote_stmt!(cx, __fg.link_output(__pass, $name, ResourceUsage::Default);),
+        );
     }
     for item in pass.create_items.iter() {
         let name = &item.name;
-        stmts.push(quote_stmt!(cx, __fg.link_output(__pass, $name, ResourceUsage::Default);));
+        stmts.push(
+            quote_stmt!(cx, __fg.link_output(__pass, $name, ResourceUsage::Default);),
+        );
     }
 
     // Create outputs
@@ -259,7 +292,7 @@ fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
 
 
     let ctor_item = quote_item!(cx,
-        pub fn create($args_tokens) -> Outputs {
+        pub fn create<'pass>($args_tokens) -> Outputs {
             $stmts
             Outputs {
                 $output_tokens
@@ -271,8 +304,7 @@ fn gen_pass_ctor(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
 
 ///
 /// Generates the structs `Pass::Inputs` and `Pass::Outputs` for use in ctor
-fn gen_pass_input_output_structs(cx: &mut ExtCtxt, pass: &Pass) -> (P<Item>,P<Item>)
-{
+fn gen_pass_input_output_structs(cx: &mut ExtCtxt, pass: &Pass) -> (P<Item>, P<Item>) {
     let mut tokens_input = Vec::new();
     let mut tokens_output = Vec::new();
 
@@ -321,25 +353,24 @@ fn gen_pass_input_output_structs(cx: &mut ExtCtxt, pass: &Pass) -> (P<Item>,P<It
 
 ///
 /// Generates the module for a pass
-fn gen_pass_module(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
-{
+fn gen_pass_module(cx: &mut ExtCtxt, pass: &Pass) -> P<Item> {
     let name = &pass.name;
-
-    warn!("BEFORE GEN CONTEXT");
-    let exec_ctx_struct_item = gen_pass_execute_context(cx, pass);
-    warn!("BEFORE GEN IO STRUCTS");
+    //let exec_ctx_struct_item = gen_pass_execute_context(cx, pass);
     let (input_struct_item, output_struct_item) = gen_pass_input_output_structs(cx, pass);
-    warn!("BEFORE GEN CTOR");
     let ctor_fn_item = gen_pass_ctor(cx, pass);
+    let pp_items = gen_pipeline_items(cx, pass);
 
     let mod_item = quote_item!(cx,
         pub mod $name {
             use super::*;
-            use std::rc::Rc;
+            // TODO clean this up
+            use std::sync::Arc;
             use ::autograph::gfx::TextureFormat::*;
             use ::autograph::framegraph::{NodeIndex,ResourceUsage,FrameGraph,CompiledGraph};
             use ::autograph::framegraph::macro_prelude::*;
+            use ::autograph::lazy::Lazy;
             //$exec_ctx_struct_item
+            $pp_items
             $input_struct_item
             $output_struct_item
             $ctor_fn_item
@@ -355,32 +386,31 @@ fn gen_pass_module(cx: &mut ExtCtxt, pass: &Pass) -> P<Item>
 /// - a read dependency (in the `read {}` block)
 /// - a write dependency (in the `write {}` block)
 /// - a created resource (in the `create {}` block)
-fn parse_input_output_item<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, kind: PassInputOutputKind) -> PResult<'a, PassInputOutputItem>
-{
+fn parse_input_output_item<'a>(
+    cx: &mut ExtCtxt,
+    p: &mut Parser<'a>,
+    kind: PassInputOutputKind,
+) -> PResult<'a, PassInputOutputItem> {
     let attr = p.parse_outer_attributes()?;
 
-    let decl =
-        if p.eat(&mk_ident("texture")) {
-            Declarator::Texture
-        }
-        else if p.eat(&mk_ident("texture2D")) {
-            Declarator::Texture2D
-        }
-        else if p.eat(&mk_ident("texture3D")) {
-            Declarator::Texture3D
-        }
-        else if p.eat(&mk_ident("buffer")) {
-            // optional type parameter
-            if p.eat(&Token::Lt) {
-                let ty = p.parse_ty()?;
-                p.expect(&Token::Gt)?;
-                Declarator::BufferTy(ty)
-            } else {
-                Declarator::Buffer
-            }
+    let decl = if p.eat(&mk_ident("texture")) {
+        Declarator::Texture
+    } else if p.eat(&mk_ident("texture2D")) {
+        Declarator::Texture2D
+    } else if p.eat(&mk_ident("texture3D")) {
+        Declarator::Texture3D
+    } else if p.eat(&mk_ident("buffer")) {
+        // optional type parameter
+        if p.eat(&Token::Lt) {
+            let ty = p.parse_ty()?;
+            p.expect(&Token::Gt)?;
+            Declarator::BufferTy(ty)
         } else {
-            return p.unexpected();
-        };
+            Declarator::Buffer
+        }
+    } else {
+        return p.unexpected();
+    };
 
     let name = p.parse_ident()?;
 
@@ -398,12 +428,16 @@ fn parse_input_output_item<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, kind: PassI
         kind,
         decl,
         name,
-        init
+        init,
     })
 }
 
-fn parse_input_output_block<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, kind: PassInputOutputKind) -> PResult<'a, Vec<PassInputOutputItem>>
-{
+/// Parse an 'input-output block' (`read{}`, `write{}`, or `create{}`)
+fn parse_input_output_block<'a>(
+    cx: &mut ExtCtxt,
+    p: &mut Parser<'a>,
+    kind: PassInputOutputKind,
+) -> PResult<'a, Vec<PassInputOutputItem>> {
     p.expect(&Token::OpenDelim(DelimToken::Brace))?;
     let items = p.parse_seq_to_end(&Token::CloseDelim(DelimToken::Brace), SeqSep::trailing_allowed(Token::Comma),
         |p| parse_input_output_item(cx, p, kind)
@@ -412,24 +446,35 @@ fn parse_input_output_block<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, kind: Pass
     Ok(items)
 }
 
-fn parse_pipeline_block<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>) -> PResult<'a, (Ident,TokenStream)>
+/// Parse a pipeline block containing info for loading a pipeline from a file
+fn parse_pipeline_block<'a>(
+    cx: &mut ExtCtxt,
+    p: &mut Parser<'a>,
+) -> PResult<'a, PipelineItem>
 {
-    let pp_name = p.parse_ident()?;
+    let name = p.parse_ident()?;
     p.expect(&Token::OpenDelim(DelimToken::Brace))?;
-    let init_tokens = p.parse_tokens();
+    let init = p.parse_tokens().trees().collect();
     p.expect(&Token::CloseDelim(DelimToken::Brace))?;
-    Ok((pp_name, init_tokens))
+
+    let name_str = (&name.name.as_str() as &str).to_owned();
+    let static_name = Ident::from_str(&(name_str + "_static__"));
+
+    Ok(PipelineItem {
+        name,
+        static_name,
+        init
+    })
 }
 
-fn parse_gfx_pass<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, sp: Span) -> PResult<'a, Pass>
-{
+fn parse_gfx_pass<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, sp: Span) -> PResult<'a, Pass> {
     p.expect(&mk_ident("pass"))?;
 
     let name = p.parse_ident()?;
     // parse an argument list + return type
     let sig = p.parse_fn_decl(false)?.unwrap();
     match sig.output {
-        FunctionRetTy::Default(_) => {},
+        FunctionRetTy::Default(_) => {}
         FunctionRetTy::Ty(_) => {
             p.span_err(p.prev_span, "A return type cannot be specified here");
         }
@@ -441,37 +486,43 @@ fn parse_gfx_pass<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, sp: Span) -> PResult
     let mut write_items = Vec::new();
     let mut create_items = Vec::new();
     let mut execute_block = None;
+    let mut pipelines = Vec::new();
 
     'parse: loop {
         if p.eat(&mk_ident("read")) {
-            read_items.append(&mut parse_input_output_block(cx, p, PassInputOutputKind::Read)?);
-            warn!("READ BLOCK {:#?}", read_items);
-        }
-        else if p.eat(&mk_ident("write")) {
-            write_items.append(&mut parse_input_output_block(cx, p, PassInputOutputKind::Write)?);
-            warn!("WRITE BLOCK {:#?}", write_items);
-        }
-        else if p.eat(&mk_ident("create")) {
-            create_items.append(&mut parse_input_output_block(cx, p, PassInputOutputKind::Create)?);
-            warn!("CREATE BLOCK {:#?}", create_items);
-        }
-        else if p.eat(&mk_ident("validate")) {
-            warn!("VALIDATE BLOCK");
+            read_items.append(&mut parse_input_output_block(
+                cx,
+                p,
+                PassInputOutputKind::Read,
+            )?);
+        //warn!("READ BLOCK {:#?}", read_items);
+        } else if p.eat(&mk_ident("write")) {
+            write_items.append(&mut parse_input_output_block(
+                cx,
+                p,
+                PassInputOutputKind::Write,
+            )?);
+        //warn!("WRITE BLOCK {:#?}", write_items);
+        } else if p.eat(&mk_ident("create")) {
+            create_items.append(&mut parse_input_output_block(
+                cx,
+                p,
+                PassInputOutputKind::Create,
+            )?);
+        //warn!("CREATE BLOCK {:#?}", create_items);
+        } else if p.eat(&mk_ident("validate")) {
+            //warn!("VALIDATE BLOCK");
             p.parse_block()?;
-        }
-        else if p.eat(&mk_ident("execute")) {
-            warn!("EXECUTE BLOCK");
+        } else if p.eat(&mk_ident("execute")) {
+            // warn!("EXECUTE BLOCK");
             execute_block = Some(p.parse_block()?);
-        }
-        else if p.eat(&mk_ident("pipeline")) {
-            warn!("PIPELINE BLOCK");
-            parse_pipeline_block(cx, p)?;
-        }
-        else if p.eat(&Token::CloseDelim(DelimToken::Brace)) {
-            warn!("END PASS");
+        } else if p.eat(&mk_ident("pipeline")) {
+            //warn!("PIPELINE BLOCK");
+            pipelines.push(parse_pipeline_block(cx, p)?);
+        } else if p.eat(&Token::CloseDelim(DelimToken::Brace)) {
+            //warn!("END PASS");
             break 'parse;
-        }
-        else {
+        } else {
             return p.unexpected();
         };
 
@@ -483,15 +534,17 @@ fn parse_gfx_pass<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, sp: Span) -> PResult
         read_items,
         write_items,
         create_items,
-        execute_block: execute_block.ok_or_else(||p.span_fatal(sp, "A pipeline definition must contain an `execute` block"))?,
+        execute_block: execute_block
+            .ok_or_else(|| {
+                p.span_fatal(sp, "A pipeline definition must contain an `execute` block")
+            })?,
+        pipelines,
         name,
-        sig
+        sig,
     })
 }
 
-fn expand_gfx_pass(cx: &mut ExtCtxt, sp: Span, args: &[TokenTree])
-             -> Box<MacResult + 'static>
-{
+fn expand_gfx_pass(cx: &mut ExtCtxt, sp: Span, args: &[TokenTree]) -> Box<MacResult + 'static> {
     // pass <ident> <params>
     // params:
     let mut parser = cx.new_parser_from_tts(args);
@@ -501,7 +554,7 @@ fn expand_gfx_pass(cx: &mut ExtCtxt, sp: Span, args: &[TokenTree])
             // Parse error, emit and return dummy result
             e.emit();
             DummyResult::any(sp)
-        },
+        }
         Ok(ref pass) => {
             let mod_item = gen_pass_module(cx, pass);
             //warn!("EXECUTE CONTEXT {:#?}", exec_ctx_struct);

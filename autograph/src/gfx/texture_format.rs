@@ -1,15 +1,15 @@
+#![allow(non_snake_case)]
 use gl;
 use gl::types::*;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum TextureDimensions
-{
+pub enum TextureDimensions {
     Tex1D,
     Tex2D,
     Tex3D,
     Tex1DArray,
     Tex2DArray,
-    TexCube
+    TexCube,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -202,8 +202,7 @@ pub enum TextureFormat {
     ASTC_12x12_SRGB_BLOCK = 184,
 }
 
-pub enum ComponentLayout
-{
+pub enum ComponentLayout {
     UNKNOWN,
     R,
     RG,
@@ -217,11 +216,10 @@ pub enum ComponentLayout
     D,
     DS,
     S,
-    XD
+    XD,
 }
 
-pub enum TextureFormatType
-{
+pub enum TextureFormatType {
     UNKNOWN,
     UNORM,
     SNORM,
@@ -233,429 +231,1225 @@ pub enum TextureFormatType
     UFLOAT,
     SFLOAT,
     UNORM_UINT,
-    SFLOAT_UINT
+    SFLOAT_UINT,
 }
 
-pub struct TextureFormatInfo
-{
+pub struct TextureFormatInfo {
     pub component_layout: ComponentLayout,
     pub component_bits: [u8; 4],
-    pub format_type: TextureFormatType
+    pub format_type: TextureFormatType,
 }
 
-impl TextureFormatInfo
-{
+impl TextureFormatInfo {
     pub fn is_compressed(&self) -> bool {
-        self.component_bits == [0,0,0,0]
+        self.component_bits == [0, 0, 0, 0]
     }
 
     pub fn byte_size(&self) -> usize {
-        (self.component_bits[0] + self.component_bits[1] + self.component_bits[2] + self.component_bits[3]) as usize / 8
+        (self.component_bits[0] + self.component_bits[1] + self.component_bits[2] +
+            self.component_bits[3]) as usize / 8
     }
 }
 
-static TF_UNDEFINED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::UNKNOWN, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNKNOWN };
-static TF_R4G4_UNORM_PACK8: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [4, 4, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_R4G4B4A4_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [4, 4, 4, 4], format_type: TextureFormatType::UNORM };
-static TF_B4G4R4A4_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [4, 4, 4, 4], format_type: TextureFormatType::UNORM };
-static TF_R5G6B5_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [5, 6, 5, 0], format_type: TextureFormatType::UNORM };
-static TF_B5G6R5_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [5, 6, 5, 0], format_type: TextureFormatType::UNORM };
-static TF_R5G5B5A1_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [5, 5, 5, 1], format_type: TextureFormatType::UNORM };
-static TF_B5G5R5A1_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [5, 5, 5, 1], format_type: TextureFormatType::UNORM };
-static TF_A1R5G5B5_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ARGB, component_bits: [1, 5, 5, 5], format_type: TextureFormatType::UNORM };
-static TF_R8_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_R8_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_R8_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::USCALED };
-static TF_R8_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::SSCALED };
-static TF_R8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R8_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R8_SRGB: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_R8G8_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [8, 8, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_R8G8_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [8, 8, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_R8G8_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [8, 8, 0, 0], format_type: TextureFormatType::USCALED };
-static TF_R8G8_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [8, 8, 0, 0], format_type: TextureFormatType::SSCALED };
-static TF_R8G8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [8, 8, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R8G8_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [8, 8, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R8G8_SRGB: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [8, 8, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_R8G8B8_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::UNORM };
-static TF_R8G8B8_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SNORM };
-static TF_R8G8B8_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::USCALED };
-static TF_R8G8B8_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SSCALED };
-static TF_R8G8B8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::UINT };
-static TF_R8G8B8_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SINT };
-static TF_R8G8B8_SRGB: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SRGB };
-static TF_B8G8R8_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::UNORM };
-static TF_B8G8R8_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SNORM };
-static TF_B8G8R8_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::USCALED };
-static TF_B8G8R8_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SSCALED };
-static TF_B8G8R8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::UINT };
-static TF_B8G8R8_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SINT };
-static TF_B8G8R8_SRGB: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [8, 8, 8, 0], format_type: TextureFormatType::SRGB };
-static TF_R8G8B8A8_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::UNORM };
-static TF_R8G8B8A8_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SNORM };
-static TF_R8G8B8A8_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::USCALED };
-static TF_R8G8B8A8_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SSCALED };
-static TF_R8G8B8A8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::UINT };
-static TF_R8G8B8A8_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SINT };
-static TF_R8G8B8A8_SRGB: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SRGB };
-static TF_B8G8R8A8_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::UNORM };
-static TF_B8G8R8A8_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SNORM };
-static TF_B8G8R8A8_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::USCALED };
-static TF_B8G8R8A8_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SSCALED };
-static TF_B8G8R8A8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::UINT };
-static TF_B8G8R8A8_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SINT };
-static TF_B8G8R8A8_SRGB: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGRA, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SRGB };
-static TF_A8B8G8R8_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::UNORM };
-static TF_A8B8G8R8_SNORM_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SNORM };
-static TF_A8B8G8R8_USCALED_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::USCALED };
-static TF_A8B8G8R8_SSCALED_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SSCALED };
-static TF_A8B8G8R8_UINT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::UINT };
-static TF_A8B8G8R8_SINT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SINT };
-static TF_A8B8G8R8_SRGB_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [8, 8, 8, 8], format_type: TextureFormatType::SRGB };
-static TF_A2R10G10B10_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ARGB, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::UNORM };
-static TF_A2R10G10B10_SNORM_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ARGB, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::SNORM };
-static TF_A2R10G10B10_USCALED_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ARGB, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::USCALED };
-static TF_A2R10G10B10_SSCALED_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ARGB, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::SSCALED };
-static TF_A2R10G10B10_UINT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ARGB, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::UINT };
-static TF_A2R10G10B10_SINT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ARGB, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::SINT };
-static TF_A2B10G10R10_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::UNORM };
-static TF_A2B10G10R10_SNORM_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::SNORM };
-static TF_A2B10G10R10_USCALED_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::USCALED };
-static TF_A2B10G10R10_SSCALED_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::SSCALED };
-static TF_A2B10G10R10_UINT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::UINT };
-static TF_A2B10G10R10_SINT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::ABGR, component_bits: [2, 10, 10, 10], format_type: TextureFormatType::SINT };
-static TF_R16_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_R16_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_R16_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::USCALED };
-static TF_R16_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::SSCALED };
-static TF_R16_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R16_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R16_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R16G16_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [16, 16, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_R16G16_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [16, 16, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_R16G16_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [16, 16, 0, 0], format_type: TextureFormatType::USCALED };
-static TF_R16G16_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [16, 16, 0, 0], format_type: TextureFormatType::SSCALED };
-static TF_R16G16_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [16, 16, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R16G16_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [16, 16, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R16G16_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [16, 16, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R16G16B16_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [16, 16, 16, 0], format_type: TextureFormatType::UNORM };
-static TF_R16G16B16_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [16, 16, 16, 0], format_type: TextureFormatType::SNORM };
-static TF_R16G16B16_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [16, 16, 16, 0], format_type: TextureFormatType::USCALED };
-static TF_R16G16B16_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [16, 16, 16, 0], format_type: TextureFormatType::SSCALED };
-static TF_R16G16B16_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [16, 16, 16, 0], format_type: TextureFormatType::UINT };
-static TF_R16G16B16_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [16, 16, 16, 0], format_type: TextureFormatType::SINT };
-static TF_R16G16B16_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [16, 16, 16, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R16G16B16A16_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [16, 16, 16, 16], format_type: TextureFormatType::UNORM };
-static TF_R16G16B16A16_SNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [16, 16, 16, 16], format_type: TextureFormatType::SNORM };
-static TF_R16G16B16A16_USCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [16, 16, 16, 16], format_type: TextureFormatType::USCALED };
-static TF_R16G16B16A16_SSCALED: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [16, 16, 16, 16], format_type: TextureFormatType::SSCALED };
-static TF_R16G16B16A16_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [16, 16, 16, 16], format_type: TextureFormatType::UINT };
-static TF_R16G16B16A16_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [16, 16, 16, 16], format_type: TextureFormatType::SINT };
-static TF_R16G16B16A16_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [16, 16, 16, 16], format_type: TextureFormatType::SFLOAT };
-static TF_R32_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [32, 0, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R32_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [32, 0, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R32_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [32, 0, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R32G32_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [32, 32, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R32G32_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [32, 32, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R32G32_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [32, 32, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R32G32B32_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [32, 32, 32, 0], format_type: TextureFormatType::UINT };
-static TF_R32G32B32_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [32, 32, 32, 0], format_type: TextureFormatType::SINT };
-static TF_R32G32B32_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [32, 32, 32, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R32G32B32A32_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [32, 32, 32, 32], format_type: TextureFormatType::UINT };
-static TF_R32G32B32A32_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [32, 32, 32, 32], format_type: TextureFormatType::SINT };
-static TF_R32G32B32A32_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [32, 32, 32, 32], format_type: TextureFormatType::SFLOAT };
-static TF_R64_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [64, 0, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R64_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [64, 0, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R64_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [64, 0, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R64G64_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [64, 64, 0, 0], format_type: TextureFormatType::UINT };
-static TF_R64G64_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [64, 64, 0, 0], format_type: TextureFormatType::SINT };
-static TF_R64G64_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [64, 64, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R64G64B64_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [64, 64, 64, 0], format_type: TextureFormatType::UINT };
-static TF_R64G64B64_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [64, 64, 64, 0], format_type: TextureFormatType::SINT };
-static TF_R64G64B64_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [64, 64, 64, 0], format_type: TextureFormatType::SFLOAT };
-static TF_R64G64B64A64_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [64, 64, 64, 64], format_type: TextureFormatType::UINT };
-static TF_R64G64B64A64_SINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [64, 64, 64, 64], format_type: TextureFormatType::SINT };
-static TF_R64G64B64A64_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [64, 64, 64, 64], format_type: TextureFormatType::SFLOAT };
-static TF_B10G11R11_UFLOAT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::BGR, component_bits: [10, 11, 11, 0], format_type: TextureFormatType::UFLOAT };
-static TF_E5B9G9R9_UFLOAT_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::EBGR, component_bits: [5, 9, 9, 9], format_type: TextureFormatType::UFLOAT };
-static TF_D16_UNORM: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::D, component_bits: [16, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_X8_D24_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::XD, component_bits: [8, 24, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_D32_SFLOAT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::D, component_bits: [32, 0, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_S8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::S, component_bits: [8, 0, 0, 0], format_type: TextureFormatType::UINT };
-static TF_D16_UNORM_S8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::DS, component_bits: [16, 8, 0, 0], format_type: TextureFormatType::UNORM_UINT };
-static TF_D24_UNORM_S8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::DS, component_bits: [24, 8, 0, 0], format_type: TextureFormatType::UNORM_UINT };
-static TF_D32_SFLOAT_S8_UINT: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::DS, component_bits: [32, 8, 0, 0], format_type: TextureFormatType::SFLOAT_UINT };
-static TF_BC1_RGB_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_BC1_RGB_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_BC1_RGBA_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_BC1_RGBA_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_BC2_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_BC2_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_BC3_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_BC3_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_BC4_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_BC4_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_BC5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_BC5_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_BC6H_UFLOAT_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UFLOAT };
-static TF_BC6H_SFLOAT_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SFLOAT };
-static TF_BC7_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_BC7_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ETC2_R8G8B8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ETC2_R8G8B8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGB, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ETC2_R8G8B8A1_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ETC2_R8G8B8A1_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ETC2_R8G8B8A8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ETC2_R8G8B8A8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_EAC_R11_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_EAC_R11_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::R, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_EAC_R11G11_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_EAC_R11G11_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RG, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SNORM };
-static TF_ASTC_4x4_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_4x4_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_5x4_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_5x4_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_5x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_5x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_6x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_6x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_6x6_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_6x6_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_8x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_8x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_8x6_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_8x6_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_8x8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_8x8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_10x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_10x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_10x6_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_10x6_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_10x8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_10x8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_10x10_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_10x10_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_12x10_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_12x10_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
-static TF_ASTC_12x12_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::UNORM };
-static TF_ASTC_12x12_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo{ component_layout: ComponentLayout::RGBA, component_bits: [0, 0, 0, 0], format_type: TextureFormatType::SRGB };
+static TF_UNDEFINED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::UNKNOWN,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNKNOWN,
+};
+static TF_R4G4_UNORM_PACK8: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [4, 4, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R4G4B4A4_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [4, 4, 4, 4],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_B4G4R4A4_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [4, 4, 4, 4],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R5G6B5_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [5, 6, 5, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_B5G6R5_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [5, 6, 5, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R5G5B5A1_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [5, 5, 5, 1],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_B5G5R5A1_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [5, 5, 5, 1],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_A1R5G5B5_UNORM_PACK16: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ARGB,
+    component_bits: [1, 5, 5, 5],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R8_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R8_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R8_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R8_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R8_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R8_SRGB: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_R8G8_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [8, 8, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R8G8_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [8, 8, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R8G8_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [8, 8, 0, 0],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R8G8_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [8, 8, 0, 0],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R8G8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [8, 8, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R8G8_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [8, 8, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R8G8_SRGB: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [8, 8, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_R8G8B8_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R8G8B8_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R8G8B8_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R8G8B8_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R8G8B8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R8G8B8_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R8G8B8_SRGB: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_B8G8R8_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_B8G8R8_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_B8G8R8_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_B8G8R8_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_B8G8R8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_B8G8R8_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_B8G8R8_SRGB: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [8, 8, 8, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_R8G8B8A8_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R8G8B8A8_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R8G8B8A8_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R8G8B8A8_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R8G8B8A8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R8G8B8A8_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R8G8B8A8_SRGB: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_B8G8R8A8_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_B8G8R8A8_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_B8G8R8A8_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_B8G8R8A8_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_B8G8R8A8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::UINT,
+};
+static TF_B8G8R8A8_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SINT,
+};
+static TF_B8G8R8A8_SRGB: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGRA,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_A8B8G8R8_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_A8B8G8R8_SNORM_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_A8B8G8R8_USCALED_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_A8B8G8R8_SSCALED_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_A8B8G8R8_UINT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::UINT,
+};
+static TF_A8B8G8R8_SINT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SINT,
+};
+static TF_A8B8G8R8_SRGB_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [8, 8, 8, 8],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_A2R10G10B10_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ARGB,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_A2R10G10B10_SNORM_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ARGB,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_A2R10G10B10_USCALED_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ARGB,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_A2R10G10B10_SSCALED_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ARGB,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_A2R10G10B10_UINT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ARGB,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::UINT,
+};
+static TF_A2R10G10B10_SINT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ARGB,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::SINT,
+};
+static TF_A2B10G10R10_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_A2B10G10R10_SNORM_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_A2B10G10R10_USCALED_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_A2B10G10R10_SSCALED_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_A2B10G10R10_UINT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::UINT,
+};
+static TF_A2B10G10R10_SINT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::ABGR,
+    component_bits: [2, 10, 10, 10],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R16_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R16_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R16_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R16_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R16_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R16_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R16_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R16G16_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [16, 16, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R16G16_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [16, 16, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R16G16_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [16, 16, 0, 0],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R16G16_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [16, 16, 0, 0],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R16G16_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [16, 16, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R16G16_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [16, 16, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R16G16_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [16, 16, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R16G16B16_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [16, 16, 16, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R16G16B16_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [16, 16, 16, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R16G16B16_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [16, 16, 16, 0],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R16G16B16_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [16, 16, 16, 0],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R16G16B16_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [16, 16, 16, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R16G16B16_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [16, 16, 16, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R16G16B16_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [16, 16, 16, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R16G16B16A16_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [16, 16, 16, 16],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_R16G16B16A16_SNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [16, 16, 16, 16],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_R16G16B16A16_USCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [16, 16, 16, 16],
+    format_type: TextureFormatType::USCALED,
+};
+static TF_R16G16B16A16_SSCALED: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [16, 16, 16, 16],
+    format_type: TextureFormatType::SSCALED,
+};
+static TF_R16G16B16A16_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [16, 16, 16, 16],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R16G16B16A16_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [16, 16, 16, 16],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R16G16B16A16_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [16, 16, 16, 16],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R32_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [32, 0, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R32_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [32, 0, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R32_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [32, 0, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R32G32_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [32, 32, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R32G32_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [32, 32, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R32G32_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [32, 32, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R32G32B32_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [32, 32, 32, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R32G32B32_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [32, 32, 32, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R32G32B32_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [32, 32, 32, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R32G32B32A32_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [32, 32, 32, 32],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R32G32B32A32_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [32, 32, 32, 32],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R32G32B32A32_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [32, 32, 32, 32],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R64_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [64, 0, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R64_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [64, 0, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R64_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [64, 0, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R64G64_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [64, 64, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R64G64_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [64, 64, 0, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R64G64_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [64, 64, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R64G64B64_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [64, 64, 64, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R64G64B64_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [64, 64, 64, 0],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R64G64B64_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [64, 64, 64, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_R64G64B64A64_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [64, 64, 64, 64],
+    format_type: TextureFormatType::UINT,
+};
+static TF_R64G64B64A64_SINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [64, 64, 64, 64],
+    format_type: TextureFormatType::SINT,
+};
+static TF_R64G64B64A64_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [64, 64, 64, 64],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_B10G11R11_UFLOAT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::BGR,
+    component_bits: [10, 11, 11, 0],
+    format_type: TextureFormatType::UFLOAT,
+};
+static TF_E5B9G9R9_UFLOAT_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::EBGR,
+    component_bits: [5, 9, 9, 9],
+    format_type: TextureFormatType::UFLOAT,
+};
+static TF_D16_UNORM: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::D,
+    component_bits: [16, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_X8_D24_UNORM_PACK32: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::XD,
+    component_bits: [8, 24, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_D32_SFLOAT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::D,
+    component_bits: [32, 0, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_S8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::S,
+    component_bits: [8, 0, 0, 0],
+    format_type: TextureFormatType::UINT,
+};
+static TF_D16_UNORM_S8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::DS,
+    component_bits: [16, 8, 0, 0],
+    format_type: TextureFormatType::UNORM_UINT,
+};
+static TF_D24_UNORM_S8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::DS,
+    component_bits: [24, 8, 0, 0],
+    format_type: TextureFormatType::UNORM_UINT,
+};
+static TF_D32_SFLOAT_S8_UINT: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::DS,
+    component_bits: [32, 8, 0, 0],
+    format_type: TextureFormatType::SFLOAT_UINT,
+};
+static TF_BC1_RGB_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_BC1_RGB_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_BC1_RGBA_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_BC1_RGBA_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_BC2_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_BC2_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_BC3_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_BC3_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_BC4_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_BC4_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_BC5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_BC5_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_BC6H_UFLOAT_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UFLOAT,
+};
+static TF_BC6H_SFLOAT_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SFLOAT,
+};
+static TF_BC7_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_BC7_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ETC2_R8G8B8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ETC2_R8G8B8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGB,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ETC2_R8G8B8A1_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ETC2_R8G8B8A1_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ETC2_R8G8B8A8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ETC2_R8G8B8A8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_EAC_R11_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_EAC_R11_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::R,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_EAC_R11G11_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_EAC_R11G11_SNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RG,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SNORM,
+};
+static TF_ASTC_4x4_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_4x4_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_5x4_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_5x4_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_5x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_5x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_6x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_6x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_6x6_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_6x6_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_8x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_8x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_8x6_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_8x6_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_8x8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_8x8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_10x5_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_10x5_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_10x6_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_10x6_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_10x8_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_10x8_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_10x10_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_10x10_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_12x10_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_12x10_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
+static TF_ASTC_12x12_UNORM_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::UNORM,
+};
+static TF_ASTC_12x12_SRGB_BLOCK: TextureFormatInfo = TextureFormatInfo {
+    component_layout: ComponentLayout::RGBA,
+    component_bits: [0, 0, 0, 0],
+    format_type: TextureFormatType::SRGB,
+};
 
-impl TextureFormat
-{
-    pub fn get_format_info(self) -> &'static TextureFormatInfo
-    {
-        match self
-            {
-                TextureFormat::UNDEFINED => &TF_UNDEFINED,
-                TextureFormat::R4G4_UNORM_PACK8 => &TF_R4G4_UNORM_PACK8,
-                TextureFormat::R4G4B4A4_UNORM_PACK16 => &TF_R4G4B4A4_UNORM_PACK16,
-                TextureFormat::B4G4R4A4_UNORM_PACK16 => &TF_B4G4R4A4_UNORM_PACK16,
-                TextureFormat::R5G6B5_UNORM_PACK16 => &TF_R5G6B5_UNORM_PACK16,
-                TextureFormat::B5G6R5_UNORM_PACK16 => &TF_B5G6R5_UNORM_PACK16,
-                TextureFormat::R5G5B5A1_UNORM_PACK16 => &TF_R5G5B5A1_UNORM_PACK16,
-                TextureFormat::B5G5R5A1_UNORM_PACK16 => &TF_B5G5R5A1_UNORM_PACK16,
-                TextureFormat::A1R5G5B5_UNORM_PACK16 => &TF_A1R5G5B5_UNORM_PACK16,
-                TextureFormat::R8_UNORM => &TF_R8_UNORM,
-                TextureFormat::R8_SNORM => &TF_R8_SNORM,
-                TextureFormat::R8_USCALED => &TF_R8_USCALED,
-                TextureFormat::R8_SSCALED => &TF_R8_SSCALED,
-                TextureFormat::R8_UINT => &TF_R8_UINT,
-                TextureFormat::R8_SINT => &TF_R8_SINT,
-                TextureFormat::R8_SRGB => &TF_R8_SRGB,
-                TextureFormat::R8G8_UNORM => &TF_R8G8_UNORM,
-                TextureFormat::R8G8_SNORM => &TF_R8G8_SNORM,
-                TextureFormat::R8G8_USCALED => &TF_R8G8_USCALED,
-                TextureFormat::R8G8_SSCALED => &TF_R8G8_SSCALED,
-                TextureFormat::R8G8_UINT => &TF_R8G8_UINT,
-                TextureFormat::R8G8_SINT => &TF_R8G8_SINT,
-                TextureFormat::R8G8_SRGB => &TF_R8G8_SRGB,
-                TextureFormat::R8G8B8_UNORM => &TF_R8G8B8_UNORM,
-                TextureFormat::R8G8B8_SNORM => &TF_R8G8B8_SNORM,
-                TextureFormat::R8G8B8_USCALED => &TF_R8G8B8_USCALED,
-                TextureFormat::R8G8B8_SSCALED => &TF_R8G8B8_SSCALED,
-                TextureFormat::R8G8B8_UINT => &TF_R8G8B8_UINT,
-                TextureFormat::R8G8B8_SINT => &TF_R8G8B8_SINT,
-                TextureFormat::R8G8B8_SRGB => &TF_R8G8B8_SRGB,
-                TextureFormat::B8G8R8_UNORM => &TF_B8G8R8_UNORM,
-                TextureFormat::B8G8R8_SNORM => &TF_B8G8R8_SNORM,
-                TextureFormat::B8G8R8_USCALED => &TF_B8G8R8_USCALED,
-                TextureFormat::B8G8R8_SSCALED => &TF_B8G8R8_SSCALED,
-                TextureFormat::B8G8R8_UINT => &TF_B8G8R8_UINT,
-                TextureFormat::B8G8R8_SINT => &TF_B8G8R8_SINT,
-                TextureFormat::B8G8R8_SRGB => &TF_B8G8R8_SRGB,
-                TextureFormat::R8G8B8A8_UNORM => &TF_R8G8B8A8_UNORM,
-                TextureFormat::R8G8B8A8_SNORM => &TF_R8G8B8A8_SNORM,
-                TextureFormat::R8G8B8A8_USCALED => &TF_R8G8B8A8_USCALED,
-                TextureFormat::R8G8B8A8_SSCALED => &TF_R8G8B8A8_SSCALED,
-                TextureFormat::R8G8B8A8_UINT => &TF_R8G8B8A8_UINT,
-                TextureFormat::R8G8B8A8_SINT => &TF_R8G8B8A8_SINT,
-                TextureFormat::R8G8B8A8_SRGB => &TF_R8G8B8A8_SRGB,
-                TextureFormat::B8G8R8A8_UNORM => &TF_B8G8R8A8_UNORM,
-                TextureFormat::B8G8R8A8_SNORM => &TF_B8G8R8A8_SNORM,
-                TextureFormat::B8G8R8A8_USCALED => &TF_B8G8R8A8_USCALED,
-                TextureFormat::B8G8R8A8_SSCALED => &TF_B8G8R8A8_SSCALED,
-                TextureFormat::B8G8R8A8_UINT => &TF_B8G8R8A8_UINT,
-                TextureFormat::B8G8R8A8_SINT => &TF_B8G8R8A8_SINT,
-                TextureFormat::B8G8R8A8_SRGB => &TF_B8G8R8A8_SRGB,
-                TextureFormat::A8B8G8R8_UNORM_PACK32 => &TF_A8B8G8R8_UNORM_PACK32,
-                TextureFormat::A8B8G8R8_SNORM_PACK32 => &TF_A8B8G8R8_SNORM_PACK32,
-                TextureFormat::A8B8G8R8_USCALED_PACK32 => &TF_A8B8G8R8_USCALED_PACK32,
-                TextureFormat::A8B8G8R8_SSCALED_PACK32 => &TF_A8B8G8R8_SSCALED_PACK32,
-                TextureFormat::A8B8G8R8_UINT_PACK32 => &TF_A8B8G8R8_UINT_PACK32,
-                TextureFormat::A8B8G8R8_SINT_PACK32 => &TF_A8B8G8R8_SINT_PACK32,
-                TextureFormat::A8B8G8R8_SRGB_PACK32 => &TF_A8B8G8R8_SRGB_PACK32,
-                TextureFormat::A2R10G10B10_UNORM_PACK32 => &TF_A2R10G10B10_UNORM_PACK32,
-                TextureFormat::A2R10G10B10_SNORM_PACK32 => &TF_A2R10G10B10_SNORM_PACK32,
-                TextureFormat::A2R10G10B10_USCALED_PACK32 => &TF_A2R10G10B10_USCALED_PACK32,
-                TextureFormat::A2R10G10B10_SSCALED_PACK32 => &TF_A2R10G10B10_SSCALED_PACK32,
-                TextureFormat::A2R10G10B10_UINT_PACK32 => &TF_A2R10G10B10_UINT_PACK32,
-                TextureFormat::A2R10G10B10_SINT_PACK32 => &TF_A2R10G10B10_SINT_PACK32,
-                TextureFormat::A2B10G10R10_UNORM_PACK32 => &TF_A2B10G10R10_UNORM_PACK32,
-                TextureFormat::A2B10G10R10_SNORM_PACK32 => &TF_A2B10G10R10_SNORM_PACK32,
-                TextureFormat::A2B10G10R10_USCALED_PACK32 => &TF_A2B10G10R10_USCALED_PACK32,
-                TextureFormat::A2B10G10R10_SSCALED_PACK32 => &TF_A2B10G10R10_SSCALED_PACK32,
-                TextureFormat::A2B10G10R10_UINT_PACK32 => &TF_A2B10G10R10_UINT_PACK32,
-                TextureFormat::A2B10G10R10_SINT_PACK32 => &TF_A2B10G10R10_SINT_PACK32,
-                TextureFormat::R16_UNORM => &TF_R16_UNORM,
-                TextureFormat::R16_SNORM => &TF_R16_SNORM,
-                TextureFormat::R16_USCALED => &TF_R16_USCALED,
-                TextureFormat::R16_SSCALED => &TF_R16_SSCALED,
-                TextureFormat::R16_UINT => &TF_R16_UINT,
-                TextureFormat::R16_SINT => &TF_R16_SINT,
-                TextureFormat::R16_SFLOAT => &TF_R16_SFLOAT,
-                TextureFormat::R16G16_UNORM => &TF_R16G16_UNORM,
-                TextureFormat::R16G16_SNORM => &TF_R16G16_SNORM,
-                TextureFormat::R16G16_USCALED => &TF_R16G16_USCALED,
-                TextureFormat::R16G16_SSCALED => &TF_R16G16_SSCALED,
-                TextureFormat::R16G16_UINT => &TF_R16G16_UINT,
-                TextureFormat::R16G16_SINT => &TF_R16G16_SINT,
-                TextureFormat::R16G16_SFLOAT => &TF_R16G16_SFLOAT,
-                TextureFormat::R16G16B16_UNORM => &TF_R16G16B16_UNORM,
-                TextureFormat::R16G16B16_SNORM => &TF_R16G16B16_SNORM,
-                TextureFormat::R16G16B16_USCALED => &TF_R16G16B16_USCALED,
-                TextureFormat::R16G16B16_SSCALED => &TF_R16G16B16_SSCALED,
-                TextureFormat::R16G16B16_UINT => &TF_R16G16B16_UINT,
-                TextureFormat::R16G16B16_SINT => &TF_R16G16B16_SINT,
-                TextureFormat::R16G16B16_SFLOAT => &TF_R16G16B16_SFLOAT,
-                TextureFormat::R16G16B16A16_UNORM => &TF_R16G16B16A16_UNORM,
-                TextureFormat::R16G16B16A16_SNORM => &TF_R16G16B16A16_SNORM,
-                TextureFormat::R16G16B16A16_USCALED => &TF_R16G16B16A16_USCALED,
-                TextureFormat::R16G16B16A16_SSCALED => &TF_R16G16B16A16_SSCALED,
-                TextureFormat::R16G16B16A16_UINT => &TF_R16G16B16A16_UINT,
-                TextureFormat::R16G16B16A16_SINT => &TF_R16G16B16A16_SINT,
-                TextureFormat::R16G16B16A16_SFLOAT => &TF_R16G16B16A16_SFLOAT,
-                TextureFormat::R32_UINT => &TF_R32_UINT,
-                TextureFormat::R32_SINT => &TF_R32_SINT,
-                TextureFormat::R32_SFLOAT => &TF_R32_SFLOAT,
-                TextureFormat::R32G32_UINT => &TF_R32G32_UINT,
-                TextureFormat::R32G32_SINT => &TF_R32G32_SINT,
-                TextureFormat::R32G32_SFLOAT => &TF_R32G32_SFLOAT,
-                TextureFormat::R32G32B32_UINT => &TF_R32G32B32_UINT,
-                TextureFormat::R32G32B32_SINT => &TF_R32G32B32_SINT,
-                TextureFormat::R32G32B32_SFLOAT => &TF_R32G32B32_SFLOAT,
-                TextureFormat::R32G32B32A32_UINT => &TF_R32G32B32A32_UINT,
-                TextureFormat::R32G32B32A32_SINT => &TF_R32G32B32A32_SINT,
-                TextureFormat::R32G32B32A32_SFLOAT => &TF_R32G32B32A32_SFLOAT,
-                TextureFormat::R64_UINT => &TF_R64_UINT,
-                TextureFormat::R64_SINT => &TF_R64_SINT,
-                TextureFormat::R64_SFLOAT => &TF_R64_SFLOAT,
-                TextureFormat::R64G64_UINT => &TF_R64G64_UINT,
-                TextureFormat::R64G64_SINT => &TF_R64G64_SINT,
-                TextureFormat::R64G64_SFLOAT => &TF_R64G64_SFLOAT,
-                TextureFormat::R64G64B64_UINT => &TF_R64G64B64_UINT,
-                TextureFormat::R64G64B64_SINT => &TF_R64G64B64_SINT,
-                TextureFormat::R64G64B64_SFLOAT => &TF_R64G64B64_SFLOAT,
-                TextureFormat::R64G64B64A64_UINT => &TF_R64G64B64A64_UINT,
-                TextureFormat::R64G64B64A64_SINT => &TF_R64G64B64A64_SINT,
-                TextureFormat::R64G64B64A64_SFLOAT => &TF_R64G64B64A64_SFLOAT,
-                TextureFormat::B10G11R11_UFLOAT_PACK32 => &TF_B10G11R11_UFLOAT_PACK32,
-                TextureFormat::E5B9G9R9_UFLOAT_PACK32 => &TF_E5B9G9R9_UFLOAT_PACK32,
-                TextureFormat::D16_UNORM => &TF_D16_UNORM,
-                TextureFormat::X8_D24_UNORM_PACK32 => &TF_X8_D24_UNORM_PACK32,
-                TextureFormat::D32_SFLOAT => &TF_D32_SFLOAT,
-                TextureFormat::S8_UINT => &TF_S8_UINT,
-                TextureFormat::D16_UNORM_S8_UINT => &TF_D16_UNORM_S8_UINT,
-                TextureFormat::D24_UNORM_S8_UINT => &TF_D24_UNORM_S8_UINT,
-                TextureFormat::D32_SFLOAT_S8_UINT => &TF_D32_SFLOAT_S8_UINT,
-                TextureFormat::BC1_RGB_UNORM_BLOCK => &TF_BC1_RGB_UNORM_BLOCK,
-                TextureFormat::BC1_RGB_SRGB_BLOCK => &TF_BC1_RGB_SRGB_BLOCK,
-                TextureFormat::BC1_RGBA_UNORM_BLOCK => &TF_BC1_RGBA_UNORM_BLOCK,
-                TextureFormat::BC1_RGBA_SRGB_BLOCK => &TF_BC1_RGBA_SRGB_BLOCK,
-                TextureFormat::BC2_UNORM_BLOCK => &TF_BC2_UNORM_BLOCK,
-                TextureFormat::BC2_SRGB_BLOCK => &TF_BC2_SRGB_BLOCK,
-                TextureFormat::BC3_UNORM_BLOCK => &TF_BC3_UNORM_BLOCK,
-                TextureFormat::BC3_SRGB_BLOCK => &TF_BC3_SRGB_BLOCK,
-                TextureFormat::BC4_UNORM_BLOCK => &TF_BC4_UNORM_BLOCK,
-                TextureFormat::BC4_SNORM_BLOCK => &TF_BC4_SNORM_BLOCK,
-                TextureFormat::BC5_UNORM_BLOCK => &TF_BC5_UNORM_BLOCK,
-                TextureFormat::BC5_SNORM_BLOCK => &TF_BC5_SNORM_BLOCK,
-                TextureFormat::BC6H_UFLOAT_BLOCK => &TF_BC6H_UFLOAT_BLOCK,
-                TextureFormat::BC6H_SFLOAT_BLOCK => &TF_BC6H_SFLOAT_BLOCK,
-                TextureFormat::BC7_UNORM_BLOCK => &TF_BC7_UNORM_BLOCK,
-                TextureFormat::BC7_SRGB_BLOCK => &TF_BC7_SRGB_BLOCK,
-                TextureFormat::ETC2_R8G8B8_UNORM_BLOCK => &TF_ETC2_R8G8B8_UNORM_BLOCK,
-                TextureFormat::ETC2_R8G8B8_SRGB_BLOCK => &TF_ETC2_R8G8B8_SRGB_BLOCK,
-                TextureFormat::ETC2_R8G8B8A1_UNORM_BLOCK => &TF_ETC2_R8G8B8A1_UNORM_BLOCK,
-                TextureFormat::ETC2_R8G8B8A1_SRGB_BLOCK => &TF_ETC2_R8G8B8A1_SRGB_BLOCK,
-                TextureFormat::ETC2_R8G8B8A8_UNORM_BLOCK => &TF_ETC2_R8G8B8A8_UNORM_BLOCK,
-                TextureFormat::ETC2_R8G8B8A8_SRGB_BLOCK => &TF_ETC2_R8G8B8A8_SRGB_BLOCK,
-                TextureFormat::EAC_R11_UNORM_BLOCK => &TF_EAC_R11_UNORM_BLOCK,
-                TextureFormat::EAC_R11_SNORM_BLOCK => &TF_EAC_R11_SNORM_BLOCK,
-                TextureFormat::EAC_R11G11_UNORM_BLOCK => &TF_EAC_R11G11_UNORM_BLOCK,
-                TextureFormat::EAC_R11G11_SNORM_BLOCK => &TF_EAC_R11G11_SNORM_BLOCK,
-                TextureFormat::ASTC_4x4_UNORM_BLOCK => &TF_ASTC_4x4_UNORM_BLOCK,
-                TextureFormat::ASTC_4x4_SRGB_BLOCK => &TF_ASTC_4x4_SRGB_BLOCK,
-                TextureFormat::ASTC_5x4_UNORM_BLOCK => &TF_ASTC_5x4_UNORM_BLOCK,
-                TextureFormat::ASTC_5x4_SRGB_BLOCK => &TF_ASTC_5x4_SRGB_BLOCK,
-                TextureFormat::ASTC_5x5_UNORM_BLOCK => &TF_ASTC_5x5_UNORM_BLOCK,
-                TextureFormat::ASTC_5x5_SRGB_BLOCK => &TF_ASTC_5x5_SRGB_BLOCK,
-                TextureFormat::ASTC_6x5_UNORM_BLOCK => &TF_ASTC_6x5_UNORM_BLOCK,
-                TextureFormat::ASTC_6x5_SRGB_BLOCK => &TF_ASTC_6x5_SRGB_BLOCK,
-                TextureFormat::ASTC_6x6_UNORM_BLOCK => &TF_ASTC_6x6_UNORM_BLOCK,
-                TextureFormat::ASTC_6x6_SRGB_BLOCK => &TF_ASTC_6x6_SRGB_BLOCK,
-                TextureFormat::ASTC_8x5_UNORM_BLOCK => &TF_ASTC_8x5_UNORM_BLOCK,
-                TextureFormat::ASTC_8x5_SRGB_BLOCK => &TF_ASTC_8x5_SRGB_BLOCK,
-                TextureFormat::ASTC_8x6_UNORM_BLOCK => &TF_ASTC_8x6_UNORM_BLOCK,
-                TextureFormat::ASTC_8x6_SRGB_BLOCK => &TF_ASTC_8x6_SRGB_BLOCK,
-                TextureFormat::ASTC_8x8_UNORM_BLOCK => &TF_ASTC_8x8_UNORM_BLOCK,
-                TextureFormat::ASTC_8x8_SRGB_BLOCK => &TF_ASTC_8x8_SRGB_BLOCK,
-                TextureFormat::ASTC_10x5_UNORM_BLOCK => &TF_ASTC_10x5_UNORM_BLOCK,
-                TextureFormat::ASTC_10x5_SRGB_BLOCK => &TF_ASTC_10x5_SRGB_BLOCK,
-                TextureFormat::ASTC_10x6_UNORM_BLOCK => &TF_ASTC_10x6_UNORM_BLOCK,
-                TextureFormat::ASTC_10x6_SRGB_BLOCK => &TF_ASTC_10x6_SRGB_BLOCK,
-                TextureFormat::ASTC_10x8_UNORM_BLOCK => &TF_ASTC_10x8_UNORM_BLOCK,
-                TextureFormat::ASTC_10x8_SRGB_BLOCK => &TF_ASTC_10x8_SRGB_BLOCK,
-                TextureFormat::ASTC_10x10_UNORM_BLOCK => &TF_ASTC_10x10_UNORM_BLOCK,
-                TextureFormat::ASTC_10x10_SRGB_BLOCK => &TF_ASTC_10x10_SRGB_BLOCK,
-                TextureFormat::ASTC_12x10_UNORM_BLOCK => &TF_ASTC_12x10_UNORM_BLOCK,
-                TextureFormat::ASTC_12x10_SRGB_BLOCK => &TF_ASTC_12x10_SRGB_BLOCK,
-                TextureFormat::ASTC_12x12_UNORM_BLOCK => &TF_ASTC_12x12_UNORM_BLOCK,
-                TextureFormat::ASTC_12x12_SRGB_BLOCK => &TF_ASTC_12x12_SRGB_BLOCK,
-            }
+impl TextureFormat {
+    pub fn get_format_info(self) -> &'static TextureFormatInfo {
+        match self {
+            TextureFormat::UNDEFINED => &TF_UNDEFINED,
+            TextureFormat::R4G4_UNORM_PACK8 => &TF_R4G4_UNORM_PACK8,
+            TextureFormat::R4G4B4A4_UNORM_PACK16 => &TF_R4G4B4A4_UNORM_PACK16,
+            TextureFormat::B4G4R4A4_UNORM_PACK16 => &TF_B4G4R4A4_UNORM_PACK16,
+            TextureFormat::R5G6B5_UNORM_PACK16 => &TF_R5G6B5_UNORM_PACK16,
+            TextureFormat::B5G6R5_UNORM_PACK16 => &TF_B5G6R5_UNORM_PACK16,
+            TextureFormat::R5G5B5A1_UNORM_PACK16 => &TF_R5G5B5A1_UNORM_PACK16,
+            TextureFormat::B5G5R5A1_UNORM_PACK16 => &TF_B5G5R5A1_UNORM_PACK16,
+            TextureFormat::A1R5G5B5_UNORM_PACK16 => &TF_A1R5G5B5_UNORM_PACK16,
+            TextureFormat::R8_UNORM => &TF_R8_UNORM,
+            TextureFormat::R8_SNORM => &TF_R8_SNORM,
+            TextureFormat::R8_USCALED => &TF_R8_USCALED,
+            TextureFormat::R8_SSCALED => &TF_R8_SSCALED,
+            TextureFormat::R8_UINT => &TF_R8_UINT,
+            TextureFormat::R8_SINT => &TF_R8_SINT,
+            TextureFormat::R8_SRGB => &TF_R8_SRGB,
+            TextureFormat::R8G8_UNORM => &TF_R8G8_UNORM,
+            TextureFormat::R8G8_SNORM => &TF_R8G8_SNORM,
+            TextureFormat::R8G8_USCALED => &TF_R8G8_USCALED,
+            TextureFormat::R8G8_SSCALED => &TF_R8G8_SSCALED,
+            TextureFormat::R8G8_UINT => &TF_R8G8_UINT,
+            TextureFormat::R8G8_SINT => &TF_R8G8_SINT,
+            TextureFormat::R8G8_SRGB => &TF_R8G8_SRGB,
+            TextureFormat::R8G8B8_UNORM => &TF_R8G8B8_UNORM,
+            TextureFormat::R8G8B8_SNORM => &TF_R8G8B8_SNORM,
+            TextureFormat::R8G8B8_USCALED => &TF_R8G8B8_USCALED,
+            TextureFormat::R8G8B8_SSCALED => &TF_R8G8B8_SSCALED,
+            TextureFormat::R8G8B8_UINT => &TF_R8G8B8_UINT,
+            TextureFormat::R8G8B8_SINT => &TF_R8G8B8_SINT,
+            TextureFormat::R8G8B8_SRGB => &TF_R8G8B8_SRGB,
+            TextureFormat::B8G8R8_UNORM => &TF_B8G8R8_UNORM,
+            TextureFormat::B8G8R8_SNORM => &TF_B8G8R8_SNORM,
+            TextureFormat::B8G8R8_USCALED => &TF_B8G8R8_USCALED,
+            TextureFormat::B8G8R8_SSCALED => &TF_B8G8R8_SSCALED,
+            TextureFormat::B8G8R8_UINT => &TF_B8G8R8_UINT,
+            TextureFormat::B8G8R8_SINT => &TF_B8G8R8_SINT,
+            TextureFormat::B8G8R8_SRGB => &TF_B8G8R8_SRGB,
+            TextureFormat::R8G8B8A8_UNORM => &TF_R8G8B8A8_UNORM,
+            TextureFormat::R8G8B8A8_SNORM => &TF_R8G8B8A8_SNORM,
+            TextureFormat::R8G8B8A8_USCALED => &TF_R8G8B8A8_USCALED,
+            TextureFormat::R8G8B8A8_SSCALED => &TF_R8G8B8A8_SSCALED,
+            TextureFormat::R8G8B8A8_UINT => &TF_R8G8B8A8_UINT,
+            TextureFormat::R8G8B8A8_SINT => &TF_R8G8B8A8_SINT,
+            TextureFormat::R8G8B8A8_SRGB => &TF_R8G8B8A8_SRGB,
+            TextureFormat::B8G8R8A8_UNORM => &TF_B8G8R8A8_UNORM,
+            TextureFormat::B8G8R8A8_SNORM => &TF_B8G8R8A8_SNORM,
+            TextureFormat::B8G8R8A8_USCALED => &TF_B8G8R8A8_USCALED,
+            TextureFormat::B8G8R8A8_SSCALED => &TF_B8G8R8A8_SSCALED,
+            TextureFormat::B8G8R8A8_UINT => &TF_B8G8R8A8_UINT,
+            TextureFormat::B8G8R8A8_SINT => &TF_B8G8R8A8_SINT,
+            TextureFormat::B8G8R8A8_SRGB => &TF_B8G8R8A8_SRGB,
+            TextureFormat::A8B8G8R8_UNORM_PACK32 => &TF_A8B8G8R8_UNORM_PACK32,
+            TextureFormat::A8B8G8R8_SNORM_PACK32 => &TF_A8B8G8R8_SNORM_PACK32,
+            TextureFormat::A8B8G8R8_USCALED_PACK32 => &TF_A8B8G8R8_USCALED_PACK32,
+            TextureFormat::A8B8G8R8_SSCALED_PACK32 => &TF_A8B8G8R8_SSCALED_PACK32,
+            TextureFormat::A8B8G8R8_UINT_PACK32 => &TF_A8B8G8R8_UINT_PACK32,
+            TextureFormat::A8B8G8R8_SINT_PACK32 => &TF_A8B8G8R8_SINT_PACK32,
+            TextureFormat::A8B8G8R8_SRGB_PACK32 => &TF_A8B8G8R8_SRGB_PACK32,
+            TextureFormat::A2R10G10B10_UNORM_PACK32 => &TF_A2R10G10B10_UNORM_PACK32,
+            TextureFormat::A2R10G10B10_SNORM_PACK32 => &TF_A2R10G10B10_SNORM_PACK32,
+            TextureFormat::A2R10G10B10_USCALED_PACK32 => &TF_A2R10G10B10_USCALED_PACK32,
+            TextureFormat::A2R10G10B10_SSCALED_PACK32 => &TF_A2R10G10B10_SSCALED_PACK32,
+            TextureFormat::A2R10G10B10_UINT_PACK32 => &TF_A2R10G10B10_UINT_PACK32,
+            TextureFormat::A2R10G10B10_SINT_PACK32 => &TF_A2R10G10B10_SINT_PACK32,
+            TextureFormat::A2B10G10R10_UNORM_PACK32 => &TF_A2B10G10R10_UNORM_PACK32,
+            TextureFormat::A2B10G10R10_SNORM_PACK32 => &TF_A2B10G10R10_SNORM_PACK32,
+            TextureFormat::A2B10G10R10_USCALED_PACK32 => &TF_A2B10G10R10_USCALED_PACK32,
+            TextureFormat::A2B10G10R10_SSCALED_PACK32 => &TF_A2B10G10R10_SSCALED_PACK32,
+            TextureFormat::A2B10G10R10_UINT_PACK32 => &TF_A2B10G10R10_UINT_PACK32,
+            TextureFormat::A2B10G10R10_SINT_PACK32 => &TF_A2B10G10R10_SINT_PACK32,
+            TextureFormat::R16_UNORM => &TF_R16_UNORM,
+            TextureFormat::R16_SNORM => &TF_R16_SNORM,
+            TextureFormat::R16_USCALED => &TF_R16_USCALED,
+            TextureFormat::R16_SSCALED => &TF_R16_SSCALED,
+            TextureFormat::R16_UINT => &TF_R16_UINT,
+            TextureFormat::R16_SINT => &TF_R16_SINT,
+            TextureFormat::R16_SFLOAT => &TF_R16_SFLOAT,
+            TextureFormat::R16G16_UNORM => &TF_R16G16_UNORM,
+            TextureFormat::R16G16_SNORM => &TF_R16G16_SNORM,
+            TextureFormat::R16G16_USCALED => &TF_R16G16_USCALED,
+            TextureFormat::R16G16_SSCALED => &TF_R16G16_SSCALED,
+            TextureFormat::R16G16_UINT => &TF_R16G16_UINT,
+            TextureFormat::R16G16_SINT => &TF_R16G16_SINT,
+            TextureFormat::R16G16_SFLOAT => &TF_R16G16_SFLOAT,
+            TextureFormat::R16G16B16_UNORM => &TF_R16G16B16_UNORM,
+            TextureFormat::R16G16B16_SNORM => &TF_R16G16B16_SNORM,
+            TextureFormat::R16G16B16_USCALED => &TF_R16G16B16_USCALED,
+            TextureFormat::R16G16B16_SSCALED => &TF_R16G16B16_SSCALED,
+            TextureFormat::R16G16B16_UINT => &TF_R16G16B16_UINT,
+            TextureFormat::R16G16B16_SINT => &TF_R16G16B16_SINT,
+            TextureFormat::R16G16B16_SFLOAT => &TF_R16G16B16_SFLOAT,
+            TextureFormat::R16G16B16A16_UNORM => &TF_R16G16B16A16_UNORM,
+            TextureFormat::R16G16B16A16_SNORM => &TF_R16G16B16A16_SNORM,
+            TextureFormat::R16G16B16A16_USCALED => &TF_R16G16B16A16_USCALED,
+            TextureFormat::R16G16B16A16_SSCALED => &TF_R16G16B16A16_SSCALED,
+            TextureFormat::R16G16B16A16_UINT => &TF_R16G16B16A16_UINT,
+            TextureFormat::R16G16B16A16_SINT => &TF_R16G16B16A16_SINT,
+            TextureFormat::R16G16B16A16_SFLOAT => &TF_R16G16B16A16_SFLOAT,
+            TextureFormat::R32_UINT => &TF_R32_UINT,
+            TextureFormat::R32_SINT => &TF_R32_SINT,
+            TextureFormat::R32_SFLOAT => &TF_R32_SFLOAT,
+            TextureFormat::R32G32_UINT => &TF_R32G32_UINT,
+            TextureFormat::R32G32_SINT => &TF_R32G32_SINT,
+            TextureFormat::R32G32_SFLOAT => &TF_R32G32_SFLOAT,
+            TextureFormat::R32G32B32_UINT => &TF_R32G32B32_UINT,
+            TextureFormat::R32G32B32_SINT => &TF_R32G32B32_SINT,
+            TextureFormat::R32G32B32_SFLOAT => &TF_R32G32B32_SFLOAT,
+            TextureFormat::R32G32B32A32_UINT => &TF_R32G32B32A32_UINT,
+            TextureFormat::R32G32B32A32_SINT => &TF_R32G32B32A32_SINT,
+            TextureFormat::R32G32B32A32_SFLOAT => &TF_R32G32B32A32_SFLOAT,
+            TextureFormat::R64_UINT => &TF_R64_UINT,
+            TextureFormat::R64_SINT => &TF_R64_SINT,
+            TextureFormat::R64_SFLOAT => &TF_R64_SFLOAT,
+            TextureFormat::R64G64_UINT => &TF_R64G64_UINT,
+            TextureFormat::R64G64_SINT => &TF_R64G64_SINT,
+            TextureFormat::R64G64_SFLOAT => &TF_R64G64_SFLOAT,
+            TextureFormat::R64G64B64_UINT => &TF_R64G64B64_UINT,
+            TextureFormat::R64G64B64_SINT => &TF_R64G64B64_SINT,
+            TextureFormat::R64G64B64_SFLOAT => &TF_R64G64B64_SFLOAT,
+            TextureFormat::R64G64B64A64_UINT => &TF_R64G64B64A64_UINT,
+            TextureFormat::R64G64B64A64_SINT => &TF_R64G64B64A64_SINT,
+            TextureFormat::R64G64B64A64_SFLOAT => &TF_R64G64B64A64_SFLOAT,
+            TextureFormat::B10G11R11_UFLOAT_PACK32 => &TF_B10G11R11_UFLOAT_PACK32,
+            TextureFormat::E5B9G9R9_UFLOAT_PACK32 => &TF_E5B9G9R9_UFLOAT_PACK32,
+            TextureFormat::D16_UNORM => &TF_D16_UNORM,
+            TextureFormat::X8_D24_UNORM_PACK32 => &TF_X8_D24_UNORM_PACK32,
+            TextureFormat::D32_SFLOAT => &TF_D32_SFLOAT,
+            TextureFormat::S8_UINT => &TF_S8_UINT,
+            TextureFormat::D16_UNORM_S8_UINT => &TF_D16_UNORM_S8_UINT,
+            TextureFormat::D24_UNORM_S8_UINT => &TF_D24_UNORM_S8_UINT,
+            TextureFormat::D32_SFLOAT_S8_UINT => &TF_D32_SFLOAT_S8_UINT,
+            TextureFormat::BC1_RGB_UNORM_BLOCK => &TF_BC1_RGB_UNORM_BLOCK,
+            TextureFormat::BC1_RGB_SRGB_BLOCK => &TF_BC1_RGB_SRGB_BLOCK,
+            TextureFormat::BC1_RGBA_UNORM_BLOCK => &TF_BC1_RGBA_UNORM_BLOCK,
+            TextureFormat::BC1_RGBA_SRGB_BLOCK => &TF_BC1_RGBA_SRGB_BLOCK,
+            TextureFormat::BC2_UNORM_BLOCK => &TF_BC2_UNORM_BLOCK,
+            TextureFormat::BC2_SRGB_BLOCK => &TF_BC2_SRGB_BLOCK,
+            TextureFormat::BC3_UNORM_BLOCK => &TF_BC3_UNORM_BLOCK,
+            TextureFormat::BC3_SRGB_BLOCK => &TF_BC3_SRGB_BLOCK,
+            TextureFormat::BC4_UNORM_BLOCK => &TF_BC4_UNORM_BLOCK,
+            TextureFormat::BC4_SNORM_BLOCK => &TF_BC4_SNORM_BLOCK,
+            TextureFormat::BC5_UNORM_BLOCK => &TF_BC5_UNORM_BLOCK,
+            TextureFormat::BC5_SNORM_BLOCK => &TF_BC5_SNORM_BLOCK,
+            TextureFormat::BC6H_UFLOAT_BLOCK => &TF_BC6H_UFLOAT_BLOCK,
+            TextureFormat::BC6H_SFLOAT_BLOCK => &TF_BC6H_SFLOAT_BLOCK,
+            TextureFormat::BC7_UNORM_BLOCK => &TF_BC7_UNORM_BLOCK,
+            TextureFormat::BC7_SRGB_BLOCK => &TF_BC7_SRGB_BLOCK,
+            TextureFormat::ETC2_R8G8B8_UNORM_BLOCK => &TF_ETC2_R8G8B8_UNORM_BLOCK,
+            TextureFormat::ETC2_R8G8B8_SRGB_BLOCK => &TF_ETC2_R8G8B8_SRGB_BLOCK,
+            TextureFormat::ETC2_R8G8B8A1_UNORM_BLOCK => &TF_ETC2_R8G8B8A1_UNORM_BLOCK,
+            TextureFormat::ETC2_R8G8B8A1_SRGB_BLOCK => &TF_ETC2_R8G8B8A1_SRGB_BLOCK,
+            TextureFormat::ETC2_R8G8B8A8_UNORM_BLOCK => &TF_ETC2_R8G8B8A8_UNORM_BLOCK,
+            TextureFormat::ETC2_R8G8B8A8_SRGB_BLOCK => &TF_ETC2_R8G8B8A8_SRGB_BLOCK,
+            TextureFormat::EAC_R11_UNORM_BLOCK => &TF_EAC_R11_UNORM_BLOCK,
+            TextureFormat::EAC_R11_SNORM_BLOCK => &TF_EAC_R11_SNORM_BLOCK,
+            TextureFormat::EAC_R11G11_UNORM_BLOCK => &TF_EAC_R11G11_UNORM_BLOCK,
+            TextureFormat::EAC_R11G11_SNORM_BLOCK => &TF_EAC_R11G11_SNORM_BLOCK,
+            TextureFormat::ASTC_4x4_UNORM_BLOCK => &TF_ASTC_4x4_UNORM_BLOCK,
+            TextureFormat::ASTC_4x4_SRGB_BLOCK => &TF_ASTC_4x4_SRGB_BLOCK,
+            TextureFormat::ASTC_5x4_UNORM_BLOCK => &TF_ASTC_5x4_UNORM_BLOCK,
+            TextureFormat::ASTC_5x4_SRGB_BLOCK => &TF_ASTC_5x4_SRGB_BLOCK,
+            TextureFormat::ASTC_5x5_UNORM_BLOCK => &TF_ASTC_5x5_UNORM_BLOCK,
+            TextureFormat::ASTC_5x5_SRGB_BLOCK => &TF_ASTC_5x5_SRGB_BLOCK,
+            TextureFormat::ASTC_6x5_UNORM_BLOCK => &TF_ASTC_6x5_UNORM_BLOCK,
+            TextureFormat::ASTC_6x5_SRGB_BLOCK => &TF_ASTC_6x5_SRGB_BLOCK,
+            TextureFormat::ASTC_6x6_UNORM_BLOCK => &TF_ASTC_6x6_UNORM_BLOCK,
+            TextureFormat::ASTC_6x6_SRGB_BLOCK => &TF_ASTC_6x6_SRGB_BLOCK,
+            TextureFormat::ASTC_8x5_UNORM_BLOCK => &TF_ASTC_8x5_UNORM_BLOCK,
+            TextureFormat::ASTC_8x5_SRGB_BLOCK => &TF_ASTC_8x5_SRGB_BLOCK,
+            TextureFormat::ASTC_8x6_UNORM_BLOCK => &TF_ASTC_8x6_UNORM_BLOCK,
+            TextureFormat::ASTC_8x6_SRGB_BLOCK => &TF_ASTC_8x6_SRGB_BLOCK,
+            TextureFormat::ASTC_8x8_UNORM_BLOCK => &TF_ASTC_8x8_UNORM_BLOCK,
+            TextureFormat::ASTC_8x8_SRGB_BLOCK => &TF_ASTC_8x8_SRGB_BLOCK,
+            TextureFormat::ASTC_10x5_UNORM_BLOCK => &TF_ASTC_10x5_UNORM_BLOCK,
+            TextureFormat::ASTC_10x5_SRGB_BLOCK => &TF_ASTC_10x5_SRGB_BLOCK,
+            TextureFormat::ASTC_10x6_UNORM_BLOCK => &TF_ASTC_10x6_UNORM_BLOCK,
+            TextureFormat::ASTC_10x6_SRGB_BLOCK => &TF_ASTC_10x6_SRGB_BLOCK,
+            TextureFormat::ASTC_10x8_UNORM_BLOCK => &TF_ASTC_10x8_UNORM_BLOCK,
+            TextureFormat::ASTC_10x8_SRGB_BLOCK => &TF_ASTC_10x8_SRGB_BLOCK,
+            TextureFormat::ASTC_10x10_UNORM_BLOCK => &TF_ASTC_10x10_UNORM_BLOCK,
+            TextureFormat::ASTC_10x10_SRGB_BLOCK => &TF_ASTC_10x10_SRGB_BLOCK,
+            TextureFormat::ASTC_12x10_UNORM_BLOCK => &TF_ASTC_12x10_UNORM_BLOCK,
+            TextureFormat::ASTC_12x10_SRGB_BLOCK => &TF_ASTC_12x10_SRGB_BLOCK,
+            TextureFormat::ASTC_12x12_UNORM_BLOCK => &TF_ASTC_12x12_UNORM_BLOCK,
+            TextureFormat::ASTC_12x12_SRGB_BLOCK => &TF_ASTC_12x12_SRGB_BLOCK,
+        }
     }
 }
 
-pub struct GlFormatInfo
-{
+pub struct GlFormatInfo {
     pub internal_fmt: GLenum,
-    pub upload_components: GLenum,         //< Matching external format for uploads/reads (so that OpenGL does not have to do any conversion)
-    pub upload_ty: GLenum,        //< Matching element type for uploads/reads
+    pub upload_components: GLenum, //< Matching external format for uploads/reads (so that OpenGL does not have to do any conversion)
+    pub upload_ty: GLenum,         //< Matching element type for uploads/reads
 }
 
-static GLF_R8_UNORM: GlFormatInfo = GlFormatInfo { internal_fmt: gl::R8, upload_components: gl::RED, upload_ty: gl::UNSIGNED_BYTE };
-static GLF_R8_SNORM: GlFormatInfo = GlFormatInfo { internal_fmt: gl::R8_SNORM, upload_components: gl::RED, upload_ty: gl::BYTE };
-static GLF_R8_UINT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::R8UI, upload_components: gl::RED, upload_ty: gl::UNSIGNED_BYTE };
-static GLF_R8_SINT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::R8I, upload_components: gl::RED, upload_ty: gl::BYTE };
-static GLF_R16G16_SFLOAT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RG16F, upload_components: gl::RG, upload_ty: gl::FLOAT };    // XXX no half-float for upload!
-static GLF_R16G16B16A16_SFLOAT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RGBA16F, upload_components: gl::RGBA, upload_ty: gl::FLOAT };    // XXX no half-float for upload!
-static GLF_R32G32_SFLOAT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RG32F, upload_components: gl::RG, upload_ty: gl::FLOAT };
-static GLF_R32G32B32A32_SFLOAT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RGBA32F, upload_components: gl::RGBA, upload_ty: gl::FLOAT };
-static GLF_R8G8B8A8_UNORM: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RGBA8, upload_components: gl::RGBA, upload_ty: gl::UNSIGNED_BYTE };
-static GLF_R8G8B8A8_SNORM: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RGBA8_SNORM, upload_components: gl::RGBA, upload_ty: gl::BYTE };
-static GLF_R8G8B8A8_UINT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RGBA8UI, upload_components: gl::RGBA, upload_ty: gl::UNSIGNED_BYTE };
-static GLF_R8G8B8A8_SINT: GlFormatInfo = GlFormatInfo { internal_fmt: gl::RGBA8I, upload_components: gl::RGBA, upload_ty: gl::BYTE };
-static GLF_R8G8B8_SRGB: GlFormatInfo = GlFormatInfo { internal_fmt: gl::SRGB8, upload_components: gl::RGB, upload_ty: gl::UNSIGNED_BYTE };
-static GLF_R8G8B8A8_SRGB: GlFormatInfo = GlFormatInfo { internal_fmt: gl::SRGB8_ALPHA8, upload_components: gl::RGBA, upload_ty: gl::UNSIGNED_BYTE };
+static GLF_R8_UNORM: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::R8,
+    upload_components: gl::RED,
+    upload_ty: gl::UNSIGNED_BYTE,
+};
+static GLF_R8_SNORM: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::R8_SNORM,
+    upload_components: gl::RED,
+    upload_ty: gl::BYTE,
+};
+static GLF_R8_UINT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::R8UI,
+    upload_components: gl::RED,
+    upload_ty: gl::UNSIGNED_BYTE,
+};
+static GLF_R8_SINT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::R8I,
+    upload_components: gl::RED,
+    upload_ty: gl::BYTE,
+};
+static GLF_R16G16_SFLOAT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RG16F,
+    upload_components: gl::RG,
+    upload_ty: gl::FLOAT,
+}; // XXX no half-float for upload!
+static GLF_R16G16B16A16_SFLOAT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RGBA16F,
+    upload_components: gl::RGBA,
+    upload_ty: gl::FLOAT,
+}; // XXX no half-float for upload!
+static GLF_R32G32_SFLOAT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RG32F,
+    upload_components: gl::RG,
+    upload_ty: gl::FLOAT,
+};
+static GLF_R32G32B32A32_SFLOAT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RGBA32F,
+    upload_components: gl::RGBA,
+    upload_ty: gl::FLOAT,
+};
+static GLF_R8G8B8A8_UNORM: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RGBA8,
+    upload_components: gl::RGBA,
+    upload_ty: gl::UNSIGNED_BYTE,
+};
+static GLF_R8G8B8A8_SNORM: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RGBA8_SNORM,
+    upload_components: gl::RGBA,
+    upload_ty: gl::BYTE,
+};
+static GLF_R8G8B8A8_UINT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RGBA8UI,
+    upload_components: gl::RGBA,
+    upload_ty: gl::UNSIGNED_BYTE,
+};
+static GLF_R8G8B8A8_SINT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::RGBA8I,
+    upload_components: gl::RGBA,
+    upload_ty: gl::BYTE,
+};
+static GLF_R8G8B8_SRGB: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::SRGB8,
+    upload_components: gl::RGB,
+    upload_ty: gl::UNSIGNED_BYTE,
+};
+static GLF_R8G8B8A8_SRGB: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::SRGB8_ALPHA8,
+    upload_components: gl::RGBA,
+    upload_ty: gl::UNSIGNED_BYTE,
+};
+static GLF_D32_SFLOAT: GlFormatInfo = GlFormatInfo {
+    internal_fmt: gl::DEPTH_COMPONENT32F,
+    upload_components: gl::DEPTH_COMPONENT,
+    upload_ty: gl::FLOAT,
+};
 
 impl GlFormatInfo {
     pub fn from_texture_format(fmt: TextureFormat) -> &'static GlFormatInfo {
@@ -674,7 +1468,8 @@ impl GlFormatInfo {
             TextureFormat::R8G8B8A8_SINT => &GLF_R8G8B8A8_SINT,
             TextureFormat::R8G8B8_SRGB => &GLF_R8G8B8_SRGB,
             TextureFormat::R8G8B8A8_SRGB => &GLF_R8G8B8A8_SRGB,
-            _ => panic!("Unsupported image format")
+            TextureFormat::D32_SFLOAT => &GLF_D32_SFLOAT,
+            _ => panic!("Unsupported image format"),
         }
     }
 }

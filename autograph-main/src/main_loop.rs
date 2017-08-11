@@ -5,30 +5,28 @@ use autograph::gl::types::*;
 use glutin;
 use glutin::GlContext;
 use time;
-use std::rc::Rc;
+use std::sync::Arc;
 
 // Scaffolding for the application
-pub struct MainLoop<'a>
-{
+pub struct MainLoop<'a> {
     window: &'a glutin::GlWindow,
-    pub cache: Rc<Cache>,
-    pub context: Rc<gfx::Context>,
-    pub queue: gfx::FrameQueue
+    pub cache: Arc<Cache>,
+    pub context: Arc<gfx::Context>,
+    pub queue: gfx::FrameQueue,
 }
 
 const PRINT_FPS_EVERY_SECONDS: i64 = 3;
 
-impl<'a> MainLoop<'a>
-{
+impl<'a> MainLoop<'a> {
     pub fn window(&self) -> &glutin::GlWindow {
         &self.window
     }
 
-    pub fn context(&self) -> &Rc<gfx::Context> {
+    pub fn context(&self) -> &Arc<gfx::Context> {
         &self.context
     }
 
-    pub fn cache(&self) -> &Rc<Cache> {
+    pub fn cache(&self) -> &Arc<Cache> {
         &self.cache
     }
 
@@ -37,12 +35,9 @@ impl<'a> MainLoop<'a>
     }
 
     // takes ownership of the window and the event loop
-    pub fn new<'b>(window: &'b glutin::GlWindow, config: &gfx::ContextConfig) -> MainLoop<'b>
-    {
+    pub fn new<'b>(window: &'b glutin::GlWindow, config: &gfx::ContextConfig) -> MainLoop<'b> {
         // Make current the OpenGL context associated to the window
-        unsafe {
-            window.make_current()
-        }.unwrap();
+        unsafe { window.make_current() }.unwrap();
 
         // Load OpenGL function pointers
         unsafe {
@@ -60,12 +55,13 @@ impl<'a> MainLoop<'a>
             window,
             cache: Cache::new(),
             context,
-            queue
+            queue,
         }
     }
 
-    pub fn run<F>(&self, mut body: F) where
-        F: FnMut(&mut gfx::Frame, &Rc<gfx::Framebuffer>, f32) -> bool
+    pub fn run<F>(&self, mut body: F)
+    where
+        F: FnMut(&mut gfx::Frame, &Arc<gfx::Framebuffer>, f32) -> bool,
     {
         let mut loop_start_time = time::PreciseTime::now();
         let mut last_debug_time = time::PreciseTime::now();
@@ -76,7 +72,10 @@ impl<'a> MainLoop<'a>
         // imgui stuff
         while running {
             // get default framebuffer from GL window
-            let default_framebuffer = Rc::new(gfx::Framebuffer::from_gl_window(&self.context, &self.window));
+            let default_framebuffer = Arc::new(gfx::Framebuffer::from_gl_window(
+                &self.context,
+                &self.window,
+            ));
             // create the frame
             let mut frame = self.queue.new_frame();
             // last frame time in seconds
@@ -101,11 +100,15 @@ impl<'a> MainLoop<'a>
             loop_start_time = end_time;
             let duration_since_last_print = last_debug_time.to(end_time);
             if last_debug_time.to(end_time) > time::Duration::seconds(PRINT_FPS_EVERY_SECONDS) {
-                println!("Last frame time was {:?} ms ({:?} FPS) | average over {} frames: {:?} ms ({:?} FPS)",
-                         frame_duration.num_milliseconds(), 1_000_000_000f32 / frame_duration.num_nanoseconds().unwrap() as f32,
-                         num_frames_since_last_print,
-                         duration_since_last_print.num_milliseconds() as f32 / num_frames_since_last_print as f32,
-                         num_frames_since_last_print as f32 * 1_000_000_000f32 / duration_since_last_print.num_nanoseconds().unwrap() as f32,
+                println!(
+                    "Last frame time was {:?} ms ({:?} FPS) | average over {} frames: {:?} ms ({:?} FPS)",
+                    frame_duration.num_milliseconds(),
+                    1_000_000_000f32 / frame_duration.num_nanoseconds().unwrap() as f32,
+                    num_frames_since_last_print,
+                    duration_since_last_print.num_milliseconds() as f32 /
+                        num_frames_since_last_print as f32,
+                    num_frames_since_last_print as f32 * 1_000_000_000f32 /
+                        duration_since_last_print.num_nanoseconds().unwrap() as f32,
                 );
                 num_frames_since_last_print = 0;
                 last_debug_time = end_time;

@@ -1,28 +1,34 @@
+//! This module contains the support types and functions used internally
+//! in the gfx_pass! proc macro, implemented in autograph_codegen
+//! # See also
+//! The autograph_codegen crate
+//!
+
 use std::mem;
+use std::path::Path;
 use super::*;
 use gfx;
 
 #[doc(hidden)]
-pub trait ToResourceInfo
-{
+pub trait ToResourceInfo {
     fn to_resource_info(&self) -> ResourceInfo;
-    fn from_resource_info(ri: &ResourceInfo) -> Option<Self> where Self: Sized;
+    fn from_resource_info(ri: &ResourceInfo) -> Option<Self>
+    where
+        Self: Sized;
 }
 
 #[doc(hidden)]
-pub struct Texture2DInit
-{
+pub struct Texture2DInit {
     pub usage: ResourceUsage,
     pub format: gfx::TextureFormat,
     pub width: u32,
     pub height: u32,
     pub sample_count: u32,
     pub mip_map_count: gfx::MipMaps,
-    pub options: gfx::TextureOptions
+    pub options: gfx::TextureOptions,
 }
 
-impl Default for Texture2DInit
-{
+impl Default for Texture2DInit {
     fn default() -> Texture2DInit {
         Texture2DInit {
             usage: ResourceUsage::Default,
@@ -31,14 +37,13 @@ impl Default for Texture2DInit
             height: 512,
             sample_count: 1,
             mip_map_count: gfx::MipMaps::Count(1),
-            options: gfx::TextureOptions::empty()
+            options: gfx::TextureOptions::empty(),
         }
     }
 }
 
 // TODO: other initializers
-impl ToResourceInfo for Texture2DInit
-{
+impl ToResourceInfo for Texture2DInit {
     fn to_resource_info(&self) -> ResourceInfo {
         ResourceInfo::Texture {
             desc: gfx::TextureDesc {
@@ -49,13 +54,12 @@ impl ToResourceInfo for Texture2DInit
                 depth: 1,
                 sample_count: self.sample_count,
                 mip_map_count: self.mip_map_count,
-                options: self.options
-            }
+                options: self.options,
+            },
         }
     }
 
-    fn from_resource_info(ri: &ResourceInfo) -> Option<Self>
-    {
+    fn from_resource_info(ri: &ResourceInfo) -> Option<Self> {
         if let &ResourceInfo::Texture { ref desc } = ri {
             Some(Texture2DInit {
                 usage: ResourceUsage::Default,
@@ -74,134 +78,82 @@ impl ToResourceInfo for Texture2DInit
 
 
 #[doc(hidden)]
-pub struct BufferArrayInit<T: gfx::BufferData + ?Sized>
-{
+pub struct BufferArrayInit<T: gfx::BufferData + ?Sized> {
     pub inner: BufferArrayInitInner,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 #[doc(hidden)]
-pub struct BufferArrayInitInner
-{
+pub struct BufferArrayInitInner {
     pub usage: ResourceUsage,
-    pub len: usize
+    pub len: usize,
 }
 
-impl<T: gfx::BufferData + ?Sized> ToResourceInfo for BufferArrayInit<T>
-{
+impl<T: gfx::BufferData + ?Sized> ToResourceInfo for BufferArrayInit<T> {
     fn to_resource_info(&self) -> ResourceInfo {
         ResourceInfo::Buffer {
-            byte_size: self.inner.len * mem::size_of::<T::Element>()
+            byte_size: self.inner.len * mem::size_of::<T::Element>(),
         }
     }
 
-    fn from_resource_info(ri: &ResourceInfo) -> Option<Self>
-    {
+    fn from_resource_info(ri: &ResourceInfo) -> Option<Self> {
         unimplemented!()
     }
 }
 
 #[doc(hidden)]
-pub fn alloc_as_texture(alloc: &Alloc) -> Option<&Rc<gfx::Texture>>
-{
+pub fn alloc_as_texture(alloc: &Alloc) -> Option<&Arc<gfx::Texture>> {
+    match alloc {
+        &Alloc::Texture { ref tex } => Some(tex),
+        _ => None,
+    }
+}
+
+#[doc(hidden)]
+pub fn alloc_as_buffer_slice(alloc: &Alloc) -> Option<&gfx::BufferSliceAny> {
     unimplemented!()
 }
 
 #[doc(hidden)]
-pub fn alloc_as_buffer_slice(alloc: &Alloc) -> Option<&gfx::BufferSliceAny>
-{
-    unimplemented!()
+pub struct GraphicsPipelineInit {
+    pub path: &'static str,
+    pub depth_stencil_state: gfx::DepthStencilState,
+    pub rasterizer_state: gfx::RasterizerState,
+    pub blend_state: gfx::BlendState,
 }
 
-/*#[macro_export]
-macro_rules! gfx_pass {
-    // end rule
-    // root
-    (pass $PassName:ident ( $( $ParamName:ident : $ParamType:ty ),* ) {
-        read {
-            $( #[$ReadUsage:ident] $ReadName:ident : $ReadTy:ty = $ReadInit:expr),*
+impl Default for GraphicsPipelineInit {
+    fn default() -> GraphicsPipelineInit {
+        GraphicsPipelineInit {
+            path: "",
+            depth_stencil_state: Default::default(),
+            rasterizer_state: Default::default(),
+            blend_state: Default::default()
         }
-        write {
-            $( #[$WriteUsage:ident] $WriteName:ident : $WriteTy:ty = $WriteInit:expr),*
-        }
-        create {
-            $( #[$CreateUsage:ident] $CreateName:ident : $CreateTy:ty = $CreateInit:expr),*
-        }
-        // Other items go into the Pass impl
-    }) => {
-        // Dummy struct
-        //log_syntax!($($ReadInit)*);
-        pub mod $PassName {
-            use $crate::framegraph::*;
-            use $crate::framegraph::macros::*;
+    }
+}
 
-            pub struct Inputs {
-                $(pub $ReadName : NodeIndex,)*
-                $(pub $WriteName : NodeIndex,)*
-            }
-
-            pub struct Outputs {
-                $(pub $WriteName : NodeIndex,)*
-                $(pub $CreateName : NodeIndex,)*
-            }
-
-            pub struct Resources {
-                $(pub $ReadName : <$ReadTy as PassConstraintType>::Target,)*
-                $(pub $WriteName : <$WriteTy as PassConstraintType>::Target,)*
-                $(pub $CreateName : <$CreateTy as ResourceDesc>::Target,)*
-            }
-
-            pub struct Parameters {
-                $(pub $ParamName : $ParamType,)*
-            }
-
-            pub struct Pass();
-
-            impl $crate::framegraph::Pass for Pass {
-                type Inputs = Inputs;
-                type Outputs = Outputs;
-                type Resources = Resources;
-            }
-
-            impl Pass {
-                pub fn new(frame_graph: &mut $crate::framegraph::FrameGraph, $($ParamName : $ParamType,)* $($ReadName : NodeIndex,)* $($WriteName : NodeIndex,)* ) -> Outputs
-                {
-                    // move inputs into their own struct for convenience
-                    // within this macro, we can explicitly name the type
-                    let inputs = Inputs {
-                        $($ReadName,)*
-                        $($WriteName,)*
-                    };
-
-                    // fetch resourceinfos of inputs
-
-                    // Read constraints
-                    $(let mut $ReadName : $ReadTy = $ReadInit;)*
-                    // Write constraints
-                    $(let mut $WriteName : $WriteTy = $WriteInit;)*
-                    // Create info
-                    $(let mut $CreateName : $CreateTy = $CreateInit;)*
-
-                    // 1. Create pass node
-                    let node = frame_graph.create_pass_node(stringify!($PassName).to_owned());
-                    // 2. link inputs
-                    $( frame_graph.link_input(node, inputs.$ReadName,  $crate::framegraph::ResourceUsage::$ReadUsage); )*
-                    $( frame_graph.link_input(node, inputs.$WriteName, $crate::framegraph::ResourceUsage::$WriteUsage); )*
-                    // 3. create new resource nodes
-                    let outputs = Outputs {
-                        $( $CreateName: frame_graph.create_resource_node(stringify!($CreateName).to_owned(), $CreateName.to_resource_info() ), )*
-                        $( $WriteName: frame_graph.clone_resource_node(inputs.$WriteName), )*
-                    };
-
-                    // 4. link outputs
-                    $(frame_graph.link_output(node, outputs.$CreateName, $crate::framegraph::ResourceUsage::$CreateUsage);)*
-                    $(frame_graph.link_output(node, outputs.$WriteName, $crate::framegraph::ResourceUsage::$WriteUsage);)*
-
-                    // 5. return outputs
-                    outputs
+impl GraphicsPipelineInit {
+    #[doc(hidden)]
+    pub fn to_graphics_pipeline(&self, ctx: &Arc<gfx::Context>) -> Arc<gfx::GraphicsPipeline>
+    {
+        let compiled_shaders = ::shader_compiler::compile_shaders_from_combined_source(Path::new(self.path)).unwrap();
+        Arc::new(gfx::GraphicsPipelineBuilder::new()
+            .with_vertex_shader(compiled_shaders.vertex)
+            .with_fragment_shader(compiled_shaders.fragment)
+            .with_geometry_shader(compiled_shaders.geometry)
+            .with_tess_eval_shader(compiled_shaders.tess_eval)
+            .with_tess_control_shader(compiled_shaders.tess_control)
+            .with_primitive_topology(compiled_shaders.primitive_topology)
+            .with_rasterizer_state(&self.rasterizer_state)
+            .with_depth_stencil_state(&self.depth_stencil_state)
+            .with_all_blend_states(&self.blend_state)
+            .with_input_layout(&compiled_shaders.input_layout)
+            .build(ctx).map_err(|e| match e {
+                gfx::GraphicsPipelineBuildError::ProgramLinkError(ref log) => {
+                    println!("Program link error: {}", log);
                 }
-            }
-        }
-    };
+            })
+            .unwrap())
+    }
 }
-*/

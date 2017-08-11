@@ -2,32 +2,28 @@ use gl;
 use gl::types::*;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
-pub enum TextureAddressMode
-{
+pub enum TextureAddressMode {
     Clamp = gl::CLAMP_TO_EDGE as isize,
     Mirror = gl::MIRRORED_REPEAT as isize,
-    Wrap = gl::REPEAT as isize
+    Wrap = gl::REPEAT as isize,
 }
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
-pub enum TextureMinFilter
-{
+pub enum TextureMinFilter {
     Nearest = gl::NEAREST as isize,
-    Linear = gl::LINEAR as isize
+    Linear = gl::LINEAR as isize,
 }
 
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
-pub enum TextureMagFilter
-{
+pub enum TextureMagFilter {
     Nearest = gl::NEAREST as isize,
-    Linear = gl::LINEAR as isize
+    Linear = gl::LINEAR as isize,
 }
 
 // 2D sampler
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
-pub struct SamplerDesc
-{
+pub struct SamplerDesc {
     pub addr_u: TextureAddressMode,
     pub addr_v: TextureAddressMode,
     pub addr_w: TextureAddressMode,
@@ -35,32 +31,28 @@ pub struct SamplerDesc
     pub mag_filter: TextureMagFilter,
 }
 
-impl Default for SamplerDesc
-{
+impl Default for SamplerDesc {
     fn default() -> SamplerDesc {
         SamplerDesc {
             addr_u: TextureAddressMode::Clamp,
             addr_v: TextureAddressMode::Clamp,
             addr_w: TextureAddressMode::Clamp,
             min_filter: TextureMinFilter::Nearest,
-            mag_filter: TextureMagFilter::Linear
+            mag_filter: TextureMagFilter::Linear,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct Sampler
-{
+pub struct Sampler {
     pub(super) desc: SamplerDesc,
-    pub(super) obj: GLuint
+    pub(super) obj: GLuint,
 }
 
-impl Sampler
-{
+impl Sampler {
     pub fn new(desc: &SamplerDesc) -> Sampler {
         let mut obj: GLuint = 0;
-        unsafe
-        {
+        unsafe {
             gl::GenSamplers(1, &mut obj);
             gl::SamplerParameteri(obj, gl::TEXTURE_MIN_FILTER, desc.min_filter as i32);
             gl::SamplerParameteri(obj, gl::TEXTURE_MAG_FILTER, desc.mag_filter as i32);

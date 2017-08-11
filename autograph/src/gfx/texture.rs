@@ -2,12 +2,9 @@ use gl;
 use gl::types::*;
 use std::mem;
 use super::texture_format::*;
-use std::marker::PhantomData;
-use bitflags;
 use std::cmp::*;
 use super::context::Context;
-use std::rc::Rc;
-
+use std::sync::Arc;
 
 bitflags! {
     #[derive(Default)]
@@ -17,16 +14,14 @@ bitflags! {
     }
 }
 
-#[derive(Copy,Clone,Debug, Eq, PartialEq)]
-pub enum MipMaps
-{
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum MipMaps {
     Auto,
-    Count(u32)
+    Count(u32),
 }
 
-#[derive(Copy,Clone,Debug, Eq, PartialEq)]
-pub struct TextureDesc
-{
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct TextureDesc {
     /// Texture dimensions
     pub dimensions: TextureDimensions,
     /// Texture format
@@ -44,7 +39,7 @@ pub struct TextureDesc
     /// See also: `get_texture_mip_map_count`
     pub mip_map_count: MipMaps,
     ///
-    pub options: TextureOptions
+    pub options: TextureOptions,
 }
 
 impl Default for TextureDesc {
@@ -57,13 +52,12 @@ impl Default for TextureDesc {
             depth: 0,
             sample_count: 0,
             mip_map_count: MipMaps::Count(1),
-            options: TextureOptions::empty()
+            options: TextureOptions::empty(),
         }
     }
 }
 
-impl TextureDesc
-{
+impl TextureDesc {
     pub fn default_2d() -> TextureDesc {
         TextureDesc {
             dimensions: TextureDimensions::Tex2D,
@@ -73,7 +67,7 @@ impl TextureDesc
             depth: 1,
             sample_count: 1,
             mip_map_count: MipMaps::Count(1),
-            options: TextureOptions::empty()
+            options: TextureOptions::empty(),
         }
     }
 }
@@ -89,24 +83,21 @@ impl TextureDesc
 ///
 /// The texture object is bound to the context lifetime. It is checked dynamically.
 #[derive(Debug)]
-pub struct Texture
-{
+pub struct Texture {
     pub obj: GLuint,
-    desc: TextureDesc
+    desc: TextureDesc,
 }
 
 /// Trait for pixel types that can be uploaded to the GPU with glTextureSubImage*
 /// Describes the format of the client data
-pub trait ClientFormatInfo
-{
+pub trait ClientFormatInfo {
     fn get_format_info() -> TextureFormatInfo;
 }
 
 /// impl for (f32xN) tuples
 /// impl for (u8xN) tuples
 
-impl Texture
-{
+impl Texture {
     /// Returns the TextureDesc object describing this texture
     pub fn desc(&self) -> &TextureDesc {
         &self.desc
@@ -129,12 +120,16 @@ impl Texture
     }
 
     /// Create a new texture object based on the given description
-    pub fn new(ctx: &Rc<Context>, desc: &TextureDesc) -> Texture {
+    pub fn new(ctx: &Arc<Context>, desc: &TextureDesc) -> Texture {
         let target = match desc.dimensions {
             TextureDimensions::Tex1D => gl::TEXTURE_1D,
-            TextureDimensions::Tex2D => if desc.sample_count > 1 { gl::TEXTURE_2D_MULTISAMPLE } else { gl::TEXTURE_2D },
+            TextureDimensions::Tex2D => if desc.sample_count > 1 {
+                gl::TEXTURE_2D_MULTISAMPLE
+            } else {
+                gl::TEXTURE_2D
+            },
             TextureDimensions::Tex3D => gl::TEXTURE_3D,
-            _ => unimplemented!("texture type")
+            _ => unimplemented!("texture type"),
         };
 
         let glfmt = GlFormatInfo::from_texture_format(desc.format);
@@ -157,18 +152,43 @@ impl Texture
 
             match target {
                 gl::TEXTURE_1D => {
-                    gl::TextureStorage1D(obj, mip_map_count as i32, glfmt.internal_fmt, desc.width as i32);
-                },
+                    gl::TextureStorage1D(
+                        obj,
+                        mip_map_count as i32,
+                        glfmt.internal_fmt,
+                        desc.width as i32,
+                    );
+                }
                 gl::TEXTURE_2D => {
-                    gl::TextureStorage2D(obj, mip_map_count as i32, glfmt.internal_fmt, desc.width as i32, desc.height as i32);
-                },
+                    gl::TextureStorage2D(
+                        obj,
+                        mip_map_count as i32,
+                        glfmt.internal_fmt,
+                        desc.width as i32,
+                        desc.height as i32,
+                    );
+                }
                 gl::TEXTURE_2D_MULTISAMPLE => {
-                    gl::TextureStorage2DMultisample(obj, desc.sample_count as i32, glfmt.internal_fmt, desc.width as i32, desc.height as i32, true as u8);
-                },
+                    gl::TextureStorage2DMultisample(
+                        obj,
+                        desc.sample_count as i32,
+                        glfmt.internal_fmt,
+                        desc.width as i32,
+                        desc.height as i32,
+                        true as u8,
+                    );
+                }
                 gl::TEXTURE_3D => {
-                    gl::TextureStorage3D(obj, 1, glfmt.internal_fmt, desc.width as i32, desc.height as i32, desc.depth as i32);
-                },
-                _ => unimplemented!("texture type")
+                    gl::TextureStorage3D(
+                        obj,
+                        1,
+                        glfmt.internal_fmt,
+                        desc.width as i32,
+                        desc.height as i32,
+                        desc.depth as i32,
+                    );
+                }
+                _ => unimplemented!("texture type"),
             };
 
             gl::TextureParameteri(obj, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
@@ -180,7 +200,7 @@ impl Texture
 
         Texture {
             desc: desc.clone(),
-            obj
+            obj,
         }
     }
 
@@ -192,11 +212,22 @@ impl Texture
     /// TextureFormats include both size & type information, and how to interpret the data (channels)
     /// ClientPixelData must return: the size of the data
     ///
-    pub fn upload_region(&mut self, mip_level: i32, offset: (u32,u32,u32), size: (u32,u32,u32), data: &[u8])
-    {
+    pub fn upload_region(
+        &mut self,
+        mip_level: i32,
+        offset: (u32, u32, u32),
+        size: (u32, u32, u32),
+        data: &[u8],
+    ) {
         let fmtinfo = self.desc.format.get_format_info();
-        assert!(!fmtinfo.is_compressed(), "Compressed image data upload is not yet supported");
-        assert!(data.len() == (size.0*size.1*size.2) as usize * fmtinfo.byte_size(), "image data size mismatch");
+        assert!(
+            !fmtinfo.is_compressed(),
+            "Compressed image data upload is not yet supported"
+        );
+        assert!(
+            data.len() == (size.0 * size.1 * size.2) as usize * fmtinfo.byte_size(),
+            "image data size mismatch"
+        );
         // TODO check size of mip level
         let glfmt = GlFormatInfo::from_texture_format(self.desc.format);
 
@@ -208,15 +239,45 @@ impl Texture
 
         match self.desc.dimensions {
             TextureDimensions::Tex1D => unsafe {
-                gl::TextureSubImage1D(self.obj, mip_level, offset.0 as i32, size.0 as i32, glfmt.upload_components, glfmt.upload_ty, data.as_ptr() as *const GLvoid);
+                gl::TextureSubImage1D(
+                    self.obj,
+                    mip_level,
+                    offset.0 as i32,
+                    size.0 as i32,
+                    glfmt.upload_components,
+                    glfmt.upload_ty,
+                    data.as_ptr() as *const GLvoid,
+                );
             },
             TextureDimensions::Tex2D => unsafe {
-                gl::TextureSubImage2D(self.obj, mip_level, offset.0 as i32, offset.1 as i32, size.0 as i32, size.1 as i32,  glfmt.upload_components, glfmt.upload_ty, data.as_ptr() as *const GLvoid);
+                gl::TextureSubImage2D(
+                    self.obj,
+                    mip_level,
+                    offset.0 as i32,
+                    offset.1 as i32,
+                    size.0 as i32,
+                    size.1 as i32,
+                    glfmt.upload_components,
+                    glfmt.upload_ty,
+                    data.as_ptr() as *const GLvoid,
+                );
             },
             TextureDimensions::Tex3D => unsafe {
-                gl::TextureSubImage3D(self.obj, mip_level, offset.0 as i32, offset.1 as i32, offset.2 as i32, size.0 as i32, size.1 as i32, size.2 as i32, glfmt.upload_components, glfmt.upload_ty, data.as_ptr() as *const GLvoid);
+                gl::TextureSubImage3D(
+                    self.obj,
+                    mip_level,
+                    offset.0 as i32,
+                    offset.1 as i32,
+                    offset.2 as i32,
+                    size.0 as i32,
+                    size.1 as i32,
+                    size.2 as i32,
+                    glfmt.upload_components,
+                    glfmt.upload_ty,
+                    data.as_ptr() as *const GLvoid,
+                );
             },
-            _ => unimplemented!("Unsupported image upload")
+            _ => unimplemented!("Unsupported image upload"),
         };
 
         unsafe {
@@ -302,10 +363,8 @@ impl Texture
     }
 }
 
-impl Drop for Texture
-{
-    fn drop(&mut self)
-    {
+impl Drop for Texture {
+    fn drop(&mut self) {
         unsafe {
             gl::DeleteTextures(1, &self.obj);
         }
@@ -319,7 +378,6 @@ impl Drop for Texture
 /// # References
 ///
 /// https://stackoverflow.com/questions/9572414/how-many-mipmaps-does-a-texture-have-in-opengl
-fn get_texture_mip_map_count(width: u32, height: u32) -> u32
-{
+fn get_texture_mip_map_count(width: u32, height: u32) -> u32 {
     1 + f32::floor(f32::log2(max(width, height) as f32)) as u32
 }

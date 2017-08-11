@@ -7,52 +7,55 @@ use autograph::gl;
 use autograph::gl::types::*;
 use glutin;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 
-pub struct Renderer
-{
-    pipeline: Rc<gfx::GraphicsPipeline>,
-    texture: Rc<gfx::Texture>
+pub struct Renderer {
+    pipeline: Arc<gfx::GraphicsPipeline>,
+    texture: Arc<gfx::Texture>,
 }
 
 static IMGUI_SHADER_PATH: &str = "data/shaders/imgui.glsl";
 
-fn load_pipeline(ctx: &Rc<gfx::Context>, path: &Path) -> Result<Rc<gfx::GraphicsPipeline>, String>
-{
+fn load_pipeline(ctx: &Arc<gfx::Context>, path: &Path) -> Result<Arc<gfx::GraphicsPipeline>, String> {
     let compiled_shaders = compile_shaders_from_combined_source(path)?;
-    Ok(Rc::new(
-        gfx::GraphicsPipelineBuilder::new()
-            .with_vertex_shader(compiled_shaders.vertex)
-            .with_fragment_shader(compiled_shaders.fragment)
-            .with_geometry_shader(compiled_shaders.geometry)
-            .with_tess_eval_shader(compiled_shaders.tess_eval)
-            .with_tess_control_shader(compiled_shaders.tess_control)
-            .with_primitive_topology(compiled_shaders.primitive_topology)
-            .with_rasterizer_state(&gfx::RasterizerState{
-                fill_mode: gl::FILL,
-                .. Default::default()
-            })
-            .with_all_blend_states(&gfx::BlendState {
-                enabled: true,
-                mode_rgb: gl::FUNC_ADD,
-                mode_alpha: gl::FUNC_ADD,
-                func_src_rgb: gl::SRC_ALPHA,
-                func_dst_rgb: gl::ONE_MINUS_SRC_ALPHA,
-                func_src_alpha: gl::ONE,
-                func_dst_alpha: gl::ZERO
-            })
-            .with_input_layout(&compiled_shaders.input_layout)
-            .build(ctx).map_err(|gfx::GraphicsPipelineBuildError::ProgramLinkError(log)| format!("Program link error: {}", log))?
-    ))
+    Ok(Arc::new(gfx::GraphicsPipelineBuilder::new()
+        .with_vertex_shader(compiled_shaders.vertex)
+        .with_fragment_shader(compiled_shaders.fragment)
+        .with_geometry_shader(compiled_shaders.geometry)
+        .with_tess_eval_shader(compiled_shaders.tess_eval)
+        .with_tess_control_shader(compiled_shaders.tess_control)
+        .with_primitive_topology(compiled_shaders.primitive_topology)
+        .with_rasterizer_state(&gfx::RasterizerState {
+            fill_mode: gl::FILL,
+            ..Default::default()
+        })
+        .with_all_blend_states(&gfx::BlendState {
+            enabled: true,
+            mode_rgb: gl::FUNC_ADD,
+            mode_alpha: gl::FUNC_ADD,
+            func_src_rgb: gl::SRC_ALPHA,
+            func_dst_rgb: gl::ONE_MINUS_SRC_ALPHA,
+            func_src_alpha: gl::ONE,
+            func_dst_alpha: gl::ZERO,
+        })
+        .with_input_layout(&compiled_shaders.input_layout)
+        .build(ctx)
+        .map_err(|gfx::GraphicsPipelineBuildError::ProgramLinkError(log)| {
+            format!("Program link error: {}", log)
+        })?))
 }
 
-impl Renderer
-{
-    pub fn new(imgui: &mut imgui::ImGui, context: &Rc<gfx::Context>, cache: &Rc<Cache>) -> Renderer
-    {
-        let pipeline = cache.add_and_watch(IMGUI_SHADER_PATH.to_owned(), |path, reload_reason| {
-            load_pipeline(context, Path::new(path)).ok()
-        }).unwrap();
+impl Renderer {
+    pub fn new(
+        imgui: &mut imgui::ImGui,
+        context: &Arc<gfx::Context>,
+        cache: &Arc<Cache>,
+    ) -> Renderer {
+        let pipeline = cache
+            .add_and_watch(IMGUI_SHADER_PATH.to_owned(), |path, reload_reason| {
+                load_pipeline(context, Path::new(path)).ok()
+            })
+            .unwrap();
 
         let texture = imgui.prepare_texture(|handle| {
             let desc = gfx::TextureDesc {
@@ -63,44 +66,59 @@ impl Renderer
                 height: handle.height,
                 depth: 1,
                 mip_map_count: gfx::MipMaps::Count(1),
-                sample_count: 1
+                sample_count: 1,
             };
             let mut texture = gfx::Texture::new(context, &desc);
-            texture.upload_region(0, (0,0,0), (handle.width,handle.height,1), handle.pixels);
-            Rc::new(texture)
+            texture.upload_region(
+                0,
+                (0, 0, 0),
+                (handle.width, handle.height, 1),
+                handle.pixels,
+            );
+            Arc::new(texture)
         });
         imgui.set_texture_id(texture.object() as usize);
 
-        Renderer {
-            pipeline,
-            texture
-        }
+        Renderer { pipeline, texture }
     }
 
-    pub fn render<'a>(&mut self, frame: &gfx::Frame, target: &Rc<gfx::Framebuffer>, upload_buf: &gfx::UploadBuffer, ui: imgui::Ui<'a>)
-    {
+    pub fn render<'a>(
+        &mut self,
+        frame: &gfx::Frame,
+        target: &Arc<gfx::Framebuffer>,
+        upload_buf: &gfx::UploadBuffer,
+        ui: imgui::Ui<'a>,
+    ) {
         // hot-reload pipeline from file
         //self.pipeline.update();
-        ui.render(move |ui, draw_list| -> Result<(),String> {
+        ui.render(move |ui, draw_list| -> Result<(), String> {
             self.render_draw_list(frame, target, upload_buf, ui, &draw_list)
         });
     }
 
-    pub fn render_draw_list<'a>(&mut self, frame: &gfx::Frame, target: &Rc<gfx::Framebuffer>, upload_buf: &gfx::UploadBuffer, ui: &imgui::Ui<'a>, draw_list: &imgui::DrawList<'a>) -> Result<(),String> {
+    pub fn render_draw_list<'a>(
+        &mut self,
+        frame: &gfx::Frame,
+        target: &Arc<gfx::Framebuffer>,
+        upload_buf: &gfx::UploadBuffer,
+        ui: &imgui::Ui<'a>,
+        draw_list: &imgui::DrawList<'a>,
+    ) -> Result<(), String> {
         let vertex_buffer = upload_buf.upload(frame, draw_list.vtx_buffer, 64);
         let index_buffer = upload_buf.upload(frame, draw_list.idx_buffer, 64);
-        let (width,height) = ui.imgui().display_size();
+        let (width, height) = ui.imgui().display_size();
         let (scale_width, scale_height) = ui.imgui().display_framebuffer_scale();
 
         if width == 0.0 || height == 0.0 {
             return Ok(());
         }
 
-        let matrix : [[f32; 4]; 4] =
-            [[2.0 / width as f32, 0.0, 0.0, 0.0],
-                [0.0, 2.0 / -(height as f32), 0.0, 0.0],
-                [0.0, 0.0, -1.0, 0.0],
-                [-1.0, 1.0, 0.0, 1.0]];
+        let matrix: [[f32; 4]; 4] = [
+            [2.0 / width as f32, 0.0, 0.0, 0.0],
+            [0.0, 2.0 / -(height as f32), 0.0, 0.0],
+            [0.0, 0.0, -1.0, 0.0],
+            [-1.0, 1.0, 0.0, 1.0],
+        ];
 
         let font_texture_id = self.texture.object() as usize;
         let mut idx_start = 0 as usize;
@@ -115,25 +133,27 @@ impl Renderer
                 .with_vertex_buffer(0, &vertex_buffer)
                 .with_index_buffer(&index_buffer)
                 .with_uniform_buffer(0, &upload_buf.upload(frame, &matrix, 256))
-                .with_texture(0, &self.texture, &gfx::SamplerDesc {
-                    addr_u: gfx::TextureAddressMode::Wrap,
-                    addr_v: gfx::TextureAddressMode::Wrap,
-                    addr_w: gfx::TextureAddressMode::Wrap,
-                    mag_filter: gfx::TextureMagFilter::Nearest,
-                    min_filter: gfx::TextureMinFilter::Linear,
-                })
-                .with_all_scissors(Some (
-                    (
-                        (cmd.clip_rect.x * scale_width) as i32,
-                        ((height - cmd.clip_rect.w) * scale_height) as i32,
-                        ((cmd.clip_rect.z - cmd.clip_rect.x) * scale_width) as i32,
-                        ((cmd.clip_rect.w - cmd.clip_rect.y) * scale_height) as i32
-                    )
-                ))
+                .with_texture(
+                    0,
+                    &self.texture,
+                    &gfx::SamplerDesc {
+                        addr_u: gfx::TextureAddressMode::Wrap,
+                        addr_v: gfx::TextureAddressMode::Wrap,
+                        addr_w: gfx::TextureAddressMode::Wrap,
+                        mag_filter: gfx::TextureMagFilter::Nearest,
+                        min_filter: gfx::TextureMinFilter::Linear,
+                    },
+                )
+                .with_all_scissors(Some((
+                    (cmd.clip_rect.x * scale_width) as i32,
+                    ((height - cmd.clip_rect.w) * scale_height) as i32,
+                    ((cmd.clip_rect.z - cmd.clip_rect.x) * scale_width) as i32,
+                    ((cmd.clip_rect.w - cmd.clip_rect.y) * scale_height) as i32,
+                )))
                 .command(&gfx::DrawIndexed {
                     first: idx_start,
                     count: cmd.elem_count as usize,
-                    base_vertex: 0
+                    base_vertex: 0,
                 });
 
             idx_start = idx_end;
@@ -141,7 +161,6 @@ impl Renderer
 
         Ok(())
     }
-
 }
 
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
@@ -152,16 +171,26 @@ pub struct MouseState {
 }
 
 
-pub fn init(context: &Rc<gfx::Context>, cache: &Rc<Cache>, replacement_font: Option<&str>) -> (imgui::ImGui,Renderer,MouseState) {
+pub fn init(
+    context: &Arc<gfx::Context>,
+    cache: &Arc<Cache>,
+    replacement_font: Option<&str>,
+) -> (imgui::ImGui, Renderer, MouseState) {
     // setup ImGui
     let mut imgui = imgui::ImGui::init();
     // load font from file
     if let Some(replacement_font) = replacement_font {
         unsafe {
-            use ::std::ffi::{CString, CStr};
+            use std::ffi::{CStr, CString};
             let path = CString::new(replacement_font).unwrap();
             let imgui_io = unsafe { &mut *imgui_sys::igGetIO() };
-            imgui_sys::ImFontAtlas_AddFontFromFileTTF(imgui_io.fonts, path.as_ptr(), 20.0, 0 as *const _, 0 as *const _);
+            imgui_sys::ImFontAtlas_AddFontFromFileTTF(
+                imgui_io.fonts,
+                path.as_ptr(),
+                20.0,
+                0 as *const _,
+                0 as *const _,
+            );
         };
     }
 
@@ -171,9 +200,12 @@ pub fn init(context: &Rc<gfx::Context>, cache: &Rc<Cache>, replacement_font: Opt
     (imgui, renderer, MouseState::default())
 }
 
-pub fn handle_event(imgui: &mut imgui::ImGui, event: &glutin::Event, mouse_state: &mut MouseState) -> bool
-{
-    use glutin::{Event, WindowEvent, ElementState, TouchPhase, MouseScrollDelta, MouseButton};
+pub fn handle_event(
+    imgui: &mut imgui::ImGui,
+    event: &glutin::Event,
+    mouse_state: &mut MouseState,
+) -> bool {
+    use glutin::{ElementState, Event, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
     use glutin::WindowEvent::*;
 
     match event {
@@ -202,24 +234,22 @@ pub fn handle_event(imgui: &mut imgui::ImGui, event: &glutin::Event, mouse_state
                         Some(Key::X) => imgui.set_key(16, pressed),
                         Some(Key::Y) => imgui.set_key(17, pressed),
                         Some(Key::Z) => imgui.set_key(18, pressed),
-                        Some(Key::LControl) |
-                        Some(Key::RControl) => imgui.set_key_ctrl(pressed),
-                        Some(Key::LShift) |
-                        Some(Key::RShift) => imgui.set_key_shift(pressed),
+                        Some(Key::LControl) | Some(Key::RControl) => imgui.set_key_ctrl(pressed),
+                        Some(Key::LShift) | Some(Key::RShift) => imgui.set_key_shift(pressed),
                         Some(Key::LAlt) | Some(Key::RAlt) => imgui.set_key_alt(pressed),
                         Some(Key::LWin) | Some(Key::RWin) => imgui.set_key_super(pressed),
                         _ => {}
                     }
                 }
-                &MouseMoved { position: (x, y), .. } => mouse_state.pos = (x as i32, y as i32),
-                &MouseInput { state, button, .. } => {
-                    match button {
-                        MouseButton::Left => mouse_state.pressed.0 = state == ElementState::Pressed,
-                        MouseButton::Right => mouse_state.pressed.1 = state == ElementState::Pressed,
-                        MouseButton::Middle => mouse_state.pressed.2 = state == ElementState::Pressed,
-                        _ => {}
-                    }
-                }
+                &MouseMoved {
+                    position: (x, y), ..
+                } => mouse_state.pos = (x as i32, y as i32),
+                &MouseInput { state, button, .. } => match button {
+                    MouseButton::Left => mouse_state.pressed.0 = state == ElementState::Pressed,
+                    MouseButton::Right => mouse_state.pressed.1 = state == ElementState::Pressed,
+                    MouseButton::Middle => mouse_state.pressed.2 = state == ElementState::Pressed,
+                    _ => {}
+                },
                 &MouseWheel {
                     delta: MouseScrollDelta::LineDelta(_, y),
                     phase: TouchPhase::Moved,
@@ -241,20 +271,17 @@ pub fn handle_event(imgui: &mut imgui::ImGui, event: &glutin::Event, mouse_state
                 mouse_state.pos.0 as f32 / scale.0,
                 mouse_state.pos.1 as f32 / scale.1,
             );
-            imgui.set_mouse_down(
-                &[
-                    mouse_state.pressed.0,
-                    mouse_state.pressed.1,
-                    mouse_state.pressed.2,
-                    false,
-                    false,
-                ],
-            );
+            imgui.set_mouse_down(&[
+                mouse_state.pressed.0,
+                mouse_state.pressed.1,
+                mouse_state.pressed.2,
+                false,
+                false,
+            ]);
             imgui.set_mouse_wheel(mouse_state.wheel / scale.1);
             mouse_state.wheel = 0.0;
             true
-        },
+        }
         _ => false,
     }
 }
-

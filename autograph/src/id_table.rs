@@ -1,30 +1,28 @@
 use std::vec::Vec;
 use std::collections::HashMap;
 
-#[derive(Copy,Clone,Hash,Debug,Default,PartialEq,Eq)]
-pub struct ID
-{
+#[derive(Copy, Clone, Hash, Debug, Default, PartialEq, Eq)]
+pub struct ID {
     pub idx: u32,
-    pub gen: u32
+    pub gen: u32,
 }
 
-impl ID
-{
-    pub fn null() -> ID { ID { idx: 0, gen: 0 } }
+impl ID {
+    pub fn null() -> ID {
+        ID { idx: 0, gen: 0 }
+    }
 }
 
-pub struct IDTable
-{
+pub struct IDTable {
     live_ids: Vec<ID>,
-    free_ids: Vec<ID>
+    free_ids: Vec<ID>,
 }
 
-impl IDTable
-{
+impl IDTable {
     pub fn new() -> IDTable {
         IDTable {
             live_ids: Vec::new(),
-            free_ids: Vec::new()
+            free_ids: Vec::new(),
         }
     }
 
@@ -34,7 +32,10 @@ impl IDTable
         if let Some(free_id) = self.free_ids.pop() {
             free_id
         } else {
-            let new_id = ID { idx: self.num_live_ids(), gen: 1 };
+            let new_id = ID {
+                idx: self.num_live_ids(),
+                gen: 1,
+            };
             self.live_ids.push(new_id);
             new_id
         }
@@ -56,7 +57,7 @@ impl IDTable
     }
 
     pub fn collect<T>(&self, map: &mut HashMap<ID, T>) {
-        map.retain(|&id,_| self.is_valid(id) )
+        map.retain(|&id, _| self.is_valid(id))
     }
 }
 
@@ -65,4 +66,3 @@ impl IDTable
 // all component hashes
 // resource cache
 // resources should be cached
-
