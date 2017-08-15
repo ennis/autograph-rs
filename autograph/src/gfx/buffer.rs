@@ -6,7 +6,7 @@ use std::os::raw::c_void;
 use super::context::Context;
 use std::sync::Arc;
 use super::buffer_data::BufferData;
-use std::fmt::Debug;
+use std::clone::Clone;
 
 #[derive(Copy, Clone, Debug)]
 pub struct RawBufferSlice {
@@ -68,6 +68,7 @@ pub trait BufferAny {
     fn object(&self) -> GLuint;
 }
 
+
 pub struct BufferSlice<T: BufferData + ?Sized> {
     pub owner: Arc<BufferAny>,
     pub byte_offset: usize,
@@ -75,13 +76,34 @@ pub struct BufferSlice<T: BufferData + ?Sized> {
     _phantom: PhantomData<*const T>,
 }
 
+// Explicit impl of Clone, workaround issue 26925 ?
+// https://github.com/rust-lang/rust/issues/26925
+impl<T: BufferData + ?Sized> Clone for BufferSlice<T> {
+    fn clone(&self) -> Self {
+        BufferSlice { owner: self.owner.clone(),
+            byte_offset: self.byte_offset,
+            len: self.len,
+            _phantom: PhantomData
+        }
+    }
+}
+
 impl<T: BufferData + ?Sized> BufferSlice<T> {
     pub fn byte_size(&self) -> usize {
         self.len * mem::size_of::<T::Element>()
     }
+    pub fn into_slice_any(self) -> BufferSliceAny {
+        let byte_size = self.byte_size();
+        BufferSliceAny {
+            owner: self.owner,
+            byte_offset: self.byte_offset,
+            byte_size
+        }
+    }
 }
 
 // Untyped buffer slice
+#[derive(Clone)]
 pub struct BufferSliceAny {
     pub owner: Arc<BufferAny>,
     pub byte_offset: usize,

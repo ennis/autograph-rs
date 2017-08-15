@@ -6,13 +6,14 @@ use glutin;
 use glutin::GlContext;
 use time;
 use std::sync::Arc;
+use std::cell::RefCell;
 
 // Scaffolding for the application
 pub struct MainLoop<'a> {
     window: &'a glutin::GlWindow,
     pub cache: Arc<Cache>,
     pub context: Arc<gfx::Context>,
-    pub queue: gfx::FrameQueue,
+    pub queue: RefCell<gfx::Queue>,
 }
 
 const PRINT_FPS_EVERY_SECONDS: i64 = 3;
@@ -30,9 +31,9 @@ impl<'a> MainLoop<'a> {
         &self.cache
     }
 
-    pub fn queue(&self) -> &gfx::FrameQueue {
-        &self.queue
-    }
+    /*pub fn queue(&self) -> &gfx::Queue {
+        &self.queue.borrow()
+    }*/
 
     // takes ownership of the window and the event loop
     pub fn new<'b>(window: &'b glutin::GlWindow, config: &gfx::ContextConfig) -> MainLoop<'b> {
@@ -49,19 +50,19 @@ impl<'a> MainLoop<'a> {
         let context = gfx::Context::new(config);
 
         // create a queue
-        let queue = gfx::FrameQueue::new(&context);
+        let queue = gfx::Queue::new(&context);
 
         MainLoop {
             window,
             cache: Cache::new(),
             context,
-            queue,
+            queue: RefCell::new(queue),
         }
     }
 
     pub fn run<F>(&self, mut body: F)
     where
-        F: FnMut(&mut gfx::Frame, &Arc<gfx::Framebuffer>, f32) -> bool,
+        F: FnMut(&gfx::Frame, &Arc<gfx::Framebuffer>, f32) -> bool,
     {
         let mut loop_start_time = time::PreciseTime::now();
         let mut last_debug_time = time::PreciseTime::now();
@@ -77,7 +78,8 @@ impl<'a> MainLoop<'a> {
                 &self.window,
             ));
             // create the frame
-            let mut frame = self.queue.new_frame();
+            let mut queue = self.queue.borrow_mut();
+            let mut frame = gfx::Frame::new(&mut queue);
             // last frame time in seconds
             let delta_s = 1_000_000_000f32 * frame_duration.num_nanoseconds().unwrap() as f32;
             //let mut ui = imgui_glue.new_frame(window.get_inner_size_points().unwrap(), window.get_inner_size_pixels().unwrap(), delta_s);

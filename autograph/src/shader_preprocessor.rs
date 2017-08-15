@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use regex::{Regex};
+use regex::Regex;
 use std::fs::File;
 use std::io::prelude::*;
 use gfx::pipeline::VertexAttribute;

@@ -13,6 +13,7 @@ pub mod bind;
 pub mod framebuffer;
 pub mod queue;
 pub mod buffer_data;
+pub mod frame;
 
 pub use self::state_group::*;
 pub use self::texture::*;
@@ -27,3 +28,4 @@ pub use self::queue::*;
 pub use self::framebuffer::*;
 pub use self::bind::*;
 pub use self::buffer_data::*;
+pub use self::frame::*;

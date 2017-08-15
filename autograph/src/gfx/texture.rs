@@ -1,6 +1,5 @@
 use gl;
 use gl::types::*;
-use std::mem;
 use super::texture_format::*;
 use std::cmp::*;
 use super::context::Context;

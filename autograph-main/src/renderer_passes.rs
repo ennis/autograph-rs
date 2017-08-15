@@ -58,7 +58,10 @@ pass GBufferSetup(frame: &'pass gfx::Frame, width: u32, height: u32)
 	}
 
 	execute {
-		// some rust code (in particular, gfx commands)
+	    frame.clear_texture(diffuse, 0, &[0.125, 0.125, 0.48, 1.0]);
+	    frame.clear_texture(normals, 0, &[0.0, 0.0, 0.0, 1.0]);
+	    frame.clear_texture(material_id, 0, &[0.0, 0.0, 0.0, 1.0]);
+	    frame.clear_depth_texture(depth, 0, 1.0);
 	}
 }
 }
@@ -108,13 +111,12 @@ fn do_render_scene(
     camera: &Camera,
     frame: &gfx::Frame,
     target: &Arc<gfx::Framebuffer>,
-    pipeline: &Arc<gfx::GraphicsPipeline>,
-    upload_buf: &gfx::UploadBuffer)
+    pipeline: &Arc<gfx::GraphicsPipeline>)
 {
     use autograph::gfx::AsSlice;
 
     // create camera buffer to send to GPU
-    let cam_buffer = upload_buf.upload(frame, camera, 256);
+    let cam_buffer = frame.upload(camera);
 
     for (id,obj) in scene_objects.iter() {
         // build draw command!
@@ -122,28 +124,24 @@ fn do_render_scene(
 
         if let Some(ref sm) = obj.mesh {
             //debug!("Render id {:?}", id);
-            let objparams = upload_buf.upload(frame, &ObjectParameters {
+            let objparams = frame.upload(&ObjectParameters {
                 model_matrix: obj.world_transform.to_homogeneous(),
                 prev_model_matrix: obj.world_transform.to_homogeneous(),
                 object_id: id.idx as i32
-            }, 256);
+            });
 
-            gfx::DrawCommandBuilder::new(frame, target, pipeline)
+            frame.begin_draw(target, pipeline)
                 .with_vertex_buffer(0, &sm.mesh.vertex_buffer().as_slice())
                 .with_index_buffer(&sm.mesh.index_buffer().unwrap().as_slice())
                 .with_uniform_buffer(0, &cam_buffer)
                 .with_uniform_buffer(1, &objparams)
-                .command(&gfx::DrawIndexed {
-                    first: 0,
-                    count: sm.mesh.index_count(),
-                    base_vertex: 0
-                });
+                .draw_indexed(0, sm.mesh.index_count(), 0);
         }
     }
 }
 
 gfx_pass!{
-pass RenderScene(scene_objects: &'pass SceneObjects, camera: &'pass Camera, frame: &'pass gfx::Frame, upload_buf: &'pass gfx::UploadBuffer)
+pass RenderScene(scene_objects: &'pass SceneObjects, camera: &'pass Camera, frame: &'pass gfx::Frame)
 {
     read {}
     write {
@@ -178,89 +176,10 @@ pass RenderScene(scene_objects: &'pass SceneObjects, camera: &'pass Camera, fram
             camera,
             frame,
             &target,
-            &DEFERRED,
-            upload_buf);
+            &DEFERRED);
     }
 }
 }
-
-/*pub mod RenderScene {
-    use super::*;
-    use autograph::lazy::Lazy;
-    use std::sync::Arc;
-    use autograph::gfx::TextureFormat::*;
-    use autograph::framegraph::{NodeIndex, ResourceUsage, FrameGraph,
-                                CompiledGraph};
-    use autograph::framegraph::macro_prelude::*;
-    pub struct Inputs {
-        pub diffuse: NodeIndex,
-        pub normals: NodeIndex,
-        pub material_id: NodeIndex,
-        pub depth: NodeIndex,
-    }
-    pub struct Outputs {
-        pub diffuse: NodeIndex,
-        pub normals: NodeIndex,
-        pub material_id: NodeIndex,
-        pub depth: NodeIndex,
-    }
-
-    pub static mut DEFERRED: Lazy<::std::sync::Arc<::autograph::gfx::GraphicsPipeline>> = Lazy::new();
-
-    pub fn create<'pass>(__fg: &mut FrameGraph<'pass>, scene_objects: &'pass SceneObjects,
-                  camera: &'pass Camera, frame: &'pass gfx::Frame,
-                  upload_buf: &'pass gfx::UploadBuffer, inputs: Inputs) -> Outputs {
-        let diffuse =
-            Texture2DInit::from_resource_info(__fg.get_resource_info(inputs.diffuse).expect("input was not a resource node")).expect("unexpected resource type");
-        let normals =
-            Texture2DInit::from_resource_info(__fg.get_resource_info(inputs.normals).expect("input was not a resource node")).expect("unexpected resource type");
-        let material_id =
-            Texture2DInit::from_resource_info(__fg.get_resource_info(inputs.material_id).expect("input was not a resource node")).expect("unexpected resource type");
-        let depth =
-            Texture2DInit::from_resource_info(__fg.get_resource_info(inputs.depth).expect("input was not a resource node")).expect("unexpected resource type");
-        let diffuse = __fg.clone_resource_node(inputs.diffuse);
-        let normals = __fg.clone_resource_node(inputs.normals);
-        let material_id = __fg.clone_resource_node(inputs.material_id);
-        let depth = __fg.clone_resource_node(inputs.depth);
-
-        // init shaders
-        let __exec =
-            Box::new(move |__frame: &gfx::Frame, __cg: &CompiledGraph|
-                {
-                    let diffuse =
-                        alloc_as_texture(__cg.get_alloc_for_resource(diffuse).unwrap()).unwrap();
-                    let normals =
-                        alloc_as_texture(__cg.get_alloc_for_resource(normals).unwrap()).unwrap();
-                    let material_id =
-                        alloc_as_texture(__cg.get_alloc_for_resource(material_id).unwrap()).unwrap();
-                    let depth =
-                        alloc_as_texture(__cg.get_alloc_for_resource(depth).unwrap()).unwrap();
-
-
-                    {
-                        let target =
-                            Arc::new(gfx::FramebufferBuilder::new(frame.queue().context()).attach_texture(0,
-                                                                                                          diffuse).attach_texture(1,
-                                                                                                                                  normals).attach_texture(2,
-                                                                                                                                                          material_id).attach_depth_texture(depth).build());
-                        do_render_scene(scene_objects, camera, frame,
-                                        &target, unimplemented!(),
-                                        upload_buf);
-                    }
-                });
-        let __pass =
-            __fg.create_pass_node(stringify!(RenderScene).to_owned(), __exec);
-        __fg.link_input(__pass, inputs.diffuse, ResourceUsage::Default);
-        __fg.link_input(__pass, inputs.normals, ResourceUsage::Default);
-        __fg.link_input(__pass, inputs.material_id, ResourceUsage::Default);
-        __fg.link_input(__pass, inputs.depth, ResourceUsage::Default);
-        __fg.link_output(__pass, diffuse, ResourceUsage::Default);
-        __fg.link_output(__pass, normals, ResourceUsage::Default);
-        __fg.link_output(__pass, material_id, ResourceUsage::Default);
-        __fg.link_output(__pass, depth, ResourceUsage::Default);
-        Outputs{diffuse, normals, material_id, depth,}
-    }
-}*/
 
 #[derive(Copy, Clone, Debug)]
 pub enum DeferredDebugBuffer {
@@ -283,8 +202,28 @@ pass DeferredDebug(frame: &'pass gfx::Frame, target: &'pass Arc<gfx::Framebuffer
     }
     execute
     {
+        frame.clear_framebuffer_color(target, 0, &[0.125, 0.125, 0.48, 1.0]);
         println!("Execute DeferredDebug!");
     }
 }
 
 }
+
+/*gfx_pass!{
+pass Present(frame: &'pass gfx::Frame, target: &'pass Arc<gfx::Framebuffer>)
+{
+    read {
+        texture2D source {},
+    }
+    write {
+    }
+    pipeline BLIT_2D {
+        path: "data/shaders/blit.glsl"
+    }
+    execute
+    {
+
+    }
+}
+
+}*/

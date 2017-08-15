@@ -1,8 +1,7 @@
-use std::any::{Any};
+use std::any::Any;
 use std::collections::HashMap;
 use std::cell::RefCell;
 use std::sync::{Arc, Weak};
-use std::fs::File;
 use notify;
 use notify::Watcher;
 use std::sync::mpsc::{channel, Receiver};
@@ -62,8 +61,7 @@ pub enum ReloadReason {
     FileRemoved,
 }
 
-pub trait CacheTrait
-{
+pub trait CacheTrait {
     fn add<T>(&self, path: String, obj: T) -> T
     where
         T: Any + Clone;

@@ -113,7 +113,7 @@ fn main() {
     );
 
     // create an upload buffer for uniforms
-    let upload_buf = gfx::UploadBuffer::new(&main_loop.queue(), UPLOAD_BUFFER_SIZE);
+    //let upload_buf = gfx::UploadBuffer::new(&main_loop.queue(), UPLOAD_BUFFER_SIZE);
 
     // load a scene!
     let mut ids = IDTable::new();
@@ -182,7 +182,7 @@ fn main() {
             use renderer_passes::*;
             let mut fg = FrameGraph::new();
             let gbuffers = GBufferSetup::create(&mut fg, frame, 640, 480);
-            let after_scene = RenderScene::create(&mut fg, &scene_objects, &camera, frame, &upload_buf, RenderScene::Inputs {
+            let after_scene = RenderScene::create(&mut fg, &scene_objects, &camera, frame, RenderScene::Inputs {
                 diffuse: gbuffers.diffuse,
                 normals: gbuffers.normals,
                 material_id: gbuffers.material_id,
@@ -196,7 +196,7 @@ fn main() {
             });
 
             // compile the frame graph
-            let compiled_fg = fg.compile(&main_loop.queue(), &mut fg_allocator);
+            let compiled_fg = fg.compile(main_loop.context(), &mut fg_allocator);
             // execute the frame graph
             compiled_fg.execute(frame);
 
@@ -211,7 +211,7 @@ fn main() {
                     ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos.0, mouse_pos.1));
                 });
 
-            imgui_renderer.render(frame, default_framebuffer, &upload_buf, ui);
+            imgui_renderer.render(frame, default_framebuffer, ui);
             running
         });
 }

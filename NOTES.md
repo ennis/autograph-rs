@@ -1,6 +1,38 @@
 TODO
 ====
 
+#### Recap of binding resources (here: buffer slices) to the graphics pipeline
+    //
+    // The output slice should be valid until the GPU has finished rendering the current frame
+    // However, we do not expose a dynamic lifetime to the user: we simply say that
+    // the buffer slice can be used until the frame is finalized.
+    //
+    // TL;DR
+    // There are two lifetimes:
+    // - logical: slice accessible until the frame is finalized
+    // - actual: until the GPU has finished rendering the frame and the resources are reclaimed
+    //
+    // Issue:
+    // Currently, nothing prevents a user from passing a buffer slice that **actually** lives
+    // only during the current frame, and not long enough for the GPU operation to complete
+    // => extend the lifetime of the buffer by passing an Arc<Buffer> into the buffer slice?
+    //
+    // Add an Arc<stuff> into the frame each time a resource is referenced in the frame
+    //
+    // TL;DR: the problem is that any resource reference passed into the GPU pipeline
+    // escapes all known static lifetimes
+    // Possible solution: bind the lifetime of all 'transient objects' to a GPUFuture object
+    // Dropping the GPUFuture object means waiting for the frame to be finished
+    // Thus, logical lifetime of the fence = actual lifetime of a frame
+    //
+    // TL;DR 2: 'Outliving the frame object' is not enough for resources
+    // buffer slice of an Arc<Buffer> lives as long as the Arc => should live as long as the buffer?
+    // draw pipelines should NOT consume a transient buffer slice
+    // Binding a buffer to the pipeline: take a Arc<Buffer> + Buffer slice
+    //
+    // TL;DR 3 - Conclusion: Resources bound to the pipeline must be Arc, since they escape all known static lifetimes
+
+
 #### NPR rendering primitives
 * Gradation offset (means: shader)
 * Gradation offset maps
@@ -92,11 +124,6 @@ Limitations:
 
 must have an interface to dynamically create passes (variable number of resources, different access flags, etc.)
 
-##### Implementation agenda:
-* Explicit API first
-    * setup() + execute()
-    * No corresponding allocation, just a prototype
-*
 
 ### Scene graphs / Scene components
 - Must not manage hashmaps by hand for every scene component
@@ -206,3 +233,138 @@ ui.expose("i", i)
     - immediate incurs frame lag
 - Excellent text rendering
 - Must easily handle dynamic data
+
+### Command submission reform
+
+##### Goals
+- Goal: be less verbose
+    - more implicit stuff?
+- now: `DrawCallBuilder` and `DrawCommand`, plus some free functions: `gfx::clear_*`
+- they all take a `Frame`
+- proposal: merge `Frame` and draw command submission
+    - `CommandBuffer` trait?
+    - as usual, mimic vulkan (and vulkano?)
+    - transient allocation functions in `CommandBuffer`?
+        - Do we need separate `UploadBuffers` or just one bound to a command buffer?
+- `cmd.transient_alloc<T>()`: automatically synchronized, correct lifetimes
+    - `UploadBuffer` now becomes a manually-synchronized impl detail
+- `cmd.draw(target, ...)`
+- `cmd.clear_texture()`
+- `cmd.clear_framebuffer()`
+- About upload buffers:
+    - we could track every allocation in a list
+        - this way it's possible to get rid of the frame-based synchronization => fine-grained
+        - but: costly/overhead when there are many small buffers
+            - note: the overhead is already there! Vec<FencedRegion>
+        - mitigation: batches?
+Requirements:
+- Expose user-specified upload buffers
+- First solution: allocation result should be bound to the lifetime of an object (a synchronized object)
+    - Cannot use the transient alloc once the bound object has dropped
+    - Can bind to:
+        - Command buffer
+        - Frame
+    - Can reduce overhead: tracking is implicit (bound to the command buffer/frame)
+        - Use unsafe code internally
+        - No need to wrap slices in Arc: the borrow checker will ensure that they are not in use after the
+            command buffer has dropped
+    - Less flexible?
+
+- Other solution: dynamic lifetime for everything
+    - Arc<TransientBuffer> is just another buffer slice
+    - lifetime can be extended after the CommandBuffer has dropped: however, this may block
+    - References to Arc<Transient> are kept by the CommandBuffer
+    - Possibly heavy overhead: every transient is tracked by an Arc 
+
+- Implementation strategy:
+    - `Queue` creates `CommandBuffers`
+    - use `CommandBuffer::submit` to submit it to the queue
+    - No `Arc`, panic if CommandBuffer is not submitted
+    - Synchronization is done at the `CommandBuffer` submission level
+        - Keep existing UploadBuffer logic for now
+        - Make `UploadBuffer` manually synchronized?
+            - `SynchronizedRegion`: once this drops, all allocations inside are automatically reclaimed
+            - keeps a ref to the UploadBuffer 
+            - (before: sync was implicit, just took the current frame index)
+            - In UploadBuffer: keep current region min-max
+            - Issue: lifetime of transients inside a synchronized region?
+                - unsafe: SynchronizedRegion object is not built yet
+                - Create a sync object, but don't signal it yet?
+            - `UploadBuffer::with_fence(|| {})`
+            - `UploadBuffer::with_fence()` => `SynchronizedRegion`
+                - exclusive mut-borrow of uploadbuffer
+            - Issue: using the same upload buffer in two different CommandBuffers simultaneously
+                - cannot coalesce transient slices
+                - mut-borrow upload buffer?
+                    - `CommandBuffer::with_upload_buffer`
+                - issue: CAN use two different UploadBuffers in the same CommandBuffer
+                    but CANNOT use the same UploadBuffer in two different CommandBuffers
+                - mitigation: use multiple fences for the same SynchronizedRegion
+                    then, wait for all fences before dropping
+                - but: who ends the SynchronizedRegion? and when?
+                    - the first submitted command buffer ends the SynchronizedRegion
+                        - actually: all the synchronizedregions it has created
+                    - the second command buffer can do the same, but it will just end an empty region
+            - Impl is quite complex, but the resulting API is just:
+                - `CommandBuffer::upload_with<T>(&upload_buf, data)`, with no further bookkeeping
+                    - which is exactly as simple as it is now...
+                    - ...except that it should work with multiple command queues
+
+            - Bikeshedding: `SynchronizedRegion`, `TransientBatch`, `TransientRegion`
+            - Note: the underlying sync primitive is not fixed yet
+                - can be a `GpuFuture`
+
+##### For now:
+- change API so that all commands are traits of `Frame`
+    - `impl DrawCommands for Frame`
+    - `impl TransientAlloc for Frame`
+- remove `UploadBuffer::upload(&frame, ...)`
+    - replaced by `frame.alloc_with(&buffer, ...)` of TransientAlloc
+- add a default upload buffer in `Frame`, for convenience
+    - `frame.alloc<T>(...)`
+    - this way it's explicit that the allocation lasts only for the frame
+- keep the same synchronization primitive (FenceSync + FenceValue)
+- frame submission stays the same
+- `draw` functions?
+    - DrawIndexed { 
+        vertex_buffers: &[&buffer1, &buffer2, ...],
+        index_buffer: ...,
+        first,
+        count, 
+      }
+
+##### Draw call parameters
+- Bundle vertex buffers and command parameters together
+    - This is a user-facing API, not meant as an intermediate API
+    - NO: vertex buffer interface is part of the pipeline, not a part of the command
+- Describe a layout for the uniforms+vertex input (with a macro, then autobind)
+ 
+
+### Rendering large worlds
+
+#### Voxel data
+Challenge: increase the render distance of minecraft by x100
+Chunk size: 16 * 16 * 256 = 65536, with 1 byte per block type
+Submit chunks to the mesher / renderer
+Extreme render distance = 32 chunks radius (4225 chunks according to wiki)
+Thus, 65536*4225 bytes to process = approx 276 MB per frame to process 
+Of course, caching of static chunks reduces that significantly
+Multiply view dist by 100 => 32 million chunks, approx 2 TB of data
+Of course, there is much less _interesting_ data in a chunk (most of it is air, stone or water) 
+
+#### Vertex data
+Assuming worst-case meshing scenario, without visibility culling: 
+3 floats for position info (12 bytes) * 65536
+TODO calculate
+
+Conclusion: meshing is ok for short distances, but what about long-range vistas?
+Need adaptive meshing, but cannot load all the data
+=> needs LOD, as with terrain rendering
+=> 2D heightmaps: adaptive virtual texturing
+=> 3D: Sparse voxel octrees?
+
+#### Ray-casting?
+Reverse costs of rendering: now the cost is proportional to the output resolution,
+instead of the size of the input data
+Why not?
+The issue being to find a good LOD method for voxel data

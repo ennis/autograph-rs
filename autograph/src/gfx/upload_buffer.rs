@@ -1,15 +1,12 @@
-use std::marker::PhantomData;
 use std::cell::RefCell;
 use std::mem;
 use super::context::Context;
 use super::buffer_data::BufferData;
 use super::buffer::{AsSlice, Buffer, BufferSlice, BufferSliceAny, BufferUsage};
 use std::collections::vec_deque::VecDeque;
-use super::queue::{Frame, FrameQueue};
 use std::sync::Arc;
-use super::fence::{FenceValue};
+use super::fence::FenceValue;
 use std::ptr::copy_nonoverlapping;
-use std::ops::Deref;
 
 struct FencedRegion {
     fence_value: FenceValue,
@@ -21,13 +18,13 @@ pub struct UploadBufferState {
     write: usize,
     begin: usize,
     used: usize,
-    fenced_regions: VecDeque<FencedRegion>, 
+    fenced_regions: VecDeque<FencedRegion>,
     // TODO frame fences
     //frame_fences:
 }
 
-pub struct UploadBuffer<'queue> {
-    queue: &'queue FrameQueue,
+pub struct UploadBuffer
+{
     buffer: Arc<Buffer<[u8]>>, // Owned
     state: RefCell<UploadBufferState>,
     mapped_region: *mut u8,
@@ -45,36 +42,19 @@ fn align_offset(align: usize, size: usize, ptr: usize, space: usize) -> Option<u
     }
 }
 
-// Should this be Deref<Target=Buffer> ?
-// TODO: add a way to get alignment of the slice
-// Deref target=BufferSlice<T>
-pub struct TransientBuffer<'frame, T>
-where
-    T: BufferData + ?Sized,
+impl UploadBuffer
 {
-    slice: BufferSlice<T>,
-    _phantom: PhantomData<&'frame T>,
-}
-
-impl<'frame, T: BufferData + ?Sized> Deref for TransientBuffer<'frame, T> {
-    type Target = BufferSlice<T>;
-    fn deref(&self) -> &Self::Target {
-        &self.slice
-    }
-}
-
-impl<'queue> UploadBuffer<'queue> {
-    pub fn new<'a>(queue: &'a FrameQueue, buffer_size: usize) -> UploadBuffer<'a> {
+    pub fn new(context: & Arc<Context>, buffer_size: usize) -> UploadBuffer
+    {
         //UploadBuffer { _phantom: PhantomData }
         let buffer = Arc::new(Buffer::new(
-            queue.context(),
+            context,
             buffer_size,
             BufferUsage::UPLOAD,
         ));
         let mapped_region = unsafe { buffer.map_persistent_unsynchronized() as *mut u8 };
 
         UploadBuffer {
-            queue,
             buffer,
             state: RefCell::new(UploadBufferState {
                 begin: 0,
@@ -86,75 +66,43 @@ impl<'queue> UploadBuffer<'queue> {
         }
     }
 
-    //
-    // The output slice should be valid until the GPU has finished rendering the current frame
-    // However, we do not expose a dynamic lifetime to the user: we simply say that
-    // the buffer slice can be used until the frame is finalized.
-    //
-    // TL;DR
-    // There are two lifetimes:
-    // - logical: slice accessible until the frame is finalized
-    // - actual: until the GPU has finished rendering the frame and the resources are reclaimed
-    //
-    // Issue:
-    // Currently, nothing prevents a user from passing a buffer slice that **actually** lives
-    // only during the current frame, and not long enough for the GPU operation to complete
-    // => extend the lifetime of the buffer by passing an Arc<Buffer> into the buffer slice?
-    //
-    // Add an Arc<stuff> into the frame each time a resource is referenced in the frame
-    //
-    // TL;DR: the problem is that any resource reference passed into the GPU pipeline
-    // escapes all known static lifetimes
-    // Possible solution: bind the lifetime of all 'transient objects' to a GPUFuture object
-    // Dropping the GPUFuture object means waiting for the frame to be finished
-    // Thus, logical lifetime of the fence = actual lifetime of a frame
-    //
-    // TL;DR 2: 'Outliving the frame object' is not enough for resources
-    // buffer slice of an Arc<Buffer> lives as long as the Arc => should live as long as the buffer?
-    // draw pipelines should NOT consume a transient buffer slice
-    // Binding a buffer to the pipeline: take a Arc<Buffer> + Buffer slice
-    //
-    // TL;DR 3 - Conclusion: Resources bound to the pipeline must be Arc, since they escape all known static lifetimes
-
-    pub fn upload<'frame, T: BufferData + ?Sized>(
+    /// Unsafe because the transient buffer can be reclaimed at any time with `reclaim`
+    /// according to the `reclaim_until` parameter
+    /// TODO do not panic if the upload buffer is full
+    pub unsafe fn upload<T: BufferData + ?Sized>(
         &self,
-        frame: &'frame Frame,
         data: &T,
         align: usize,
-    ) -> TransientBuffer<'frame, T> {
+        fence_value: FenceValue,
+        reclaim_until: FenceValue,
+    ) -> BufferSlice<T> {
         let byte_size = mem::size_of_val(data);
         let ptr = data as *const T as *const u8;
-        assert!(
-            frame.queue() as *const _ == self.queue as *const _,
-            "UploadBuffer allocating on invalid queue"
+
+        let slice = self.allocate(byte_size, align, fence_value, reclaim_until)
+            .expect("Upload buffer is full");   // TODO expand? wait?
+        copy_nonoverlapping(
+            ptr,
+            self.mapped_region.offset(slice.byte_offset as isize),
+            byte_size,
         );
-        TransientBuffer {
-            _phantom: PhantomData,
-            slice: unsafe {
-                let slice = self.allocate(byte_size, align, self.queue.next_frame_fence_value())
-                    .expect("Upload buffer is full");
-                copy_nonoverlapping(
-                    ptr,
-                    self.mapped_region.offset(slice.byte_offset as isize),
-                    byte_size,
-                );
-                slice.cast::<T>()
-            },
-        }
+        slice.cast::<T>()
     }
 
+    /// Unsafe for the same reasons as `upload`
     unsafe fn allocate(
         &self,
         size: usize,
         align: usize,
         fence_value: FenceValue,
+        reclaim_until: FenceValue,
     ) -> Option<BufferSliceAny> {
         //debug!("alloc size={}, align={}, fence_value={:?}", size, align, fence_value);
         if let Some(offset) = self.try_allocate_contiguous(size, align, fence_value) {
             Some(self.buffer.get_slice_any(offset, size))
         } else {
             // reclaim and try again (not enough contiguous free space)
-            self.reclaim();
+            self.reclaim(reclaim_until);
             if let Some(offset) = self.try_allocate_contiguous(size, align, fence_value) {
                 Some(self.buffer.get_slice_any(offset, size))
             } else {
@@ -208,15 +156,14 @@ impl<'queue> UploadBuffer<'queue> {
         Some(alloc_begin)
     }
 
-    fn reclaim(&self) {
-        let last_completed_frame = self.queue.last_completed_frame();
-        //debug!("reclaiming: last_completed_frame={:?}", last_completed_frame);
+    fn reclaim(&self, reclaim_until: FenceValue) {
+        //debug!("reclaiming: last_completed_fence_step={:?}", last_completed_fence_step);
         let mut state = self.state.borrow_mut();
         while !state.fenced_regions.is_empty() &&
-            state.fenced_regions.front().unwrap().fence_value <= last_completed_frame
+            state.fenced_regions.front().unwrap().fence_value <= reclaim_until
         {
             let region = state.fenced_regions.pop_front().unwrap();
-            //debug!("reclaiming region {}-{} because a later frame was completed (region={:?} < last_completed_frame={:?})", region.begin_ptr, region.end_ptr, region.fence_value, last_completed_frame);
+            //debug!("reclaiming region {}-{} because all commands using these regions have completed (region={:?} < last_completed_fence_step={:?})", region.begin_ptr, region.end_ptr, region.fence_value, last_completed_fence_step);
             state.begin = region.end_ptr;
             state.used -= region.end_ptr - region.begin_ptr;
         }

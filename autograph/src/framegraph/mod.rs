@@ -5,7 +5,7 @@ use petgraph::*;
 use petgraph::graph::*;
 use gfx;
 use std::sync::Arc;
-use std::cell::{Cell};
+use std::cell::Cell;
 use std::marker::PhantomData;
 
 pub mod macro_prelude;
@@ -80,7 +80,7 @@ impl<'a> ::std::fmt::Debug for Node<'a> {
 /// For Pass -> Resource links, represents the state in which the pass should leave the resource
 #[derive(Copy, Clone, Debug)]
 struct Edge {
-    usage: ResourceUsage, 
+    usage: ResourceUsage,
     //access: ResourceAccess
 }
 
@@ -122,12 +122,11 @@ impl<'a> FrameGraph<'a> {
     }
 
     /// Create a pass node
-    pub fn create_pass_node<'exec:'a>(
+    pub fn create_pass_node<'exec: 'a>(
         &mut self,
         name: String,
         execute: Box<Fn(&gfx::Frame, &CompiledGraph) + 'exec>,
-    ) -> NodeIndex
-    {
+    ) -> NodeIndex {
         self.graph.add_node(Node::Pass { name, execute })
     }
 
@@ -206,9 +205,9 @@ impl<'a> FrameGraph<'a> {
     /// Consumes self, return a 'compiled frame graph' that is ready to execute
     /// borrows FrameGraphAlloc mutably, borrow is dropped when the compiled graph is executed
     /// The compiled graph's lifetime is bound to the frame queue
-    pub fn compile<'b:'a>(
+    pub fn compile<'b: 'a>(
         mut self,
-        queue: &'b gfx::FrameQueue,
+        context: &Arc<gfx::Context>,
         allocator: &'b mut FrameGraphAllocator,
     ) -> CompiledGraph<'a> {
         //--------------------------------------
@@ -300,13 +299,13 @@ impl<'a> FrameGraph<'a> {
 
                         match alloc_index {
                             Some(index) => {
-                                debug!(
+                                /*debug!(
                                     "alloc {}({}-{}) reusing texture {}",
                                     resource.name,
                                     resource.lifetime.unwrap().begin,
                                     resource.lifetime.unwrap().end,
                                     index
-                                );
+                                );*/
                                 resource.alloc_index.set(Some(index));
                             }
                             None => {
@@ -319,7 +318,7 @@ impl<'a> FrameGraph<'a> {
                                     texdesc
                                 );
                                 allocator.allocations.push(Alloc::Texture {
-                                    tex: Arc::new(gfx::Texture::new(queue.context(), texdesc)),
+                                    tex: Arc::new(gfx::Texture::new(context, texdesc)),
                                 });
                                 resource
                                     .alloc_index
@@ -331,7 +330,7 @@ impl<'a> FrameGraph<'a> {
                         use gfx::buffer::AsSlice;
                         // allocating a buffer
                         let buffer = Arc::new(gfx::Buffer::<[u8]>::new(
-                            queue.context(),
+                            context,
                             byte_size,
                             gfx::BufferUsage::UPLOAD,
                         ));

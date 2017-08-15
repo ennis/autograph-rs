@@ -128,32 +128,35 @@ impl Default for GraphicsPipelineInit {
             path: "",
             depth_stencil_state: Default::default(),
             rasterizer_state: Default::default(),
-            blend_state: Default::default()
+            blend_state: Default::default(),
         }
     }
 }
 
 impl GraphicsPipelineInit {
     #[doc(hidden)]
-    pub fn to_graphics_pipeline(&self, ctx: &Arc<gfx::Context>) -> Arc<gfx::GraphicsPipeline>
-    {
-        let compiled_shaders = ::shader_compiler::compile_shaders_from_combined_source(Path::new(self.path)).unwrap();
-        Arc::new(gfx::GraphicsPipelineBuilder::new()
-            .with_vertex_shader(compiled_shaders.vertex)
-            .with_fragment_shader(compiled_shaders.fragment)
-            .with_geometry_shader(compiled_shaders.geometry)
-            .with_tess_eval_shader(compiled_shaders.tess_eval)
-            .with_tess_control_shader(compiled_shaders.tess_control)
-            .with_primitive_topology(compiled_shaders.primitive_topology)
-            .with_rasterizer_state(&self.rasterizer_state)
-            .with_depth_stencil_state(&self.depth_stencil_state)
-            .with_all_blend_states(&self.blend_state)
-            .with_input_layout(&compiled_shaders.input_layout)
-            .build(ctx).map_err(|e| match e {
-                gfx::GraphicsPipelineBuildError::ProgramLinkError(ref log) => {
-                    println!("Program link error: {}", log);
-                }
-            })
-            .unwrap())
+    pub fn to_graphics_pipeline(&self, ctx: &Arc<gfx::Context>) -> Arc<gfx::GraphicsPipeline> {
+        let compiled_shaders =
+            ::shader_compiler::compile_shaders_from_combined_source(Path::new(self.path)).unwrap();
+        Arc::new(
+            gfx::GraphicsPipelineBuilder::new()
+                .with_vertex_shader(compiled_shaders.vertex)
+                .with_fragment_shader(compiled_shaders.fragment)
+                .with_geometry_shader(compiled_shaders.geometry)
+                .with_tess_eval_shader(compiled_shaders.tess_eval)
+                .with_tess_control_shader(compiled_shaders.tess_control)
+                .with_primitive_topology(compiled_shaders.primitive_topology)
+                .with_rasterizer_state(&self.rasterizer_state)
+                .with_depth_stencil_state(&self.depth_stencil_state)
+                .with_all_blend_states(&self.blend_state)
+                .with_input_layout(&compiled_shaders.input_layout)
+                .build(ctx)
+                .map_err(|e| match e {
+                    gfx::GraphicsPipelineBuildError::ProgramLinkError(ref log) => {
+                        println!("Program link error: {}", log);
+                    }
+                })
+                .unwrap(),
+        )
     }
 }

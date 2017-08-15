@@ -86,13 +86,12 @@ impl Renderer {
         &mut self,
         frame: &gfx::Frame,
         target: &Arc<gfx::Framebuffer>,
-        upload_buf: &gfx::UploadBuffer,
         ui: imgui::Ui<'a>,
     ) {
         // hot-reload pipeline from file
         //self.pipeline.update();
         ui.render(move |ui, draw_list| -> Result<(), String> {
-            self.render_draw_list(frame, target, upload_buf, ui, &draw_list)
+            self.render_draw_list(frame, target,  ui, &draw_list)
         });
     }
 
@@ -100,12 +99,12 @@ impl Renderer {
         &mut self,
         frame: &gfx::Frame,
         target: &Arc<gfx::Framebuffer>,
-        upload_buf: &gfx::UploadBuffer,
         ui: &imgui::Ui<'a>,
         draw_list: &imgui::DrawList<'a>,
-    ) -> Result<(), String> {
-        let vertex_buffer = upload_buf.upload(frame, draw_list.vtx_buffer, 64);
-        let index_buffer = upload_buf.upload(frame, draw_list.idx_buffer, 64);
+    ) -> Result<(), String>
+    {
+        let vertex_buffer = frame.upload(draw_list.vtx_buffer);
+        let index_buffer = frame.upload(draw_list.idx_buffer);
         let (width, height) = ui.imgui().display_size();
         let (scale_width, scale_height) = ui.imgui().display_framebuffer_scale();
 
@@ -129,10 +128,12 @@ impl Renderer {
 
             let idx_end = idx_start + cmd.elem_count as usize;
 
-            gfx::DrawCommandBuilder::new(frame, target, &self.pipeline)
+            let uniforms = frame.upload(&matrix);
+
+            frame.begin_draw(target, &self.pipeline)
                 .with_vertex_buffer(0, &vertex_buffer)
                 .with_index_buffer(&index_buffer)
-                .with_uniform_buffer(0, &upload_buf.upload(frame, &matrix, 256))
+                .with_uniform_buffer(0, &uniforms)
                 .with_texture(
                     0,
                     &self.texture,
@@ -150,11 +151,11 @@ impl Renderer {
                     ((cmd.clip_rect.z - cmd.clip_rect.x) * scale_width) as i32,
                     ((cmd.clip_rect.w - cmd.clip_rect.y) * scale_height) as i32,
                 )))
-                .command(&gfx::DrawIndexed {
-                    first: idx_start,
-                    count: cmd.elem_count as usize,
-                    base_vertex: 0,
-                });
+                .draw_indexed(
+                    idx_start,
+                    cmd.elem_count as usize,
+                    0,
+                );
 
             idx_start = idx_end;
         }

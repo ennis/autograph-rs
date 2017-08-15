@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::collections::hash_map;
 use std::cell::RefCell;
 use mesh::{Mesh, Vertex3};
-use cache::{Cache, CacheTrait};
+use cache::{CacheTrait};
 
 #[derive(Debug)]
 pub struct SceneMesh {

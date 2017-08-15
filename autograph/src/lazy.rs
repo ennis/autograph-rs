@@ -17,12 +17,11 @@ impl<T: Sync> Lazy<T> {
 
     #[inline(always)]
     pub fn get<F>(&'static self, f: F) -> &T
-        where F: FnOnce() -> T
+    where
+        F: FnOnce() -> T,
     {
         unsafe {
-            self.1.call_once(|| {
-                *self.0.get() = Some(f());
-            });
+            self.1.call_once(|| { *self.0.get() = Some(f()); });
 
             match *self.0.get() {
                 Some(ref x) => x,
@@ -33,6 +32,3 @@ impl<T: Sync> Lazy<T> {
 }
 
 unsafe impl<T: Sync> Sync for Lazy<T> {}
-
-
-
