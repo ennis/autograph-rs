@@ -13,7 +13,7 @@ pub mod compiled;
 pub use self::compiled::CompiledGraph;
 pub use petgraph::graph::NodeIndex;
 
-/// Lifetime of a frame graph resource
+/// Lifetime of a frame graph resource.
 /// TODO document
 #[derive(Copy, Clone, Debug)]
 struct Lifetime {
@@ -38,13 +38,13 @@ pub enum ResourceUsage {
     TransformFeedbackOutput,
 }
 
-/// Describes creation details of a frame graph resource
+/// Describes creation details of a frame graph resource.
 pub enum ResourceInfo {
     Buffer { byte_size: usize },
     Texture { desc: gfx::TextureDesc },
 }
 
-/// A resource managed by a frame graph
+/// A resource managed by a frame graph.
 struct Resource {
     lifetime: Option<Lifetime>,
     name: String,
@@ -52,8 +52,8 @@ struct Resource {
     alloc_index: Cell<Option<usize>>,
 }
 
-/// A node of the frame graph
-/// Can be either a `Pass` or a `Resource`
+/// A node of the frame graph.
+/// Can be either a `Pass` or a `Resource`.
 /// Passes can only be connected to Resources and vice-versa.
 enum Node<'a> {
     Pass {
@@ -74,17 +74,17 @@ impl<'a> ::std::fmt::Debug for Node<'a> {
     }
 }
 
-/// An edge linking a Pass to a Resource, or a Resource to a Pass
+/// An edge linking a Pass to a Resource, or a Resource to a Pass.
 /// For Resource -> Pass links, represents the state in which the pass expects
-/// the resource to be into
-/// For Pass -> Resource links, represents the state in which the pass should leave the resource
+/// the resource to be into.
+/// For Pass -> Resource links, represents the state in which the pass should leave the resource.
 #[derive(Copy, Clone, Debug)]
 struct Edge {
     usage: ResourceUsage,
     //access: ResourceAccess
 }
 
-/// An Alloc represents the GPU memory allocated for a frame graph resource
+/// An Alloc represents the GPU memory allocated for a frame graph resource.
 /// Allocs can be aliased between resources if the frame graph detects
 /// that there are no conflicts
 pub enum Alloc {
@@ -106,6 +106,7 @@ impl FrameGraphAllocator {
 }
 
 /// A frame graph
+///
 /// TODO document
 pub struct FrameGraph<'a> {
     resources: Vec<Resource>,
@@ -113,7 +114,7 @@ pub struct FrameGraph<'a> {
 }
 
 impl<'a> FrameGraph<'a> {
-    /// Create a new frame graph
+    /// Creates a new frame graph.
     pub fn new() -> FrameGraph<'a> {
         FrameGraph {
             resources: Vec::new(),
@@ -121,7 +122,7 @@ impl<'a> FrameGraph<'a> {
         }
     }
 
-    /// Create a pass node
+    /// Creates a pass node.
     pub fn create_pass_node<'exec: 'a>(
         &mut self,
         name: String,
@@ -130,7 +131,7 @@ impl<'a> FrameGraph<'a> {
         self.graph.add_node(Node::Pass { name, execute })
     }
 
-    /// Create a resource node
+    /// Creates a resource node.
     pub fn create_resource_node(&mut self, name: String, info: ResourceInfo) -> NodeIndex {
         // Create a new resource
         self.resources.push(Resource {
@@ -147,7 +148,7 @@ impl<'a> FrameGraph<'a> {
         })
     }
 
-    /// Get the `ResourceInfo` for the specified node
+    /// Gets the `ResourceInfo` for the specified node.
     pub fn get_resource_info(&self, node: NodeIndex) -> Option<&ResourceInfo> {
         self.graph.node_weight(node).and_then(
             |node| if let &Node::Resource { index, .. } = node {
@@ -158,7 +159,7 @@ impl<'a> FrameGraph<'a> {
         )
     }
 
-    /// Clone a resource node and increase its rename index
+    /// Clones a resource node and increase its rename index.
     pub fn clone_resource_node(&mut self, resource: NodeIndex) -> NodeIndex {
         let (index, rename_index) = {
             let node = self.graph.node_weight(resource).unwrap();
@@ -178,17 +179,17 @@ impl<'a> FrameGraph<'a> {
         })
     }
 
-    /// Add an input to a pass node
+    /// Adds an input to a pass node.
     pub fn link_input(&mut self, pass: NodeIndex, input: NodeIndex, usage: ResourceUsage) {
         self.graph.add_edge(input, pass, Edge { usage });
     }
 
-    /// Add an output to a pass node
+    /// Adds an output to a pass node.
     pub fn link_output(&mut self, pass: NodeIndex, output: NodeIndex, usage: ResourceUsage) {
         self.graph.add_edge(pass, output, Edge { usage });
     }
 
-    /// Returns the read-write dependency of the node to the given resource
+    /// Returns the read-write dependency of the node to the given resource.
     fn is_resource_modified_by_pass(&self, pass_node: NodeIndex, resource_index: usize) -> bool {
         // For all outgoing neighbors
         self.graph.neighbors_directed(pass_node, Direction::Outgoing)
@@ -202,9 +203,9 @@ impl<'a> FrameGraph<'a> {
             })
     }
 
-    /// Consumes self, return a 'compiled frame graph' that is ready to execute
-    /// borrows FrameGraphAlloc mutably, borrow is dropped when the compiled graph is executed
-    /// The compiled graph's lifetime is bound to the frame queue
+    /// Consumes self, return a 'compiled frame graph' that is ready to execute.
+    /// Borrows FrameGraphAlloc mutably, borrow is dropped when the compiled graph is executed.
+    /// The compiled graph's lifetime is bound to the frame queue.
     pub fn compile<'b: 'a>(
         mut self,
         context: &Arc<gfx::Context>,

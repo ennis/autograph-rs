@@ -15,6 +15,7 @@ pub struct Frustum {
 }
 
 
+/// Represents a camera (a view of a scene).
 #[derive(Copy, Clone, Debug)]
 pub struct Camera {
     // Projection parameters
@@ -28,6 +29,9 @@ pub struct Camera {
     pub projection: Perspective3<f32>,
 }
 
+/// A camera controller that generates `Camera` instances.
+///
+/// TODO describe parameters
 #[derive(Clone, Debug)]
 pub struct CameraControl {
     fovy: f32,
@@ -63,6 +67,8 @@ impl CameraControl {
         self.aspect_ratio = aspect_ratio;
     }
 
+    /// Centers the camera on the given axis-aligned bounding box.
+    /// Orbit angles are not reset.
     pub fn center_on_aabb(&mut self, aabb: AABB<f32>, fovy: f32) {
         let size = {
             let size = aabb.size();
@@ -97,6 +103,7 @@ impl CameraControl {
         Isometry3::look_at_rh(&(self.target + dir), &self.target, &Vector3::y())
     }
 
+    /// Returns a `Camera` for the current viewpoint.
     pub fn camera(&self) -> Camera {
         let view = self.get_look_at();
         Camera {

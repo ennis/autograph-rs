@@ -61,8 +61,3 @@ impl IDTable {
     }
 }
 
-// scene_loader:
-// id_table
-// all component hashes
-// resource cache
-// resources should be cached

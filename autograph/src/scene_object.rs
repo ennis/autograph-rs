@@ -19,7 +19,7 @@ pub struct SceneMesh {
 pub struct SceneObject {
     pub id: ID,
     pub name: String,
-    pub parent_id: Option<ID>, // TODO Option<ID> ?
+    pub parent_id: Option<ID>,
     pub local_transform: Affine3<f32>,
     pub world_transform: Affine3<f32>,
     pub world_bounds: AABB<f32>, // TODO Should be Option<AABB<f32>>, since an object may not have world bounds
