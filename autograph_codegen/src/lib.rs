@@ -139,7 +139,7 @@ struct Pass {
 }*/
 
 
-/// Generate a struct literal that corresponds to a description of a pass I/O item
+/// Generates a struct literal that corresponds to a description of a pass I/O item
 fn gen_input_output_desc_struct(cx: &mut ExtCtxt, item: &PassInputOutputItem) -> P<Expr> {
     let desc_ty_tokens = item.decl.desc_type(cx);
     let init_tokens = item.init.as_ref().unwrap();
@@ -147,6 +147,12 @@ fn gen_input_output_desc_struct(cx: &mut ExtCtxt, item: &PassInputOutputItem) ->
     quote_expr!(cx, $desc_ty_tokens {
         $init_tokens
     })
+}
+
+/// Generates code that creates a framebuffer according to `#[framebuffer(name,attachement)]` attributes
+fn gen_framebuffer_declarations()
+{
+    // TODO
 }
 
 fn gen_execute_closure(cx: &mut ExtCtxt, pass: &Pass) -> P<Expr> {
@@ -162,7 +168,7 @@ fn gen_execute_closure(cx: &mut ExtCtxt, pass: &Pass) -> P<Expr> {
             &Declarator::Buffer | &Declarator::BufferTy(_) => {
                 // unwrapping like it's christmas
                 stmts.push(quote_stmt!(cx, let $name = alloc_as_buffer_slice(__cg.get_alloc_for_resource($name).unwrap()).unwrap();));
-            }
+            },
             &Declarator::Texture | &Declarator::Texture2D | &Declarator::Texture3D => {
                 stmts.push(quote_stmt!(cx, let $name = alloc_as_texture(__cg.get_alloc_for_resource($name).unwrap()).unwrap();));
             }

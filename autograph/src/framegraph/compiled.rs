@@ -47,10 +47,10 @@ impl<'a> CompiledGraph<'a> {
         // lookup resource index in allocator.allocations
         let node = self.graph.graph.node_weight(node).unwrap();
         if let &Node::Resource { index, .. } = node {
-            let res = &self.graph.resources[index];
+            let res = &self.graph.resources[index.index()];
             Some(
                 &self.allocator.allocations
-                    [res.alloc_index.get().expect("resource was not allocated")],
+                    [res.alloc_index.get().expect("resource was not allocated").index()],
             )
         } else {
             None

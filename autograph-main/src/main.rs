@@ -21,7 +21,7 @@ extern crate imgui_sys;
 
 mod imgui_glue;
 mod main_loop;
-mod renderer_passes;
+mod passes;
 
 use std::path::Path;
 use std::fs::File;
@@ -179,16 +179,15 @@ fn main() {
             let camera = camera_control.camera();
 
             // create a frame graph
-            use renderer_passes::*;
             let mut fg = FrameGraph::new();
-            let gbuffers = GBufferSetup::create(&mut fg, frame, 640, 480);
-            let after_scene = RenderScene::create(&mut fg, &scene_objects, &camera, frame, RenderScene::Inputs {
+            let gbuffers = passes::deferred_setup::create(&mut fg, frame, 640, 480);
+            let after_scene = passes::deferred_render::create(&mut fg, &scene_objects, &camera, frame, passes::deferred_render::Inputs {
                 diffuse: gbuffers.diffuse,
                 normals: gbuffers.normals,
                 material_id: gbuffers.material_id,
                 depth: gbuffers.depth
             });
-            DeferredDebug::create(&mut fg, frame, default_framebuffer, DeferredDebugBuffer::Diffuse, DeferredDebug::Inputs {
+            passes::deferred_debug::create(&mut fg, frame, default_framebuffer, passes::deferred_debug::DeferredDebugBuffer::Diffuse, passes::deferred_debug::Inputs {
                 diffuse: after_scene.diffuse,
                 normals: after_scene.normals,
                 material_id: after_scene.material_id,

@@ -5,8 +5,9 @@ use petgraph::*;
 use petgraph::graph::*;
 use gfx;
 use std::sync::Arc;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
+use std::collections::HashMap;
 
 pub mod macro_prelude;
 pub mod compiled;
@@ -49,7 +50,14 @@ struct Resource {
     lifetime: Option<Lifetime>,
     name: String,
     info: ResourceInfo,
-    alloc_index: Cell<Option<usize>>,
+    alloc_index: Cell<Option<AllocIndex>>,
+}
+
+#[derive(Copy,Clone,Hash,Debug,Eq,PartialEq,Ord,PartialOrd)]
+struct ResourceIndex(u32);
+impl ResourceIndex {
+    pub fn new(x: usize) -> Self { ResourceIndex(x as u32) }
+    pub fn index(&self) -> usize { self.0 as usize }
 }
 
 /// A node of the frame graph.
@@ -61,7 +69,7 @@ enum Node<'a> {
         execute: Box<Fn(&gfx::Frame, &CompiledGraph) + 'a>,
     },
     Resource {
-        index: usize,
+        index: ResourceIndex,
         // lifetime is bound to the framegraph
         rename_index: i32,
     },
@@ -92,16 +100,75 @@ pub enum Alloc {
     Texture { tex: Arc<gfx::Texture> },
 }
 
+#[derive(Copy,Clone,Hash,Debug,Eq,PartialEq,Ord,PartialOrd)]
+pub struct AllocIndex(u32);
+impl AllocIndex {
+    pub fn new(x: usize) -> Self { AllocIndex(x as u32) }
+    pub fn index(&self) -> usize { self.0 as usize }
+}
+
+const FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS: usize = 8;
+
+/// Key used to lookup an existing framebuffer in the cache
+#[derive(Copy,Clone,Hash,Debug,Eq,PartialEq)]
+struct FramebufferCacheKey {
+    color_attachements: [Option<AllocIndex>; FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS], // TODO non-arbitrary limit
+    depth_attachement: Option<AllocIndex>
+}
+
 /// Holds Allocs for a frame graph
 pub struct FrameGraphAllocator {
     allocations: Vec<Alloc>,
+    cached_framebuffers: RefCell<HashMap<FramebufferCacheKey, Arc<gfx::Framebuffer>>>
 }
+
 
 impl FrameGraphAllocator {
     pub fn new() -> FrameGraphAllocator {
         FrameGraphAllocator {
             allocations: Vec::new(),
+            cached_framebuffers: RefCell::new(HashMap::new())
         }
+    }
+
+    // Get a framebuffer for the given texture allocs (first looks into the cache to see if there is one)
+    fn get_cached_framebuffer(&self, context: &Arc<gfx::Context>, color_attachements: &[Option<AllocIndex>], depth_attachement: Option<AllocIndex>) -> Arc<gfx::Framebuffer>
+    {
+        // build key
+        assert!(color_attachements.len() <= FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS);
+        let key = FramebufferCacheKey {
+            color_attachements: {
+                let mut array = [None; FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS];
+                for i in 0..color_attachements.len() {
+                    array[i] = color_attachements[i];
+                }
+                array
+            },
+            depth_attachement
+        };
+
+        let mut cached_framebuffers = self.cached_framebuffers.borrow_mut();
+        cached_framebuffers.entry(key).or_insert_with(|| {
+            let mut fbo_builder = gfx::FramebufferBuilder::new(context);
+            for (i,color_att) in color_attachements.iter().enumerate() {
+                // get texture alloc
+                if let &Some(color_att) = color_att {
+                    let tex = match self.allocations[color_att.index()] {
+                        Alloc::Texture { ref tex } => tex,
+                        _ => panic!("expected a texture alloc, got something else")
+                    };
+                    fbo_builder = fbo_builder.attach_texture(i as u32, tex);
+                }
+            }
+            if let Some(depth_attachement) = depth_attachement {
+                let tex = match self.allocations[depth_attachement.index()] {
+                    Alloc::Texture { ref tex } => tex,
+                    _ => panic!("expected a texture alloc, got something else")
+                };
+                fbo_builder = fbo_builder.attach_depth_texture(tex);
+            }
+            Arc::new(fbo_builder.build())
+        }).clone()
     }
 }
 
@@ -140,7 +207,7 @@ impl<'a> FrameGraph<'a> {
             info,
             alloc_index: Cell::new(None),
         });
-        let index = self.resources.len() - 1;
+        let index = ResourceIndex::new(self.resources.len() - 1);
         // add resource node
         self.graph.add_node(Node::Resource {
             index,
@@ -152,7 +219,7 @@ impl<'a> FrameGraph<'a> {
     pub fn get_resource_info(&self, node: NodeIndex) -> Option<&ResourceInfo> {
         self.graph.node_weight(node).and_then(
             |node| if let &Node::Resource { index, .. } = node {
-                Some(&self.resources[index].info)
+                Some(&self.resources[index.index()].info)
             } else {
                 None
             },
@@ -190,7 +257,7 @@ impl<'a> FrameGraph<'a> {
     }
 
     /// Returns the read-write dependency of the node to the given resource.
-    fn is_resource_modified_by_pass(&self, pass_node: NodeIndex, resource_index: usize) -> bool {
+    fn is_resource_modified_by_pass(&self, pass_node: NodeIndex, resource_index: ResourceIndex) -> bool {
         // For all outgoing neighbors
         self.graph.neighbors_directed(pass_node, Direction::Outgoing)
             // Return true if any...
@@ -253,7 +320,7 @@ impl<'a> FrameGraph<'a> {
                 &Node::Resource { .. } => (),
                 &Node::Pass { .. } => for dep in self.graph.neighbors(n) {
                     if let &Node::Resource { index, .. } = self.graph.node_weight(dep).unwrap() {
-                        let resource = &mut self.resources[index];
+                        let resource = &mut self.resources[index.index()];
                         resource.lifetime = match resource.lifetime {
                             None => Some(Lifetime {
                                 begin: topo_index as i32,
@@ -287,16 +354,16 @@ impl<'a> FrameGraph<'a> {
                             // check if desc matches, and that...
                             *tex.desc() == *texdesc && {
                                 // ... the lifetime does not conflict with other users of the alloc
-                                self.resources.iter().enumerate().find(|&(other_index,ref other)| {
+                                self.resources.iter().enumerate().find(|&(other_index, ref other)| {
                                     (other_index != index)  // not the same resource...
-                                        && other.alloc_index.get().map_or(false, |other_alloc_index| other_alloc_index == alloc_index)   // same allocation...
+                                        && other.alloc_index.get().map_or(false, |other_alloc_index| other_alloc_index == AllocIndex::new(alloc_index))   // same allocation...
                                         && resource.lifetime.unwrap().overlaps(&other.lifetime.unwrap())    // ...and overlapping lifetimes.
                                     // if all of these conditions are true, then there's a conflict
                                 }).is_none()    // true if no conflicts
                             }
                         } else {
                             false   // not a texture alloc
-                        }).map(|(alloc_index, _)| alloc_index); // keep only index, drop borrow of allocations
+                        }).map(|(alloc_index, _)| AllocIndex::new(alloc_index)); // keep only index, drop borrow of allocations
 
                         match alloc_index {
                             Some(index) => {
@@ -323,7 +390,7 @@ impl<'a> FrameGraph<'a> {
                                 });
                                 resource
                                     .alloc_index
-                                    .set(Some(allocator.allocations.len() - 1));
+                                    .set(Some(AllocIndex::new(allocator.allocations.len() - 1)));
                             }
                         }
                     }

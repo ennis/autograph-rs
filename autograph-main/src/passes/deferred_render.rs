@@ -1,70 +1,11 @@
+//! The deferred renderer module
+//!
+//!
 use autograph::gfx;
 use autograph::scene_object::SceneObjects;
 use autograph::camera::Camera;
 use nalgebra::*;
 use std::sync::Arc;
-
-gfx_pass! {
-pass GBufferSetup(frame: &'pass gfx::Frame, width: u32, height: u32)
-{
-	read {
-	}
-	write {
-	}
-	create {
-		#[framebuffer(fbo,0)]	// this annotation will create a framebuffer named fbo and bind the texture to the
-		texture2D diffuse { 	// can be texture, or any of texture1d, texture2d, texture3d...
-			format: R16G16B16A16_SFLOAT,	// any enumerator of gfx::TextureFormat
-			width,		// can be an expression, can reference metadata of read and write inputs, can reference pass parameters
-							// shortcut expressions are supported with pass parameters
-			height,
-			.. Default::default()
-		},
-		#[framebuffer(fbo,1)]
-		texture2D normals {
-			format: R16G16B16A16_SFLOAT,
-			width,
-			height,
-			.. Default::default()
-		},
-		#[framebuffer(fbo,2)]
-		texture2D material_id {
-			format: R16G16B16A16_SFLOAT,
-			width,
-			height,
-			.. Default::default()
-		},
-		#[framebuffer(fbo,depth)]
-		texture2D depth {
-			format: D32_SFLOAT,
-			width,
-			height,
-			.. Default::default()
-		}
-	}
-
-	// (optional) pipeline section
-	// will load pipelines from a file, and make them available in the scope of execute()
-	// internally, it uses a lazy_static block
-	pipeline dummy {
-		path: "data/shaders/deferred.glsl",
-		.. Default::default()
-	}
-
-	// Validation of inputs (read & write)
-	validate {
-		assert(self.normals.width != 0);
-		assert(self.normals.height != 0);
-	}
-
-	execute {
-	    frame.clear_texture(diffuse, 0, &[0.125, 0.125, 0.48, 1.0]);
-	    frame.clear_texture(normals, 0, &[0.0, 0.0, 0.0, 1.0]);
-	    frame.clear_texture(material_id, 0, &[0.0, 0.0, 0.0, 1.0]);
-	    frame.clear_depth_texture(depth, 0, 1.0);
-	}
-}
-}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -181,49 +122,4 @@ pass RenderScene(scene_objects: &'pass SceneObjects, camera: &'pass Camera, fram
 }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum DeferredDebugBuffer {
-    Diffuse,
-    Normals,
-    MaterialID,
-    Depth,
-}
-
-gfx_pass!{
-pass DeferredDebug(frame: &'pass gfx::Frame, target: &'pass Arc<gfx::Framebuffer>, debug: DeferredDebugBuffer)
-{
-    read {
-        texture2D diffuse {},
-        texture2D normals {},
-        texture2D material_id {},
-        texture2D depth {}
-    }
-    write {
-    }
-    execute
-    {
-        frame.clear_framebuffer_color(target, 0, &[0.125, 0.125, 0.48, 1.0]);
-        println!("Execute DeferredDebug!");
-    }
-}
-
-}
-
-/*gfx_pass!{
-pass Present(frame: &'pass gfx::Frame, target: &'pass Arc<gfx::Framebuffer>)
-{
-    read {
-        texture2D source {},
-    }
-    write {
-    }
-    pipeline BLIT_2D {
-        path: "data/shaders/blit.glsl"
-    }
-    execute
-    {
-
-    }
-}
-
-}*/
+pub use self::RenderScene::*;
