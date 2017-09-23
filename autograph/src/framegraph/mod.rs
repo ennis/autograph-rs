@@ -132,6 +132,7 @@ impl FrameGraphAllocator {
     }
 
     // Get a framebuffer for the given texture allocs (first looks into the cache to see if there is one)
+    // TODO: don't pass alloc indices: directly pass Arc<Textures>
     fn get_cached_framebuffer(&self, context: &Arc<gfx::Context>, color_attachements: &[Option<AllocIndex>], depth_attachement: Option<AllocIndex>) -> Arc<gfx::Framebuffer>
     {
         // build key

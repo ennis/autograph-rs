@@ -29,7 +29,7 @@ pass GBufferSetup(frame: &'pass gfx::Frame, width: u32, height: u32)
 			height,
 			.. Default::default()
 		},
-		#[framebuffer(fbo,2)]
+		#[framebuffer(fbo,3)]
 		texture2D material_id {
 			format: R16G16B16A16_SFLOAT,
 			width,

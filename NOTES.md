@@ -45,6 +45,31 @@ TODO
 * Inflated G-buffers (optional render passes)
 * Contour maps
 
+#### Advanced stylization pipeline
+* Silhouette extension V2
+    * Hybrid geometry / screen-space processing 
+    * Arbitrary amount of overlapping screen-space silhouettes
+    * Multi-fragment effects: k-buffer
+    * NOTE: If rendering with strokes, then probably no need for extended silhouettes
+* FOCUS: Render/synthesize/place temporally coherent long strokes
+    * Partial stroke fade in/out: never flicker
+    * High Quality (AA) stroke rendering
+    * Divide the picture in blocks: in each block, a maximum amount of strokes affecting the pixel
+        * Sparse convolution noise?
+    * Continuum between stroke / continuous shading
+        * Stroke/dab = local color correlation
+    * Basically ensure that features have a minimum visible stroke size
+    * Stroke geometry: endpoints?
+* PAINTING: Unlimited level of detail
+    * Not limited by texture map resolution
+    * Ptex?
+* Abstract / simplify geometry in screen-space
+    * Not limited to warping / adding details: can also be used to simplify, abstract, stylize
+    * Employ tesselation?
+    * Can have view-dependent geometry
+    * Layered composition
+* Shading VS Geometry strokes?
+
 #### Interface
 * Editor for gradation
 * Paint to texture
