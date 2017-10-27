@@ -4,6 +4,7 @@
 #![feature(plugin, custom_attribute)]
 #![feature(trace_macros)]
 #![feature(log_syntax)]
+#![feature(const_unsafe_cell_new)]
 
 extern crate flame;
 extern crate glutin;

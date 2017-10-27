@@ -1,11 +1,11 @@
 use nalgebra::*;
-use nalgebra::storage::{OwnedStorage, Storage};
+use nalgebra::storage::{Storage};
 use alga::general::Field;
 use std::cmp::Ord;
 use num_traits::Bounded;
 
 #[derive(Copy, Clone, Debug)]
-pub struct AABB<N: Scalar + Field + PartialOrd + Bounded> {
+pub struct AABB<N: Real> {
     pub min: Point3<N>,
     pub max: Point3<N>,
 }
@@ -60,7 +60,7 @@ pub fn cw_max4<N: Scalar + PartialOrd>(a: &Vector4<N>, b: &Vector4<N>) -> Vector
     )
 }
 
-impl<N: Scalar + Field + PartialOrd + Bounded> AABB<N> {
+impl<N: Real> AABB<N> {
     pub fn size(&self) -> Vector3<N> {
         self.max - self.min
     }

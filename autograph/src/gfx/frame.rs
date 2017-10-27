@@ -359,8 +359,9 @@ impl<'a,'y> DrawCommandBuilder<'a,'y> {
         self
     }
 
-    pub fn with_image(mut self, slot: i32, tex: &Arc<Texture>) -> Self {
-        unimplemented!()
+    pub fn with_image(mut self, slot: usize, tex: &Arc<Texture>) -> Self {
+        self.uniforms.images[slot] = tex.object();
+        self
     }
 
     pub fn with_all_viewports(mut self, v: (f32, f32, f32, f32)) -> Self {

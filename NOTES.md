@@ -51,24 +51,31 @@ TODO
     * Arbitrary amount of overlapping screen-space silhouettes
     * Multi-fragment effects: k-buffer
     * NOTE: If rendering with strokes, then probably no need for extended silhouettes
-* FOCUS: Render/synthesize/place temporally coherent long strokes
-    * Partial stroke fade in/out: never flicker
+* **FOCUS**: Render/synthesize/place temporally coherent long and curved strokes
+    * Partial stroke fade in/out: **never flicker**
     * High Quality (AA) stroke rendering
     * Divide the picture in blocks: in each block, a maximum amount of strokes affecting the pixel
         * Sparse convolution noise?
-    * Continuum between stroke / continuous shading
+    * **Continuum** between stroke / continuous shading
         * Stroke/dab = local color correlation
+        * Continuous shading: no spatial color correlation (only shading)
     * Basically ensure that features have a minimum visible stroke size
     * Stroke geometry: endpoints?
 * PAINTING: Unlimited level of detail
     * Not limited by texture map resolution
     * Ptex?
+    * Details are in strokes, not in the texture
 * Abstract / simplify geometry in screen-space
     * Not limited to warping / adding details: can also be used to simplify, abstract, stylize
     * Employ tesselation?
     * Can have view-dependent geometry
     * Layered composition
 * Shading VS Geometry strokes?
+
+#### Testing
+* Curved stroke placement
+    * Noise model for anchor points
+
 
 #### Interface
 * Editor for gradation
@@ -89,15 +96,73 @@ TODO
 	* geometry passes
 * Main G-buffer pass
 * TAA node
+* Code through UI and script
+    * Use scripts to modify the node graphs (connections, etc.)
+    * Options: Lua, Python, Kotlin?
+        * dynamically typed
+        * Node selectors
+        * Procedural modification of nodes through scripts
+        * Expose nodes as variables
+        * Add/remove/modify variables at runtime
+        * Lua is better suited, maybe python?
+    * Node = shader snippets, different from framegraph
+    * Renderer reads the node graph and creates the framegraph
+        * Coalesce shader snippets into one shader
+        * must support plugin nodes (C API?)
+    * Save individual nodes to a library
+    * Save graphs to file
+* Edge types
+    * Vertex stream
+    * Fragment stream
+    * Image
+* Node types
+    * Rasterizer
+    * Output Merge
+    * Image pass
+* UI
+    * node groups
+    * edge groups (routing)
+* Node inputs
+    * Variable number of inputs (varargs)
+* Main component: scene renderer node
+    * Configurable outputs
+* Link parameters between nodes
+* Dual representation of nodes
+    * Simultaneously through code and UI
+* Fast debugging (peek values in the evaluation graph)
+* Must support multiple passes
+* Load/save node graphs
+* Subgraphs
+    * Subgraph references
+* Global parameters, available everywhere in a subgraph
+* Self-contained format for sharing nodes
+    * GLSL with pragmas
+* Conversion to a frame graph
 
+#### Converting node graphs to a frame graph
+* Unfold
+    * Unfold subgraphs
+* Merge
+    * Merge shader snippets into full shaders
+    * Fuse GLSL code
+    * collect connected vertex/geometry/fragment components
+* Pass collection
+    * Look for vertex / rasterizer / fragment / output merger subgraphs
+    * Detect dependencies
+* Frame graph creation
+    * Go through all passes and output a frame graph
+
+#### Implementation details
+* Kotlin/TornadoFX
+* Rust: remote rendering server
+    * Send frame graph to the rust server
+    * (through FFI)
 
 #### Shading file format
 * JSON/protobuf?
 * Layers
 * Light dep
 * Associated maps: gradations, local maps
-
-#### Idea
 
 
 #### Scene
@@ -217,25 +282,75 @@ must have an interface to dynamically create passes (variable number of resource
     - deserialize: update model data / commit
     - references? must be turned to IDs before serialization
 
-- simple case:
-```
-    let mut i = 0
-    ui.expose("i")
-```
-- UI side:
-```
-    var ui = remote("i").observable<Int>("i")
-    <some thread receives updates and sends updates to the observable>
-```
+* simple case
 
-ui.expose("i", i)
-    compare i with cached version
-    if not the same, send message Modify("i", Serialize(i))
+        //----------- RUST ------------
+        let mut i = 0
+        ui.expose("i", i)
+
+        //----------- KOTLIN ------------
+        val i = ui.get("i")
+        
+* with a model
+
+        //----------- RUST ------------
+        // This will generate serialization code
+        // and a (protobuf?) schema file for RPC
+        // (get_id, set_id)
+
+        #[derive(UiExpose)]
+        struct Entity {
+            id: i64
+        }
+
+        ui.expose("entity", &mut ent)
+
+        //----------- KOTLIN ------------
+        val ent = ui.get<Entity>()
+        print(ent.i)        // internally: ui.call("entity.get_i", ent).as<int>
+        print(ent.s)        // ui.call("entity.get_s", ent).as<string>
+
+* with observables
+        
+        //----------- RUST ------------
+        <same as above>
+
+        //----------- KOTLIN ------------
+        val ent = ui.rootEntity
+        ent.i = 32          // ui.call("entity.set_i", )
+        ent.s = "test"
+        ent.i.bind {        // modifications are pushed by the server?
+            println("value changed: {}", it)
+        }
+
+* Server:
+    * `ui.sync("i", &mut i)` 
+        * update "i" from the internal model cache
+        * can be called at arbitrary locations
+    * `ui.expose("ent", &mut ent)`
+        * expose an object implementing the Model trait
+        * mut-borrows the object
+    * `ui.sync()`
+        * Read all incoming commands, modify data in exposed models
+        * Triggers observables?
+
+* All endpoints for an API are stored in an enum
+
+        enum ApiEntryPoints {
+            Entity_set_i(),
+            Entity_get_i()
+            ...
+        }
+
+compare i with cached version
+if not the same, send message Modify("i", Serialize(i))
     
 
 - More complex example: lists
     - basically, do a diff between two lists?
     - send the diff as a sequence of modifications
+    - OR: use ObservableLists on the rust side
+        - Observable container
 
 - Issue: string ID
 - Issue: Queries

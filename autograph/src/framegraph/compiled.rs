@@ -43,7 +43,7 @@ impl<'a> CompiledGraph<'a> {
 
     // 1. fetch alloc index
 
-    pub fn get_alloc_for_resource(&self, node: NodeIndex) -> Option<&Alloc> {
+    pub fn get_alloc_for_resource(&self, node: NodeIndex) -> Option<&AliasedResource> {
         // fetch node
         // get resource index
         // lookup resource index in allocator.allocations

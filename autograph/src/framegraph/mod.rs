@@ -50,7 +50,7 @@ struct Resource {
     lifetime: Option<Lifetime>,
     name: String,
     info: ResourceInfo,
-    alloc_index: Cell<Option<AllocIndex>>,
+    alloc_index: Cell<Option<AliasedResourceIndex>>,
 }
 
 #[derive(Copy,Clone,Hash,Debug,Eq,PartialEq,Ord,PartialOrd)]
@@ -95,15 +95,15 @@ struct Edge {
 /// An Alloc represents the GPU memory allocated for a frame graph resource.
 /// Allocs can be aliased between resources if the frame graph detects
 /// that there are no conflicts
-pub enum Alloc {
+pub enum AliasedResource {
     Buffer { buf: gfx::BufferSliceAny },
     Texture { tex: Arc<gfx::Texture> },
 }
 
 #[derive(Copy,Clone,Hash,Debug,Eq,PartialEq,Ord,PartialOrd)]
-pub struct AllocIndex(u32);
-impl AllocIndex {
-    pub fn new(x: usize) -> Self { AllocIndex(x as u32) }
+pub struct AliasedResourceIndex(u32);
+impl AliasedResourceIndex {
+    pub fn new(x: usize) -> Self { AliasedResourceIndex(x as u32) }
     pub fn index(&self) -> usize { self.0 as usize }
 }
 
@@ -112,13 +112,13 @@ const FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS: usize = 8;
 /// Key used to lookup an existing framebuffer in the cache
 #[derive(Copy,Clone,Hash,Debug,Eq,PartialEq)]
 struct FramebufferCacheKey {
-    color_attachements: [Option<AllocIndex>; FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS], // TODO non-arbitrary limit
-    depth_attachement: Option<AllocIndex>
+    color_attachements: [Option<AliasedResourceIndex>; FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS], // TODO non-arbitrary limit
+    depth_attachement: Option<AliasedResourceIndex>
 }
 
 /// Holds Allocs for a frame graph
 pub struct FrameGraphAllocator {
-    allocations: Vec<Alloc>,
+    allocations: Vec<AliasedResource>,
     cached_framebuffers: RefCell<HashMap<FramebufferCacheKey, Arc<gfx::Framebuffer>>>
 }
 
@@ -133,7 +133,7 @@ impl FrameGraphAllocator {
 
     // Get a framebuffer for the given texture allocs (first looks into the cache to see if there is one)
     // TODO: don't pass alloc indices: directly pass Arc<Textures>
-    fn get_cached_framebuffer(&self, context: &Arc<gfx::Context>, color_attachements: &[Option<AllocIndex>], depth_attachement: Option<AllocIndex>) -> Arc<gfx::Framebuffer>
+    fn get_cached_framebuffer(&self, context: &Arc<gfx::Context>, color_attachements: &[Option<AliasedResourceIndex>], depth_attachement: Option<AliasedResourceIndex>) -> Arc<gfx::Framebuffer>
     {
         // build key
         assert!(color_attachements.len() <= FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS);
@@ -155,7 +155,7 @@ impl FrameGraphAllocator {
                 // get texture alloc
                 if let &Some(color_att) = color_att {
                     let tex = match self.allocations[color_att.index()] {
-                        Alloc::Texture { ref tex } => tex,
+                        AliasedResource::Texture { ref tex } => tex,
                         _ => panic!("expected a texture alloc, got something else")
                     };
                     fbo_builder = fbo_builder.attach_texture(i as u32, tex);
@@ -163,7 +163,7 @@ impl FrameGraphAllocator {
             }
             if let Some(depth_attachement) = depth_attachement {
                 let tex = match self.allocations[depth_attachement.index()] {
-                    Alloc::Texture { ref tex } => tex,
+                    AliasedResource::Texture { ref tex } => tex,
                     _ => panic!("expected a texture alloc, got something else")
                 };
                 fbo_builder = fbo_builder.attach_depth_texture(tex);
@@ -351,20 +351,20 @@ impl<'a> FrameGraph<'a> {
                 match resource.info {
                     ResourceInfo::Texture { desc: ref texdesc } => {
                         // iter over texture entries, find matching desc
-                        let alloc_index = allocator.allocations.iter().enumerate().find(|&(alloc_index, alloc)| if let &Alloc::Texture { ref tex } = alloc {
+                        let alloc_index = allocator.allocations.iter().enumerate().find(|&(alloc_index, alloc)| if let &AliasedResource::Texture { ref tex } = alloc {
                             // check if desc matches, and that...
                             *tex.desc() == *texdesc && {
                                 // ... the lifetime does not conflict with other users of the alloc
                                 self.resources.iter().enumerate().find(|&(other_index, ref other)| {
                                     (other_index != index)  // not the same resource...
-                                        && other.alloc_index.get().map_or(false, |other_alloc_index| other_alloc_index == AllocIndex::new(alloc_index))   // same allocation...
+                                        && other.alloc_index.get().map_or(false, |other_alloc_index| other_alloc_index == AliasedResourceIndex::new(alloc_index))   // same allocation...
                                         && resource.lifetime.unwrap().overlaps(&other.lifetime.unwrap())    // ...and overlapping lifetimes.
                                     // if all of these conditions are true, then there's a conflict
                                 }).is_none()    // true if no conflicts
                             }
                         } else {
                             false   // not a texture alloc
-                        }).map(|(alloc_index, _)| AllocIndex::new(alloc_index)); // keep only index, drop borrow of allocations
+                        }).map(|(alloc_index, _)| AliasedResourceIndex::new(alloc_index)); // keep only index, drop borrow of allocations
 
                         match alloc_index {
                             Some(index) => {
@@ -386,12 +386,12 @@ impl<'a> FrameGraph<'a> {
                                     resource.lifetime.unwrap().end,
                                     texdesc
                                 );
-                                allocator.allocations.push(Alloc::Texture {
+                                allocator.allocations.push(AliasedResource::Texture {
                                     tex: Arc::new(gfx::Texture::new(context, texdesc)),
                                 });
                                 resource
                                     .alloc_index
-                                    .set(Some(AllocIndex::new(allocator.allocations.len() - 1)));
+                                    .set(Some(AliasedResourceIndex::new(allocator.allocations.len() - 1)));
                             }
                         }
                     }
@@ -403,7 +403,7 @@ impl<'a> FrameGraph<'a> {
                             byte_size,
                             gfx::BufferUsage::UPLOAD,
                         ));
-                        allocator.allocations.push(Alloc::Buffer {
+                        allocator.allocations.push(AliasedResource::Buffer {
                             // TODO allocate in transient pool?
                             // TODO reuse buffers?
                             buf: buffer.as_slice_any(),

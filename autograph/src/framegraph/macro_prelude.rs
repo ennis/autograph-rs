@@ -102,15 +102,15 @@ impl<T: gfx::BufferData + ?Sized> ToResourceInfo for BufferArrayInit<T> {
 }
 
 #[doc(hidden)]
-pub fn alloc_as_texture(alloc: &Alloc) -> Option<&Arc<gfx::Texture>> {
+pub fn alloc_as_texture(alloc: &AliasedResource) -> Option<&Arc<gfx::Texture>> {
     match alloc {
-        &Alloc::Texture { ref tex } => Some(tex),
+        &AliasedResource::Texture { ref tex } => Some(tex),
         _ => None,
     }
 }
 
 #[doc(hidden)]
-pub fn alloc_as_buffer_slice(alloc: &Alloc) -> Option<&gfx::BufferSliceAny> {
+pub fn alloc_as_buffer_slice(alloc: &AliasedResource) -> Option<&gfx::BufferSliceAny> {
     unimplemented!()
 }
 

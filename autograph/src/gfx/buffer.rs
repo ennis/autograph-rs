@@ -38,28 +38,27 @@ unsafe fn create_buffer<T: BufferData + ?Sized>(
     initial_data: Option<&T>,
 ) -> GLuint {
     let mut obj: GLuint = 0;
-    unsafe {
-        let flags = match usage {
-            BufferUsage::READBACK => {
-                gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
-            }
-            BufferUsage::UPLOAD => {
-                gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
-            }
-            BufferUsage::DEFAULT => 0,
-        };
-        gl::CreateBuffers(1, &mut obj);
-        gl::NamedBufferStorage(
-            obj,
-            byte_size as isize,
-            if let Some(data) = initial_data {
-                data as *const T as *const GLvoid
-            } else {
-                0 as *const GLvoid
-            },
-            flags,
-        );
-    }
+    let flags = match usage {
+        BufferUsage::READBACK => {
+            gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
+        }
+        BufferUsage::UPLOAD => {
+            gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
+        }
+        BufferUsage::DEFAULT => 0,
+    };
+    gl::CreateBuffers(1, &mut obj);
+    gl::NamedBufferStorage(
+        obj,
+        byte_size as isize,
+        if let Some(data) = initial_data {
+            data as *const T as *const GLvoid
+        } else {
+            0 as *const GLvoid
+        },
+        flags,
+    );
+
     obj
 }
 
