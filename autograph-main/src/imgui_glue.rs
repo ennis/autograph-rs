@@ -16,7 +16,7 @@ pub struct Renderer {
 
 static IMGUI_SHADER_PATH: &str = "data/shaders/imgui.glsl";
 
-fn load_pipeline(ctx: &Arc<gfx::Context>, path: &Path) -> Result<Arc<gfx::GraphicsPipeline>, String> {
+fn load_pipeline(ctx: &Arc<gfx::ContextObject>, path: &Path) -> Result<Arc<gfx::GraphicsPipeline>, String> {
     let compiled_shaders = compile_shaders_from_combined_source(path)?;
     Ok(Arc::new(gfx::GraphicsPipelineBuilder::new()
         .with_vertex_shader(compiled_shaders.vertex)
@@ -48,7 +48,7 @@ fn load_pipeline(ctx: &Arc<gfx::Context>, path: &Path) -> Result<Arc<gfx::Graphi
 impl Renderer {
     pub fn new(
         imgui: &mut imgui::ImGui,
-        context: &Arc<gfx::Context>,
+        context: &Arc<gfx::ContextObject>,
         cache: &Arc<Cache>,
     ) -> Renderer {
         let pipeline = cache
@@ -85,7 +85,7 @@ impl Renderer {
     pub fn render<'a>(
         &mut self,
         frame: &gfx::Frame,
-        target: &Arc<gfx::Framebuffer>,
+        target: &Arc<gfx::FramebufferObject>,
         ui: imgui::Ui<'a>,
     ) {
         // hot-reload pipeline from file
@@ -98,7 +98,7 @@ impl Renderer {
     pub fn render_draw_list<'a>(
         &mut self,
         frame: &gfx::Frame,
-        target: &Arc<gfx::Framebuffer>,
+        target: &Arc<gfx::FramebufferObject>,
         ui: &imgui::Ui<'a>,
         draw_list: &imgui::DrawList<'a>,
     ) -> Result<(), String>
@@ -173,7 +173,7 @@ pub struct MouseState {
 
 
 pub fn init(
-    context: &Arc<gfx::Context>,
+    context: &Arc<gfx::ContextObject>,
     cache: &Arc<Cache>,
     replacement_font: Option<&str>,
 ) -> (imgui::ImGui, Renderer, MouseState) {

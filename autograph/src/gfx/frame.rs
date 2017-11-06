@@ -2,10 +2,10 @@ use super::queue::{Queue, FrameResources};
 use super::buffer_data::BufferData;
 use super::sampler::SamplerDesc;
 use super::context::Context;
-use super::texture::Texture;
+use super::texture::RawTexture;
 use super::upload_buffer::UploadBuffer;
-use super::buffer::{BufferSlice,BufferAny,BufferSliceAny};
-use super::framebuffer::Framebuffer;
+use super::buffer::{BufferSlice,RawBuffer,RawBufferSlice};
+use super::framebuffer::{Framebuffer, FramebufferObject};
 use super::bind::{VertexInput, Uniforms, Scissors};
 use super::pipeline::GraphicsPipeline;
 use super::bind::{bind_target, bind_vertex_input, bind_uniforms, bind_graphics_pipeline, bind_scissors, SG_ALL};
@@ -37,25 +37,25 @@ pub struct TransientBufferSlice<'a, T>
 /// Not meant to be implemented in user code.
 /// Can't use deref, because an user could then accidentally extend the lifetime of
 /// a TransientBufferSlice outside the frame.
-pub unsafe trait IntoBufferSliceAny {
+pub unsafe trait ToRawBufferSlice {
     type Target: BufferData + ?Sized;
-    unsafe fn to_buffer_slice_any(&self) -> BufferSliceAny;
+    unsafe fn to_raw_slice(&self) -> RawBufferSlice;
 }
 
-unsafe impl<'a,T> IntoBufferSliceAny for TransientBufferSlice<'a,T> where T: BufferData + ?Sized
+unsafe impl<'a,T> ToRawBufferSlice for TransientBufferSlice<'a,T> where T: BufferData + ?Sized
 {
     type Target = T;
-    unsafe fn to_buffer_slice_any(&self) -> BufferSliceAny {
-        self.slice.to_buffer_slice_any()
+    unsafe fn to_raw_slice(&self) -> RawBufferSlice {
+        self.slice.to_raw_slice()
     }
 }
 
-unsafe impl<T> IntoBufferSliceAny for BufferSlice<T> where T: BufferData + ?Sized
+unsafe impl<T> ToRawBufferSlice for BufferSlice<T> where T: BufferData + ?Sized
 {
     type Target = T;
-    unsafe fn to_buffer_slice_any(&self) -> BufferSliceAny {
+    unsafe fn to_raw_slice(&self) -> RawBufferSlice {
         let clone = self.clone();
-        clone.into_slice_any()
+        clone.into_raw()
     }
 }
 
@@ -64,10 +64,9 @@ pub struct Frame<'q> {
     // Associated queue
     queue: &'q mut Queue,
     // Built-in upload buffer for convenience
-    //upload_buffer: UploadBuffer,
     // Resources held onto by this frame
-    pub(super) ref_buffers: RefCell<Vec<Arc<BufferAny>>>,
-    pub(super) ref_textures: RefCell<Vec<Arc<Texture>>>,
+    pub(super) ref_buffers: RefCell<Vec<RawBuffer>>,
+    pub(super) ref_textures: RefCell<Vec<RawTexture>>,
     state_cache: RefCell<StateCache>,
 }
 
@@ -137,7 +136,7 @@ impl<'q> Frame<'q> {
     //====================== COMMANDS =======================
     pub fn clear_texture(
         &self,
-        texture: &Arc<Texture>,
+        texture: &RawTexture,
         mip_level: usize,
         clear_color: &[f32; 4],
     ) -> &Self
@@ -156,7 +155,7 @@ impl<'q> Frame<'q> {
 
     pub fn clear_texture_integer(
         &self,
-        texture: &Arc<Texture>,
+        texture: &RawTexture,
         mip_level: usize,
         clear_color: &[i32; 4],
     ) -> &Self
@@ -175,7 +174,7 @@ impl<'q> Frame<'q> {
 
     pub fn clear_depth_texture(
         &self,
-        texture: &Arc<Texture>,
+        texture: &RawTexture,
         mip_level: usize,
         clear_depth: f32,
     ) -> &Self
@@ -201,7 +200,7 @@ impl<'q> Frame<'q> {
     {
         unsafe {
             gl::ClearNamedFramebufferfv(
-                framebuffer.obj,
+                framebuffer.gl_object(),
                 gl::COLOR,
                 drawbuffer as i32,
                 clear_color as *const _ as *const f32,
@@ -217,25 +216,26 @@ impl<'q> Frame<'q> {
     ) -> &Self
     {
         unsafe {
-            gl::ClearNamedFramebufferfv(framebuffer.obj, gl::DEPTH, 0, &clear_depth as *const f32);
+            gl::ClearNamedFramebufferfv(framebuffer.gl_object(), gl::DEPTH, 0, &clear_depth as *const f32);
         }
         self
     }
 
     /// Begin building a draw command.
     /// This function does not perform any type checking.
-    pub fn begin_draw<'a>(&'a self, target: &Arc<Framebuffer>, pipeline: &Arc<GraphicsPipeline>) -> DrawCommandBuilder<'a,'q>
+    pub fn begin_draw<'a>(&'a self, target: &Framebuffer, pipeline: &Arc<GraphicsPipeline>) -> DrawCommandBuilder<'a,'q>
     where 'q:'a
     {
         DrawCommandBuilder::new(self, target, pipeline)
     }
 }
 
+// TODO move this into its own module
 struct StateCache
 {
     uniforms: Option<Uniforms>,
     vertex_input: Option<VertexInput>,
-    framebuffer: Option<*const Framebuffer>,
+    framebuffer: Option<*const FramebufferObject>,
     pipeline: Option<*const GraphicsPipeline>,
     scissors: Option<Scissors>,
 }
@@ -275,10 +275,10 @@ impl StateCache
 
     unsafe fn set_target(&mut self, framebuffer: &Framebuffer, viewport: &[(f32, f32, f32, f32)]) {
         // same framebuffer as before?
-        if self.framebuffer.map_or(true, |prev_framebuffer| prev_framebuffer != framebuffer as *const _) {
+        if self.framebuffer.map_or(true, |prev_framebuffer| prev_framebuffer != framebuffer.as_ref() as *const _) {
             // nope, bind it
             bind_target(framebuffer, viewport);
-            self.framebuffer = Some(framebuffer as *const _);
+            self.framebuffer = Some(framebuffer.as_ref() as *const _);
         }
     }
 
@@ -291,11 +291,13 @@ impl StateCache
 
 /// Draw command builder
 /// statically locks the frame object: allocate your buffers before starting a command!
+// TODO move this into its own module
+// TODO simplify lifetimes
 pub struct DrawCommandBuilder<'a,'q:'a> {
     frame: &'a Frame<'q>,
     uniforms: Uniforms,        // holds arrays of uniforms
     vertex_input: VertexInput, // vertex buffers + index buffer (optional)
-    framebuffer: Arc<Framebuffer>,
+    framebuffer: Framebuffer,
     pipeline: Arc<GraphicsPipeline>,
     scissors: Scissors,
     viewports: [(f32, f32, f32, f32); 8]
@@ -303,8 +305,8 @@ pub struct DrawCommandBuilder<'a,'q:'a> {
 
 impl<'a,'y> DrawCommandBuilder<'a,'y> {
     fn new<'b,'q>(frame: &'b Frame<'q>,
-        target: &Arc<Framebuffer>,
-        pipeline: &Arc<GraphicsPipeline>,
+                  target: &Framebuffer,
+                  pipeline: &Arc<GraphicsPipeline>,
     ) -> DrawCommandBuilder<'b,'q>
     {
         let fb_size = target.size();
@@ -322,45 +324,45 @@ impl<'a,'y> DrawCommandBuilder<'a,'y> {
 
     //======================= BIND COMMANDS ============================
     // TODO struct type check?
-    pub fn with_storage_buffer<S: IntoBufferSliceAny>(
+    pub fn with_storage_buffer<S: ToRawBufferSlice>(
         mut self,
         slot: usize,
         buffer: &S,
     ) -> Self {
         let buffer = unsafe {
-            buffer.to_buffer_slice_any()
+            buffer.to_raw_slice()
         };
         // reference this buffer in the frame
         self.frame
             .ref_buffers
             .borrow_mut()
             .push(buffer.owner.clone());
-        self.uniforms.shader_storage_buffers[slot] = buffer.owner.object();
-        self.uniforms.shader_storage_buffer_offsets[slot] = buffer.byte_offset as GLintptr;
+        self.uniforms.shader_storage_buffers[slot] = buffer.owner.gl_object();
+        self.uniforms.shader_storage_buffer_offsets[slot] = buffer.offset as GLintptr;
         self.uniforms.shader_storage_buffer_sizes[slot] = buffer.byte_size as GLsizeiptr;
         self
     }
 
-    pub fn with_uniform_buffer<U: IntoBufferSliceAny>(
+    pub fn with_uniform_buffer<U: ToRawBufferSlice>(
         mut self,
         slot: usize,
         buffer: &U,
     ) -> Self {
         let buffer = unsafe {
-            buffer.to_buffer_slice_any()
+            buffer.to_raw_slice()
         };
         self.frame
             .ref_buffers
             .borrow_mut()
             .push(buffer.owner.clone());
-        self.uniforms.uniform_buffers[slot] = buffer.owner.object();
-        self.uniforms.uniform_buffer_offsets[slot] = buffer.byte_offset as GLintptr;
+        self.uniforms.uniform_buffers[slot] = buffer.owner.gl_object();
+        self.uniforms.uniform_buffer_offsets[slot] = buffer.offset as GLintptr;
         self.uniforms.uniform_buffer_sizes[slot] = buffer.byte_size as GLsizeiptr;
         self
     }
 
-    pub fn with_image(mut self, slot: usize, tex: &Arc<Texture>) -> Self {
-        self.uniforms.images[slot] = tex.object();
+    pub fn with_image(mut self, slot: usize, tex: &RawTexture) -> Self {
+        self.uniforms.images[slot] = tex.gl_object();
         self
     }
 
@@ -372,18 +374,18 @@ impl<'a,'y> DrawCommandBuilder<'a,'y> {
         unimplemented!()
     }
 
-    pub fn with_texture(mut self, slot: usize, tex: &Arc<Texture>, sampler: &SamplerDesc) -> Self {
+    pub fn with_texture(mut self, slot: usize, tex: &RawTexture, sampler: &SamplerDesc) -> Self {
         {
-            let context = self.frame.queue().context();
-            self.uniforms.textures[slot] = tex.object();
+            let gctx = self.frame.queue().context();
+            self.uniforms.textures[slot] = tex.gl_object();
             // sampler objects are never deleted, and the context still lives
             // while the frame is still in flight
-            self.uniforms.samplers[slot] = context.get_sampler(sampler).obj;
+            self.uniforms.samplers[slot] = gctx.get_sampler(sampler).obj;
         }
         self
     }
 
-    pub fn with_vertex_buffer<V: IntoBufferSliceAny>(
+    pub fn with_vertex_buffer<V: ToRawBufferSlice>(
         mut self,
         slot: usize,
         vertices: &V,
@@ -391,33 +393,34 @@ impl<'a,'y> DrawCommandBuilder<'a,'y> {
         // TODO layout check w.r.t pipeline
         // TODO alignment check
         let vertices = unsafe {
-             vertices.to_buffer_slice_any()
+             vertices.to_raw_slice()
         };
         self.frame
             .ref_buffers
             .borrow_mut()
             .push(vertices.owner.clone());
-        self.vertex_input.vertex_buffers[slot] = vertices.owner.object();
-        self.vertex_input.vertex_buffer_offsets[slot] = vertices.byte_offset as GLintptr;
-        self.vertex_input.vertex_buffer_strides[slot] = mem::size_of::<<<V as IntoBufferSliceAny>::Target as BufferData>::Element>() as GLsizei;
+        self.vertex_input.vertex_buffers[slot] = vertices.owner.gl_object();
+        self.vertex_input.vertex_buffer_offsets[slot] = vertices.offset as GLintptr;
+        self.vertex_input.vertex_buffer_strides[slot] = mem::size_of::<<<V as ToRawBufferSlice>::Target as BufferData>::Element>() as GLsizei;
         self
     }
 
-    pub fn with_index_buffer<I: IntoBufferSliceAny>(mut self, indices: &I) -> Self {
+    pub fn with_index_buffer<I: ToRawBufferSlice>(mut self, indices: &I) -> Self {
         let indices = unsafe {
-            indices.to_buffer_slice_any()
+            indices.to_raw_slice()
         };
         self.frame
             .ref_buffers
             .borrow_mut()
             .push(indices.owner.clone());
-        self.vertex_input.index_buffer = indices.owner.object();
+        self.vertex_input.index_buffer = indices.owner.gl_object();
         self.vertex_input.index_buffer_size = indices.byte_size;
-        self.vertex_input.index_buffer_offset = indices.byte_offset;
-        self.vertex_input.index_buffer_type = match mem::size_of::<<<I as IntoBufferSliceAny>::Target as BufferData>::Element>() {
+        self.vertex_input.index_buffer_offset = indices.offset;
+        self.vertex_input.index_buffer_type = match mem::size_of::<<<I as ToRawBufferSlice>::Target as BufferData>::Element>() {
             4 => gl::UNSIGNED_INT,
             2 => gl::UNSIGNED_SHORT,
-            _ => panic!("Unexpected index type!"),
+            // TODO We can verify that at compile-time
+            _ => panic!("size of index element type does not match any supported formats"),
         };
         self
     }

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::mem;
 use super::context::Context;
 use super::buffer_data::BufferData;
-use super::buffer::{AsSlice, Buffer, BufferSlice, BufferSliceAny, BufferUsage};
+use super::buffer::{RawBuffer, RawBufferSlice, BufferSlice, BufferUsage};
 use std::collections::vec_deque::VecDeque;
 use std::sync::Arc;
 use super::fence::FenceValue;
@@ -25,7 +25,7 @@ pub struct UploadBufferState {
 
 pub struct UploadBuffer
 {
-    buffer: Arc<Buffer<[u8]>>, // Owned
+    buffer: RawBuffer, // Owned
     state: RefCell<UploadBufferState>,
     mapped_region: *mut u8,
 }
@@ -44,14 +44,13 @@ fn align_offset(align: usize, size: usize, ptr: usize, space: usize) -> Option<u
 
 impl UploadBuffer
 {
-    pub fn new(context: & Arc<Context>, buffer_size: usize) -> UploadBuffer
+    pub fn new(gctx: &Context, buffer_size: usize) -> UploadBuffer
     {
         //UploadBuffer { _phantom: PhantomData }
-        let buffer = Arc::new(Buffer::new(
-            context,
+        let buffer = RawBuffer::new(
+            gctx,
             buffer_size,
-            BufferUsage::UPLOAD,
-        ));
+            BufferUsage::UPLOAD);
         let mapped_region = unsafe { buffer.map_persistent_unsynchronized() as *mut u8 };
 
         UploadBuffer {
@@ -67,7 +66,8 @@ impl UploadBuffer
     }
 
     /// Unsafe because the transient buffer can be reclaimed at any time with `reclaim`
-    /// according to the `reclaim_until` parameter
+    /// according to the `reclaim_until` parameter.
+    /// For a safe implementation, allocate through Frame
     /// TODO do not panic if the upload buffer is full
     pub unsafe fn upload<T: BufferData + ?Sized>(
         &self,
@@ -78,15 +78,14 @@ impl UploadBuffer
     ) -> BufferSlice<T> {
         let byte_size = mem::size_of_val(data);
         let ptr = data as *const T as *const u8;
-
         let slice = self.allocate(byte_size, align, fence_value, reclaim_until)
-            .expect("Upload buffer is full");   // TODO expand? wait?
+            .expect("upload buffer is full");   // TODO expand? wait?
         copy_nonoverlapping(
             ptr,
-            self.mapped_region.offset(slice.byte_offset as isize),
+            self.mapped_region.offset(slice.offset as isize),
             byte_size,
         );
-        slice.cast::<T>()
+        slice.into_typed::<T>()
     }
 
     /// Unsafe for the same reasons as `upload`
@@ -96,15 +95,15 @@ impl UploadBuffer
         align: usize,
         fence_value: FenceValue,
         reclaim_until: FenceValue,
-    ) -> Option<BufferSliceAny> {
+    ) -> Option<RawBufferSlice> {
         //debug!("alloc size={}, align={}, fence_value={:?}", size, align, fence_value);
         if let Some(offset) = self.try_allocate_contiguous(size, align, fence_value) {
-            Some(self.buffer.get_slice_any(offset, size))
+            Some(self.buffer.get_slice(offset, size))
         } else {
             // reclaim and try again (not enough contiguous free space)
             self.reclaim(reclaim_until);
             if let Some(offset) = self.try_allocate_contiguous(size, align, fence_value) {
-                Some(self.buffer.get_slice_any(offset, size))
+                Some(self.buffer.get_slice(offset, size))
             } else {
                 None
             }

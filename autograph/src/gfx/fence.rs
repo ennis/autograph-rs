@@ -19,7 +19,7 @@ pub struct Fence {
 }
 
 impl Fence {
-    pub fn new(ctx: Arc<Context>, init_value: FenceValue) -> Fence {
+    pub fn new(gctx: &Context, init_value: FenceValue) -> Fence {
         Fence {
             sync_points: VecDeque::new(),
             current_value: init_value,

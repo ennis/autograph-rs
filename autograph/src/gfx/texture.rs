@@ -4,6 +4,7 @@ use super::texture_format::*;
 use std::cmp::*;
 use super::context::Context;
 use std::sync::Arc;
+use std::ops::Deref;
 
 bitflags! {
     #[derive(Default)]
@@ -82,7 +83,7 @@ impl TextureDesc {
 ///
 /// The texture object is bound to the context lifetime. It is checked dynamically.
 #[derive(Debug)]
-pub struct Texture {
+pub struct TextureObject {
     pub obj: GLuint,
     desc: TextureDesc,
 }
@@ -96,7 +97,7 @@ pub trait ClientFormatInfo {
 /// impl for (f32xN) tuples
 /// impl for (u8xN) tuples
 
-impl Texture {
+impl TextureObject {
     /// Returns the TextureDesc object describing this texture
     pub fn desc(&self) -> &TextureDesc {
         &self.desc
@@ -119,7 +120,7 @@ impl Texture {
     }
 
     /// Create a new texture object based on the given description
-    pub fn new(ctx: &Arc<Context>, desc: &TextureDesc) -> Texture {
+    pub fn new(gctx: &Context, desc: &TextureDesc) -> TextureObject {
         let target = match desc.dimensions {
             TextureDimensions::Tex1D => gl::TEXTURE_1D,
             TextureDimensions::Tex2D => if desc.sample_count > 1 {
@@ -197,7 +198,7 @@ impl Texture {
             gl::TextureParameteri(obj, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
         }
 
-        Texture {
+        TextureObject {
             desc: desc.clone(),
             obj,
         }
@@ -357,12 +358,12 @@ impl Texture {
             }*/
     }
 
-    pub fn object(&self) -> GLuint {
+    pub fn gl_object(&self) -> GLuint {
         self.obj
     }
 }
 
-impl Drop for Texture {
+impl Drop for TextureObject {
     fn drop(&mut self) {
         unsafe {
             gl::DeleteTextures(1, &self.obj);
@@ -380,3 +381,23 @@ impl Drop for Texture {
 fn get_texture_mip_map_count(width: u32, height: u32) -> u32 {
     1 + f32::floor(f32::log2(max(width, height) as f32)) as u32
 }
+
+#[derive(Clone,Debug)]
+pub struct RawTexture(Arc<TextureObject>);
+
+impl RawTexture
+{
+    pub fn new(gctx: &Context, desc: &TextureDesc) -> RawTexture {
+        RawTexture(Arc::new(TextureObject::new(gctx, desc)))
+    }
+}
+
+impl Deref for RawTexture
+{
+    type Target = Arc<TextureObject>;
+    fn deref(&self) -> &Arc<TextureObject> {
+        &self.0
+    }
+}
+
+// TODO RawTexture2d, RawTexture3d, Texture2d<T>, Texture3d<T>

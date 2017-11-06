@@ -9,8 +9,8 @@ use super::buffer::*;
 use super::texture::*;
 
 pub(super) struct FrameResources {
-    pub(super) ref_buffers: Vec<Arc<BufferAny>>,
-    pub(super) ref_textures: Vec<Arc<Texture>>,
+    pub(super) ref_buffers: Vec<RawBuffer>,
+    pub(super) ref_textures: Vec<RawTexture>,
 }
 
 struct SubmittedFrame {
@@ -18,9 +18,9 @@ struct SubmittedFrame {
     resources: FrameResources
 }
 
-// Represents a succession of frames
+/// Represents a succession of frames
 pub struct Queue {
-    pub(super) ctx: Arc<Context>,
+    pub(super) gctx: Context,
     pub(super) fence: RefCell<Fence>,
     // submitted but not completed frames, hold refs to resources
     submitted_frames: RefCell<VecDeque<SubmittedFrame>>,
@@ -31,18 +31,18 @@ pub const DEFAULT_UPLOAD_BUFFER_SIZE: usize = 3*1024*1024;
 
 impl Queue {
     /// Creates a new queue
-    pub fn new(ctx: &Arc<Context>) -> Queue {
+    pub fn new(ctx: &Context) -> Queue {
         Queue {
-            ctx: ctx.clone(),
-            fence: RefCell::new(Fence::new(ctx.clone(), FenceValue(-1))),
+            gctx: ctx.clone(),
+            fence: RefCell::new(Fence::new(&ctx.clone(), FenceValue(-1))),
             submitted_frames: RefCell::new(VecDeque::new()),
             default_upload_buffer: UploadBuffer::new(ctx, DEFAULT_UPLOAD_BUFFER_SIZE)
         }
     }
 
     /// Returns the context the queue was created with
-    pub fn context(&self) -> &Arc<Context> {
-        &self.ctx
+    pub fn context(&self) -> &Context {
+        &self.gctx
     }
 
     pub fn current_frame_index(&self) -> u64 {
@@ -84,6 +84,6 @@ impl Queue {
     }
 }
 
-pub fn create_context_and_queue(config: &ContextConfig) -> (Arc<Context>, Queue) {
+pub fn create_context_and_queue(config: &ContextConfig) -> (Context, Queue) {
     unimplemented!()
 }

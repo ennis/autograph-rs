@@ -24,46 +24,6 @@ pub(super) struct Uniforms {
     pub(super) shader_storage_buffer_offsets: [GLintptr; MAX_SHADER_STORAGE_BUFFER_SLOTS],
 }
 
-/*impl Uniforms
-{
-    // TODO struct type check?
-    pub fn with_storage_buffer<T: BufferData + ?Sized>(
-        mut self,
-        slot: usize,
-        resource: &BufferSlice<T>,
-    ) -> Self {
-        // reference this buffer in the frame
-        self.refs.push(resource.owner.clone());
-        self.shader_storage_buffers[slot] = resource.owner.object();
-        self.shader_storage_buffer_offsets[slot] = resource.byte_offset as GLintptr;
-        self.shader_storage_buffer_sizes[slot] = resource.byte_size() as GLsizeiptr;
-        self
-    }
-
-    pub fn with_uniform_buffer<T: BufferData + ?Sized>(
-        mut self,
-        slot: usize,
-        resource: &BufferSlice<T>,
-    ) -> Self {
-        self.refs.push(resource.owner.clone());
-        self.uniform_buffers[slot] = resource.owner.object();
-        self.uniform_buffer_offsets[slot] = resource.byte_offset as GLintptr;
-        self.uniform_buffer_sizes[slot] = resource.byte_size() as GLsizeiptr;
-        self
-    }
-
-    pub fn with_image(mut self, slot: usize, tex: &Arc<Texture>) -> Self {
-        unimplemented!()
-    }
-
-    pub fn with_texture(mut self, slot: usize, tex: &Arc<Texture>, sampler: &SamplerDesc) -> Self
-    {
-        self.textures[slot] = tex.object();
-        self.samplers_desc[slot] = *sampler;
-        self
-    }
-}*/
-
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub(super) struct VertexInput {
     pub(super) vertex_buffers: [GLuint; MAX_VERTEX_BUFFER_SLOTS],
@@ -75,61 +35,7 @@ pub(super) struct VertexInput {
     pub(super) index_buffer_type: GLenum
 }
 
-/*impl DynamicStates
-{
-    pub fn with_all_viewports(mut self, v: (f32, f32, f32, f32)) -> Self {
-        unimplemented!()
-    }
-
-    pub fn with_viewport(mut self, index: i32, v: (f32, f32, f32, f32)) -> Self {
-        unimplemented!()
-    }
-
-    pub fn with_all_scissors(mut self, scissor: Option<(i32, i32, i32, i32)>) -> Self {
-        self.scissors = Scissors::All(scissor);
-        self
-    }
-}*/
-
-/*
-impl VertexInput
-{
-    pub fn new() -> VertexInput {
-        Default::default()
-    }
-
-    /// Sets a vertex buffer for the given input slot
-    pub fn with_vertex_buffer<T: BufferData + ?Sized>(
-        mut self,
-        slot: usize,
-        vertices: &BufferSlice<T>,
-    ) -> Self
-    {
-        // TODO layout check w.r.t pipeline
-        // TODO alignment check
-        self.refs.push(vertices.owner.clone());
-        self.vertex_buffers[slot] = vertices.owner.object();
-        self.vertex_buffer_offsets[slot] = vertices.byte_offset as GLintptr;
-        self.vertex_buffer_strides[slot] = mem::size_of::<T::Element>() as GLsizei;
-        self
-    }
-
-    /// Sets the index buffer
-    pub fn with_index_buffer<T: BufferData + ?Sized>(mut self, indices: &BufferSlice<T>) -> Self
-    {
-        self.refs.push(indices.owner.clone());
-        self.index_buffer = indices.owner.object();
-        self.index_buffer_size = indices.byte_size();
-        self.index_buffer_offset = indices.byte_offset;
-        self.index_buffer_type = match mem::size_of::<T::Element>() {
-            4 => gl::UNSIGNED_INT,
-            2 => gl::UNSIGNED_SHORT,
-            _ => panic!("Unexpected index type!"),
-        };
-        self
-    }
-}*/
-
+// TODO is this useless?
 bitflags! {
     #[derive(Default)]
     pub struct StateGroupMask: u32 {

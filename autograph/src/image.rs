@@ -14,7 +14,8 @@ pub enum TargetFormat {
 struct CachedImage {
     data: Vec<u8>,
     format: gfx::TextureFormat,
-    texture: RefCell<Arc<gfx::Texture>>,
+    texture: RefCell<gfx::RawTexture>,
 }
 
+// TODO
 fn load_image() {}

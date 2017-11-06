@@ -4,7 +4,7 @@ use scene_object::{SceneMesh, SceneObject, SceneObjects};
 use aabb::AABB;
 use mesh::{calculate_aabb, Mesh, Vertex3};
 use nalgebra::*;
-use itertools::Zip;
+use itertools::multizip;
 use gfx;
 use std::sync::Arc;
 use cache::{Cache, CacheTrait};
@@ -16,7 +16,7 @@ struct AssimpSceneImporter<'a> {
     path: &'a Path,
     ids: &'a mut IDTable,
     cache: Arc<Cache>,
-    ctx: Arc<gfx::Context>,
+    gctx: gfx::Context,
     scene_objects: &'a SceneObjects,
 }
 
@@ -40,7 +40,7 @@ unsafe fn import_mesh<'a>(
                 slice::from_raw_parts((*aimesh).tangents, (*aimesh).num_vertices as usize);
             let texcoords0 =
                 slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
-            let verts: Vec<Vertex3> = Zip::new((vertices, normals, tangents, texcoords0))
+            let verts: Vec<Vertex3> = multizip((vertices, normals, tangents, texcoords0))
                 .map(|(v, n, t, uv)| {
                     Vertex3 {
                         pos: Point3::new(v.x, v.y, v.z),
@@ -65,7 +65,7 @@ unsafe fn import_mesh<'a>(
             debug!("Imported mesh AABB {:?}", aabb);
 
             Arc::new(SceneMesh {
-                mesh: Mesh::new(&importer.ctx, &verts, Some(&indices)),
+                mesh: Mesh::new(&importer.gctx, &verts, Some(&indices)),
                 aabb: calculate_aabb(&verts),
             })
         })
@@ -155,7 +155,7 @@ unsafe fn import_node<'a>(
 pub fn load_scene_file(
     path: &Path,
     ids: &mut IDTable,
-    context: &Arc<gfx::Context>,
+    gctx: &gfx::Context,
     cache: &Arc<Cache>,
     scene_objects: &mut SceneObjects,
 ) -> Result<ID, String> {
@@ -178,7 +178,7 @@ pub fn load_scene_file(
             let mut scene_importer_state = AssimpSceneImporter {
                 path,
                 cache: cache.clone(),
-                ctx: context.clone(),
+                gctx: gctx.clone(),
                 scene_objects,
                 ids,
             };

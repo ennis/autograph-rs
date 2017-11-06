@@ -21,6 +21,14 @@ layout(std140, binding = 1) uniform ObjectParameters {
 	int uObjectID;
 };
 
+
+// @FileResource("...")
+// @vertex {
+//
+// }
+// @param component vec3 texWarp(vec2);
+
+
 #ifdef _VERTEX_
 	layout(location = 0) in vec3 iPosition;
 	layout(location = 1) in vec3 iNormal;
