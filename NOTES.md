@@ -77,6 +77,15 @@ TODO
     * Noise model for anchor points
 
 
+#### Prioritize
+* GlObject type reforms: shorthands for Arc<GlObject>
+* shader reform: complete specification of shader state in data
+* shader reform: metadata
+* shader reform: shader fragment splicing
+    * In rust, so that we don't require an external compiler
+* submission reform: (partial) static interface matching
+* engine: global- and auto- shader parameters
+
 #### Interface
 * Editor for gradation
 * Paint to texture
@@ -90,6 +99,70 @@ TODO
 	* Shadings
 * Undo/Redo + Interface
 * Status bar
+
+#### Shader reforms
+* Low-level vs high-level
+* Low-level in rust
+    * Static interface matching
+    * Easy creation of pipeline from a single file
+        * `GpuPipeline::from_file()`
+* Communication with engine
+    * Auto parameters
+* Components
+* Specifying states
+* Self-contained shader components
+    * A function with parameters, inputs, outputs
+    * Parameters are exposed to the UI
+    * Parameters can be other components/lambdas
+    * Reference components by file name
+* In-engine or off-engine?
+    * The engine should know things
+    * Should be able to edit nodes in real time
+    * Engine only sees a 'compiled' version of the HLG
+        * only has to fill the parameters
+    * compilation is done off engine by a tool
+* Engine: query shaders from the HL graph (HLG)
+* Engine: parameter passing
+    * static interface matching
+    * dynamic parameter
+    * auto-bind from global game state
+        * eventually: put CPU-side expressions in shaders
+    * auto-bind from file system (using attribute syntax)
+        ```
+        [[filesystem(img/texture01.png)]]
+        uniform sampler2D effectGradient;
+        ```
+    * No code needed in the engine! Iteration time greatly reduced.
+
+#### HLSG: high-level shader graph
+* written in some easy-to-parse language
+* compiler/editor in kotlin
+    * actually just a GLSL splicer
+* can describe both:
+    * individual passes 
+    * post-processing pipelines
+* what to splice?
+    * Code fragments?
+    * or data streams?
+    * Support both styles
+    * Code-style (function composition) seems less verbose, less prone to complex node graphs
+        * Can work without an editor, for now
+    * see TFX
+* interface with the engine:
+    * Scene dispatcher
+        * select elements in the scene to render
+        * specify the expected shader interface, look for it in the components
+        * must create the render targets before
+        * in-engine implementation
+    * Output node
+    * when executing a framegraph, must pass the world state to the scene dispatcher
+    * Query full post-proc pipelines...
+    * ...or just shader passes, and define the rendering pipeline in code
+
+#### Submission reforms
+* draw(pipeline, pipeline params, dynamic params)
+* trait PipelineInterface
+* macro gpu_interface!{}
 
 #### Renderer
 * 'Blackboard' with optionally evaluated passes
@@ -115,6 +188,10 @@ TODO
     * Vertex stream
     * Fragment stream
     * Image
+    * Structured data block (name+type pairs)
+    * Function 
+    * Implementation of interface
+    * Shader pass
 * Node types
     * Rasterizer
     * Output Merge
@@ -138,6 +215,42 @@ TODO
 * Self-contained format for sharing nodes
     * GLSL with pragmas
 * Conversion to a frame graph
+* Support for dynamic multipass rendering (loops)
+    * for each
+        * object
+        * material mask
+    * loop parameters passed as data block
+* Should the frame graph backend understand the loops?
+    * Possible to have a large number of passes (one per object / object type)
+    * Re-submit graph every frame?
+        * Too expensive, especially over the network
+        * The engine must have __some__ knowledge of the loops
+        * Proposition: execution plan
+            * Generate minimal linear (no loop) subgraphs
+            * Loop over subgraphs
+            * Issue: memory aliasing between subgraphs?
+    * The frame graph should have full knowledge of loops
+        * Subgraphs
+            * Seen by the parent graph as only one node
+            * Custom resource allocation node
+            * Custom lifetime calculation logic?
+        * Each node can implement a trait for overriding resource allocation
+            * trait AliasedResourceAllocator
+        * Some nodes will be executed more than once
+        * When custom logic is involved, put it in the framegraph (for now)
+            * Material loops
+            * Object loops
+            * Ping-pong with variable number of iterations (fixed loops)
+        * Make it relatively easy to create new framegraph nodes
+            * framegraph::NodeBuilder
+        * Loop iterations are executed sequentially
+            * Basically, replay parts of the execution tree with different input data
+            * the same resources are re-used on each iteration
+            * must accumulate inside the loop
+        * Type-safe inputs and outputs?
+            * Any + explicit test
+
+        
 
 #### Converting node graphs to a frame graph
 * Unfold
