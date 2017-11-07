@@ -12,7 +12,7 @@ use std::cell::RefCell;
 pub struct MainLoop<'a> {
     window: &'a glutin::GlWindow,
     pub cache: Arc<Cache>,
-    pub context: Arc<gfx::ContextObject>,
+    pub context: gfx::Context,
     pub queue: RefCell<gfx::Queue>,
 }
 
@@ -23,7 +23,7 @@ impl<'a> MainLoop<'a> {
         &self.window
     }
 
-    pub fn context(&self) -> &Arc<gfx::ContextObject> {
+    pub fn context(&self) -> &gfx::Context {
         &self.context
     }
 
@@ -41,13 +41,11 @@ impl<'a> MainLoop<'a> {
         unsafe { window.make_current() }.unwrap();
 
         // Load OpenGL function pointers
-        unsafe {
-            gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
-        }
+        gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
         // create an instance of gfx::Context
         // NOTE: useless for now
-        let context = gfx::ContextObject::new(config);
+        let context = gfx::Context::new(config);
 
         // create a queue
         let queue = gfx::Queue::new(&context);
@@ -62,7 +60,7 @@ impl<'a> MainLoop<'a> {
 
     pub fn run<F>(&self, mut body: F)
     where
-        F: FnMut(&gfx::Frame, &Arc<gfx::FramebufferObject>, f32) -> bool,
+        F: FnMut(&gfx::Frame, &gfx::Framebuffer, f32) -> bool,
     {
         let mut loop_start_time = time::PreciseTime::now();
         let mut last_debug_time = time::PreciseTime::now();
@@ -73,10 +71,10 @@ impl<'a> MainLoop<'a> {
         // imgui stuff
         while running {
             // get default framebuffer from GL window
-            let default_framebuffer = Arc::new(gfx::FramebufferObject::from_gl_window(
+            let default_framebuffer = gfx::Framebuffer::from_gl_window(
                 &self.context,
                 &self.window,
-            ));
+            );
             // create the frame
             let mut queue = self.queue.borrow_mut();
             let mut frame = gfx::Frame::new(&mut queue);

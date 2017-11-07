@@ -1,5 +1,5 @@
 use assimp_sys::*;
-use id_table::{IDTable, ID};
+use id_table::{IdTable, ID};
 use scene_object::{SceneMesh, SceneObject, SceneObjects};
 use aabb::AABB;
 use mesh::{calculate_aabb, Mesh, Vertex3};
@@ -14,7 +14,7 @@ use std::ffi::{CStr, CString};
 
 struct AssimpSceneImporter<'a> {
     path: &'a Path,
-    ids: &'a mut IDTable,
+    ids: &'a mut IdTable,
     cache: Arc<Cache>,
     gctx: gfx::Context,
     scene_objects: &'a SceneObjects,
@@ -154,7 +154,7 @@ unsafe fn import_node<'a>(
 
 pub fn load_scene_file(
     path: &Path,
-    ids: &mut IDTable,
+    ids: &mut IdTable,
     gctx: &gfx::Context,
     cache: &Arc<Cache>,
     scene_objects: &mut SceneObjects,

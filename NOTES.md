@@ -78,8 +78,9 @@ TODO
 
 
 #### Prioritize
-* GlObject type reforms: shorthands for Arc<GlObject>
+* DONE GlObject type reforms: shorthands for Arc<GlObject>
 * shader reform: complete specification of shader state in data
+    * New parser not based on regexps?
 * shader reform: metadata
 * shader reform: shader fragment splicing
     * In rust, so that we don't require an external compiler

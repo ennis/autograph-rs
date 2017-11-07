@@ -4,7 +4,7 @@ use super::texture_format::*;
 use std::cmp::*;
 use super::context::Context;
 use std::sync::Arc;
-use std::ops::Deref;
+use std::ops::{Deref,DerefMut};
 
 bitflags! {
     #[derive(Default)]
@@ -390,6 +390,13 @@ impl RawTexture
     pub fn new(gctx: &Context, desc: &TextureDesc) -> RawTexture {
         RawTexture(Arc::new(TextureObject::new(gctx, desc)))
     }
+
+    pub fn with_pixels(gctx: &Context, desc: &TextureDesc, data: &[u8]) -> RawTexture {
+        let mut texture = TextureObject::new(gctx, desc);
+        texture.upload_region(0, (0,0,0), (desc.width,desc.height,desc.depth), data);
+        RawTexture(Arc::new(texture))
+    }
+
 }
 
 impl Deref for RawTexture
@@ -397,6 +404,13 @@ impl Deref for RawTexture
     type Target = Arc<TextureObject>;
     fn deref(&self) -> &Arc<TextureObject> {
         &self.0
+    }
+}
+
+impl DerefMut for RawTexture
+{
+    fn deref_mut(&mut self) -> &mut Arc<TextureObject> {
+        &mut self.0
     }
 }
 

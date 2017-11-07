@@ -33,7 +33,7 @@ use autograph::shader_compiler::*;
 use autograph::gfx;
 use autograph::gl;
 use autograph::gl::types::*;
-use autograph::id_table::{IDTable, ID};
+use autograph::id_table::{IdTable, ID};
 use autograph::scene_object::{SceneMesh, SceneObject, SceneObjects};
 use autograph::scene_loader;
 use autograph::cache;
@@ -115,7 +115,7 @@ fn main() {
     //let upload_buf = gfx::UploadBuffer::new(&main_loop.queue(), UPLOAD_BUFFER_SIZE);
 
     // load a scene!
-    let mut ids = IDTable::new();
+    let mut ids = IdTable::new();
     let mut scene_objects = SceneObjects::new();
     let root_object_id = scene_loader::load_scene_file(
         Path::new("data/scenes/sponza/sponza.obj"),

@@ -90,6 +90,12 @@ impl Deref for Framebuffer
     }
 }
 
+impl Framebuffer {
+    pub fn from_gl_window(gctx: &Context, window: &GlWindow) -> Framebuffer {
+        Framebuffer(Arc::new(FramebufferObject::from_gl_window(gctx,window)))
+    }
+
+}
 
 pub struct FramebufferBuilder {
     gctx: Context,

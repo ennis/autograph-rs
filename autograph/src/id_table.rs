@@ -13,14 +13,14 @@ impl ID {
     }
 }
 
-pub struct IDTable {
+pub struct IdTable {
     live_ids: Vec<ID>,
     free_ids: Vec<ID>,
 }
 
-impl IDTable {
-    pub fn new() -> IDTable {
-        IDTable {
+impl IdTable {
+    pub fn new() -> IdTable {
+        IdTable {
             live_ids: Vec::new(),
             free_ids: Vec::new(),
         }

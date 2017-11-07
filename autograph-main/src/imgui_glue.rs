@@ -11,12 +11,12 @@ use std::sync::Arc;
 
 pub struct Renderer {
     pipeline: Arc<gfx::GraphicsPipeline>,
-    texture: Arc<gfx::Texture>,
+    texture: gfx::RawTexture,
 }
 
 static IMGUI_SHADER_PATH: &str = "data/shaders/imgui.glsl";
 
-fn load_pipeline(ctx: &Arc<gfx::ContextObject>, path: &Path) -> Result<Arc<gfx::GraphicsPipeline>, String> {
+fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<Arc<gfx::GraphicsPipeline>, String> {
     let compiled_shaders = compile_shaders_from_combined_source(path)?;
     Ok(Arc::new(gfx::GraphicsPipelineBuilder::new()
         .with_vertex_shader(compiled_shaders.vertex)
@@ -39,7 +39,7 @@ fn load_pipeline(ctx: &Arc<gfx::ContextObject>, path: &Path) -> Result<Arc<gfx::
             func_dst_alpha: gl::ZERO,
         })
         .with_input_layout(&compiled_shaders.input_layout)
-        .build(ctx)
+        .build(gctx)
         .map_err(|gfx::GraphicsPipelineBuildError::ProgramLinkError(log)| {
             format!("Program link error: {}", log)
         })?))
@@ -48,12 +48,12 @@ fn load_pipeline(ctx: &Arc<gfx::ContextObject>, path: &Path) -> Result<Arc<gfx::
 impl Renderer {
     pub fn new(
         imgui: &mut imgui::ImGui,
-        context: &Arc<gfx::ContextObject>,
+        gctx: &gfx::Context,
         cache: &Arc<Cache>,
     ) -> Renderer {
         let pipeline = cache
             .add_and_watch(IMGUI_SHADER_PATH.to_owned(), |path, reload_reason| {
-                load_pipeline(context, Path::new(path)).ok()
+                load_pipeline(gctx, Path::new(path)).ok()
             })
             .unwrap();
 
@@ -68,16 +68,10 @@ impl Renderer {
                 mip_map_count: gfx::MipMaps::Count(1),
                 sample_count: 1,
             };
-            let mut texture = gfx::Texture::new(context, &desc);
-            texture.upload_region(
-                0,
-                (0, 0, 0),
-                (handle.width, handle.height, 1),
-                handle.pixels,
-            );
-            Arc::new(texture)
+            let texture = gfx::RawTexture::with_pixels(gctx, &desc, handle.pixels);
+            texture
         });
-        imgui.set_texture_id(texture.object() as usize);
+        imgui.set_texture_id(texture.gl_object() as usize);
 
         Renderer { pipeline, texture }
     }
@@ -85,7 +79,7 @@ impl Renderer {
     pub fn render<'a>(
         &mut self,
         frame: &gfx::Frame,
-        target: &Arc<gfx::FramebufferObject>,
+        target: &gfx::Framebuffer,
         ui: imgui::Ui<'a>,
     ) {
         // hot-reload pipeline from file
@@ -98,7 +92,7 @@ impl Renderer {
     pub fn render_draw_list<'a>(
         &mut self,
         frame: &gfx::Frame,
-        target: &Arc<gfx::FramebufferObject>,
+        target: &gfx::Framebuffer,
         ui: &imgui::Ui<'a>,
         draw_list: &imgui::DrawList<'a>,
     ) -> Result<(), String>
@@ -119,7 +113,7 @@ impl Renderer {
             [-1.0, 1.0, 0.0, 1.0],
         ];
 
-        let font_texture_id = self.texture.object() as usize;
+        let font_texture_id = self.texture.gl_object() as usize;
         let mut idx_start = 0 as usize;
 
         for cmd in draw_list.cmd_buffer {
@@ -173,7 +167,7 @@ pub struct MouseState {
 
 
 pub fn init(
-    context: &Arc<gfx::ContextObject>,
+    context: &gfx::Context,
     cache: &Arc<Cache>,
     replacement_font: Option<&str>,
 ) -> (imgui::ImGui, Renderer, MouseState) {
@@ -184,7 +178,7 @@ pub fn init(
         unsafe {
             use std::ffi::{CStr, CString};
             let path = CString::new(replacement_font).unwrap();
-            let imgui_io = unsafe { &mut *imgui_sys::igGetIO() };
+            let imgui_io = &mut *imgui_sys::igGetIO();
             imgui_sys::ImFontAtlas_AddFontFromFileTTF(
                 imgui_io.fonts,
                 path.as_ptr(),
