@@ -81,14 +81,22 @@ TODO
 * DONE GlObject type reforms: shorthands for Arc<GlObject>
 * shader reform: complete specification of shader state in data
     * New parser not based on regexps?
+        * extend GLSL with custom directives: use phaazon's nom parser
     * keep `GraphicsPipelineBuilder`
     * introduce `load_graphics_pipeline(path) -> GraphicsPipeline`
 * shader reform: simplified GLSL-like language
     * No need to specify layout(...) -> automatically added (and statically verified)
+        * Add it with metadata?
     * entry points as explicitly named functions with in/out parameters (no globals)
         * no `void main()`
+    * keywords: `@vertex @fragment @tess_control @tess_eval @compute @geometry pass rendertarget image buffer param component`
+    * flexibility through metadata
     * preprocesses down to GLSL
     * statically verified interfaces
+        * extract interface from function signatures and parameters and match against code in rust
+        * *never* generate rust code from GLSL
+        * rust custom derive to generate interface matching code from struct
+            * maps vec types to tuples / cgmath types
     * binding points?
     * Parse in rust?
 * shader reform: metadata
@@ -133,6 +141,10 @@ TODO
         * only has to fill the parameters
     * compilation is done off engine by a tool
 * Engine: query shaders from the HL graph (HLG)
+* Pipeline is a type implementing the `GpuPass` trait
+    * Also possibly the `StaticShaderInterface` trait
+        * with associated type `Interface`
+* Bikeshedding: `GpuPass`, `GpuPipeline` (already used), `Pass` 
 * Engine: parameter passing
     * static interface matching
     * dynamic parameter
@@ -140,10 +152,22 @@ TODO
         * eventually: put CPU-side expressions in shaders
     * auto-bind from file system (using attribute syntax)
         ```
-        [[filesystem(img/texture01.png)]]
+        @filesystem("img/effect/gradient.png")
         uniform sampler2D effectGradient;
         ```
     * No code needed in the engine! Iteration time greatly reduced.
+    * metadata to indicate where to look for parameters
+        * global, per-object, etc.
+        * it is the responsibility of the engine to correctly bind the parameters
+    * binding points?
+        * match by static interface
+        * then match by name
+        * can specify binding point as metadata
+            * `@binding(0)`
+    * specify render targets in shader
+        * doable: `@renderTarget(mainDiffuse)`
+        * otherwise, bind as static or dynamic interface
+        
 
 #### HLSG: high-level shader graph
 * written in some easy-to-parse language
