@@ -81,6 +81,16 @@ TODO
 * DONE GlObject type reforms: shorthands for Arc<GlObject>
 * shader reform: complete specification of shader state in data
     * New parser not based on regexps?
+    * keep `GraphicsPipelineBuilder`
+    * introduce `load_graphics_pipeline(path) -> GraphicsPipeline`
+* shader reform: simplified GLSL-like language
+    * No need to specify layout(...) -> automatically added (and statically verified)
+    * entry points as explicitly named functions with in/out parameters (no globals)
+        * no `void main()`
+    * preprocesses down to GLSL
+    * statically verified interfaces
+    * binding points?
+    * Parse in rust?
 * shader reform: metadata
 * shader reform: shader fragment splicing
     * In rust, so that we don't require an external compiler

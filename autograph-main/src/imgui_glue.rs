@@ -10,21 +10,21 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub struct Renderer {
-    pipeline: Arc<gfx::GraphicsPipeline>,
+    pipeline: gfx::GraphicsPipeline,
     texture: gfx::RawTexture,
 }
 
 static IMGUI_SHADER_PATH: &str = "data/shaders/imgui.glsl";
 
-fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<Arc<gfx::GraphicsPipeline>, String> {
-    let compiled_shaders = compile_shaders_from_combined_source(path)?;
-    Ok(Arc::new(gfx::GraphicsPipelineBuilder::new()
-        .with_vertex_shader(compiled_shaders.vertex)
-        .with_fragment_shader(compiled_shaders.fragment)
-        .with_geometry_shader(compiled_shaders.geometry)
-        .with_tess_eval_shader(compiled_shaders.tess_eval)
-        .with_tess_control_shader(compiled_shaders.tess_control)
-        .with_primitive_topology(compiled_shaders.primitive_topology)
+fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<gfx::GraphicsPipeline, String> {
+    let sh = compile_shaders_from_combined_source(path)?;
+    Ok(gfx::GraphicsPipelineBuilder::new()
+        .with_vertex_shader(sh.vertex)
+        .with_fragment_shader(sh.fragment)
+        .with_geometry_shader(sh.geometry)
+        .with_tess_eval_shader(sh.tess_eval)
+        .with_tess_control_shader(sh.tess_control)
+        .with_primitive_topology(sh.primitive_topology)
         .with_rasterizer_state(&gfx::RasterizerState {
             fill_mode: gl::FILL,
             ..Default::default()
@@ -38,11 +38,11 @@ fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<Arc<gfx::GraphicsPi
             func_src_alpha: gl::ONE,
             func_dst_alpha: gl::ZERO,
         })
-        .with_input_layout(&compiled_shaders.input_layout)
+        .with_input_layout(&sh.input_layout)
         .build(gctx)
         .map_err(|gfx::GraphicsPipelineBuildError::ProgramLinkError(log)| {
             format!("Program link error: {}", log)
-        })?))
+        })?)
 }
 
 impl Renderer {
@@ -190,8 +190,7 @@ pub fn init(
     }
 
     // create an imgui renderer
-    let mut renderer = Renderer::new(&mut imgui, context, cache);
-
+    let renderer = Renderer::new(&mut imgui, context, cache);
     (imgui, renderer, MouseState::default())
 }
 

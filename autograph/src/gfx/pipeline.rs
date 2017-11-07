@@ -12,6 +12,7 @@ use gl::types::*;
 use super::state_group::*;
 use super::context::Context;
 use std::sync::Arc;
+use std::ops::Deref;
 
 #[derive(Copy, Clone, Debug)]
 pub struct VertexAttribute {
@@ -22,16 +23,43 @@ pub struct VertexAttribute {
     pub normalized: bool,
 }
 
-#[derive(Debug)]
-pub struct GraphicsPipeline {
-    // TODO
-    pub(super) gctx: Context,
-    pub(super) blend_states: [BlendState; 8], // TODO hardcoded limit
-    pub(super) rasterizer_state: RasterizerState,
-    pub(super) depth_stencil_state: DepthStencilState,
-    pub(super) vao: GLuint,
-    pub(super) program: GLuint,
-    pub(super) primitive_topology: GLenum,
+pub(super) mod inner {
+    use gl;
+    use gl::types::*;
+    use gfx::state_group::*;
+    use gfx::Context;
+
+    # [derive(Debug)]
+    pub struct GraphicsPipeline {
+        // TODO fix public access
+        pub gctx: Context,
+        pub blend_states: [BlendState; 8], // TODO hardcoded limit
+        pub rasterizer_state: RasterizerState,
+        pub depth_stencil_state: DepthStencilState,
+        pub vao: GLuint,
+        pub program: GLuint,
+        pub primitive_topology: GLenum,
+    }
+
+    impl Drop for GraphicsPipeline {
+        fn drop(&mut self) {
+            unsafe {
+                gl::DeleteProgram(self.program);
+                gl::DeleteVertexArrays(1, &mut self.vao);
+            }
+        }
+    }
+}
+
+#[derive(Clone,Debug)]
+pub struct GraphicsPipeline(Arc<inner::GraphicsPipeline>);
+
+impl Deref for GraphicsPipeline
+{
+    type Target = Arc<inner::GraphicsPipeline>;
+    fn deref(&self) -> &Arc<inner::GraphicsPipeline> {
+        &self.0
+    }
 }
 
 pub enum PrimitiveTopology {
@@ -266,7 +294,7 @@ impl<'a> GraphicsPipelineBuilder<'a> {
         link_program(program)
             .map_err(|log| GraphicsPipelineBuildError::ProgramLinkError(log))?;
 
-        Ok(GraphicsPipeline {
+        Ok(GraphicsPipeline(Arc::new(inner::GraphicsPipeline {
             depth_stencil_state: self.depth_stencil_state,
             rasterizer_state: self.rasterizer_state,
             blend_states: self.blend_states,
@@ -274,15 +302,7 @@ impl<'a> GraphicsPipelineBuilder<'a> {
             program,
             primitive_topology: self.primitive_topology,
             gctx: gctx.clone(),
-        })
+        })))
     }
 }
 
-impl Drop for GraphicsPipeline {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteProgram(self.program);
-            gl::DeleteVertexArrays(1, &mut self.vao);
-        }
-    }
-}

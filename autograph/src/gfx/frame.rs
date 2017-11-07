@@ -223,7 +223,7 @@ impl<'q> Frame<'q> {
 
     /// Begin building a draw command.
     /// This function does not perform any type checking.
-    pub fn begin_draw<'a>(&'a self, target: &Framebuffer, pipeline: &Arc<GraphicsPipeline>) -> DrawCommandBuilder<'a,'q>
+    pub fn begin_draw<'a>(&'a self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'a,'q>
     where 'q:'a
     {
         DrawCommandBuilder::new(self, target, pipeline)
@@ -236,7 +236,7 @@ struct StateCache
     uniforms: Option<Uniforms>,
     vertex_input: Option<VertexInput>,
     framebuffer: Option<*const FramebufferObject>,
-    pipeline: Option<*const GraphicsPipeline>,
+    pipeline: Option<*const super::pipeline::inner::GraphicsPipeline>,
     scissors: Option<Scissors>,
 }
 
@@ -254,10 +254,10 @@ impl StateCache
 
     unsafe fn set_graphics_pipeline(&mut self, pipe: &GraphicsPipeline) {
         // same pipeline as before?
-        if self.pipeline.map_or(true, |prev_pipe| prev_pipe != pipe as *const _) {
+        if self.pipeline.map_or(true, |prev_pipe| prev_pipe != pipe.as_ref() as *const _) {
             // nope, bind it
             bind_graphics_pipeline(pipe, SG_ALL);
-            self.pipeline = Some(pipe as *const _);
+            self.pipeline = Some(pipe.as_ref() as *const _);
         }
     }
 
@@ -298,7 +298,7 @@ pub struct DrawCommandBuilder<'a,'q:'a> {
     uniforms: Uniforms,        // holds arrays of uniforms
     vertex_input: VertexInput, // vertex buffers + index buffer (optional)
     framebuffer: Framebuffer,
-    pipeline: Arc<GraphicsPipeline>,
+    pipeline: GraphicsPipeline,
     scissors: Scissors,
     viewports: [(f32, f32, f32, f32); 8]
 }
@@ -306,7 +306,7 @@ pub struct DrawCommandBuilder<'a,'q:'a> {
 impl<'a,'y> DrawCommandBuilder<'a,'y> {
     fn new<'b,'q>(frame: &'b Frame<'q>,
                   target: &Framebuffer,
-                  pipeline: &Arc<GraphicsPipeline>,
+                  pipeline: &GraphicsPipeline,
     ) -> DrawCommandBuilder<'b,'q>
     {
         let fb_size = target.size();
