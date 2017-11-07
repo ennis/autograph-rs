@@ -37,7 +37,6 @@ use autograph::id_table::{IDTable, ID};
 use autograph::scene_object::{SceneMesh, SceneObject, SceneObjects};
 use autograph::scene_loader;
 use autograph::cache;
-use autograph::gfx::AsSlice;
 use autograph::camera::*;
 use autograph::framegraph::{FrameGraph, FrameGraphAllocator};
 use nalgebra::*;
@@ -180,24 +179,10 @@ fn main() {
 
             // create a frame graph
             let mut fg = FrameGraph::new();
-            let gbuffers = passes::deferred_setup::create(&mut fg, frame, 640, 480);
-            let after_scene = passes::deferred_render::create(&mut fg, &scene_objects, &camera, frame, passes::deferred_render::Inputs {
-                diffuse: gbuffers.diffuse,
-                normals: gbuffers.normals,
-                material_id: gbuffers.material_id,
-                depth: gbuffers.depth
-            });
-            passes::deferred_debug::create(&mut fg, frame, default_framebuffer, passes::deferred_debug::DeferredDebugBuffer::Diffuse, passes::deferred_debug::Inputs {
-                diffuse: after_scene.diffuse,
-                normals: after_scene.normals,
-                material_id: after_scene.material_id,
-                depth: after_scene.depth
-            });
 
-            // compile the frame graph
-            let compiled_fg = fg.compile(main_loop.context(), &mut fg_allocator);
-            // execute the frame graph
-            compiled_fg.execute(frame);
+            // new node
+            let ectx = fg.finalize(main_loop.context(), &mut fg_allocator).unwrap();
+            ectx.execute(frame);
 
             // UI test
             ui.window(im_str!("Hello world"))

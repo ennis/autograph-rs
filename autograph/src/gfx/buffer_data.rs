@@ -1,5 +1,5 @@
 
-// Marker trait for data that can be uploaded to a GPU buffer
+/// Marker trait for data that can be uploaded to a GPU buffer
 pub trait BufferData: 'static {
     type Element;
     fn len(&self) -> usize;

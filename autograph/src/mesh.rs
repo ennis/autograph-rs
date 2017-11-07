@@ -1,5 +1,6 @@
 use nalgebra::*;
-use gfx::{Buffer, BufferUsage, Context};
+use gfx::buffer::{Buffer, BufferUsage};
+use gfx::context::Context;
 use std::sync::Arc;
 use aabb::*;
 use std::f32;
@@ -14,8 +15,8 @@ pub struct Vertex3 {
 
 #[derive(Debug)]
 pub struct Mesh<V: Copy + 'static> {
-    vbo: Arc<Buffer<[V]>>,
-    ibo: Option<Arc<Buffer<[i32]>>>,
+    vbo: Buffer<[V]>,
+    ibo: Option<Buffer<[i32]>>,
     vertex_count: usize,
     index_count: usize,
 }
@@ -48,22 +49,22 @@ impl<V: Copy + 'static> Mesh<V> {
         self.index_count
     }
 
-    pub fn new(context: &Arc<Context>, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
+    pub fn new(context: &Context, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
         Mesh {
-            vbo: Arc::new(Buffer::with_data(context, BufferUsage::DEFAULT, vertices)),
+            vbo: Buffer::with_data(context, BufferUsage::DEFAULT, vertices),
             ibo: indices.map(|indices| {
-                Arc::new(Buffer::with_data(context, BufferUsage::DEFAULT, indices))
+                Buffer::with_data(context, BufferUsage::DEFAULT, indices)
             }),
             vertex_count: vertices.len(),
             index_count: indices.map(|indices| indices.len()).unwrap_or(0),
         }
     }
 
-    pub fn vertex_buffer(&self) -> &Arc<Buffer<[V]>> {
+    pub fn vertex_buffer(&self) -> &Buffer<[V]> {
         &self.vbo
     }
 
-    pub fn index_buffer(&self) -> Option<&Arc<Buffer<[i32]>>> {
+    pub fn index_buffer(&self) -> Option<&Buffer<[i32]>> {
         self.ibo.as_ref()
     }
 }

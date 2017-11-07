@@ -25,7 +25,7 @@ pub struct VertexAttribute {
 #[derive(Debug)]
 pub struct GraphicsPipeline {
     // TODO
-    pub(super) context: Arc<Context>,
+    pub(super) gctx: Context,
     pub(super) blend_states: [BlendState; 8], // TODO hardcoded limit
     pub(super) rasterizer_state: RasterizerState,
     pub(super) depth_stencil_state: DepthStencilState,
@@ -233,7 +233,7 @@ impl<'a> GraphicsPipelineBuilder<'a> {
         self
     }
 
-    pub fn build(self, ctx: &Arc<Context>) -> Result<GraphicsPipeline, GraphicsPipelineBuildError> {
+    pub fn build(self, gctx: &Context) -> Result<GraphicsPipeline, GraphicsPipelineBuildError> {
         let vao =
             unsafe { gen_vertex_array(self.input_layout.expect("No input layout specified!")) };
 
@@ -273,7 +273,7 @@ impl<'a> GraphicsPipelineBuilder<'a> {
             vao,
             program,
             primitive_topology: self.primitive_topology,
-            context: ctx.clone(),
+            gctx: gctx.clone(),
         })
     }
 }

@@ -186,6 +186,7 @@ TODO
     * Save graphs to file
 * Edge types
     * Vertex stream
+    * Primitive stream
     * Fragment stream
     * Image
     * Structured data block (name+type pairs)
@@ -193,7 +194,9 @@ TODO
     * Implementation of interface
     * Shader pass
 * Node types
-    * Rasterizer
+    * Vertex shader (vertex stream -> vertex stream)
+    * Geometry shader (primitive stream -> primitive stream)
+    * Rasterizer (primitive stream -> fragment stream)
     * Output Merge
     * Image pass
 * UI
@@ -264,6 +267,97 @@ TODO
     * Detect dependencies
 * Frame graph creation
     * Go through all passes and output a frame graph
+
+#### Shader reforms
+* Less boilerplate in the rust side
+    * GraphicsPipeline::from_file("...") -> GraphicsPipeline
+    * more config in GLSL code through pragmas
+        * #pragma rasterizer(...)
+        * #pragma depth_test(off|on)
+        * #pragma stencil_test(off|on)
+* Interface matching
+    * Define a shader interface in rust code (uniforms, inputs, outputs, etc.)
+    * At runtime, match the interface with reflected data from the GLSL side
+    * implements the GraphicsPipeline trait
+    * see gfx-rs
+    * don't be too rigid: allow setting of parameters by name, warning if parameter not found (or panic if we are paranoid)
+    * new API for submitting draws
+        ```
+        draw<P: GraphicsPipeline>(pipeline: P, params: <P as GraphicsPipeline>::Params, other: DynamicParameters)
+        ```
+    * DynamicParameters are basically unsafe
+    * Don't focus on that for now: shaders will be generated at runtime
+    * Define 'traits' that specifies the required interface of shaders
+        * Can mix-and-match traits
+        * Check at runtime, always
+        * e.g:
+            ```
+            trait DeferredEvalShader {
+                ...vertex format...
+                ...uniforms...
+                ...textures...
+                ...render targets...
+                ...required draw states...
+            }
+            ```
+        * Generate code to safely pass the parameters to the shader
+        * Resort to dynamic specification for every extra param that must be set
+* Optionally-typed Texture handles
+    * Inside: Arc<RawTexture>
+
+#### Frame graph reforms
+* Bikeshedding:
+    * DONE CompiledGraph -> ExecutionContext
+* ExecutionContext
+    * RenderPassCallback can query for the allocated resource:
+        * ` ectx.texture_resource(index) `
+* Safety: 
+    * Prevent mixing nodes between frame graphs
+        * Fat indices containing a ref to the frame graph
+            * issue: borrows the frame graph
+    * DONE Prevent mixing resource indices and render pass indices
+    * Prevent trying to call ectx.texture_resource(index) with a buffer index
+        * Typed resource version indices, implicitly convertible to ResourceVersion
+    * OK Prevent concurrent write hazards
+    * Prevent invalid bindings of resources
+    * Integration with the GPUFuture mechanism
+        * Piggyback on some other library for this
+        * Vulkano or gfx-rs
+* Detect R/W hazards as soon as possible: during creation of the graph
+* Use typedef struct for `Arc<gfx::Context>`
+* Do not focus on gfx_pass! macro for now   
+    * hard to maintain (like maintaining a new language)
+* Builder for passes
+    * framegraph::PassBuilder
+    * builder.read(node-index)
+    * builder.write(node-index)
+* Types for different node indices
+    * Resource(NodeIndex)/MutableResource(NodeIndex) 
+        * Node::Resource { UnversionedResourceIndex }
+    * Pass(NodeIndex)
+    * UnversionedResourceIndex
+    * AliasedResourceIndex: actual allocated resource
+* Need examples
+    * Simple blur (two-pass)
+    * SSAO
+    * Scene rendering
+    * Deferred debug
+* Handle loop nodes/subgraphs
+    * Node: begin subgraph
+    * Node: end subgraph
+    * Be able to override the scheduling of a node (i.e. schedule it more than once)
+        * might be unsafe?
+        * trait Schedule
+        * trait RenderPass
+        * A -> B -> C -> C.1.E -> C.2.E -> C.3.E -> D: E pass executed 3 times
+        * schedule can be done based on dynamic data
+            * actual for loop in execution callback
+                * override with trait: ScheduleOverride (unsafe)
+            * FrameGraphExecutor::run_pass()
+            * impl ScheduleOverride for LoopPass 
+    * Looping with feedback?
+        * cycle in the graph
+        * fix this!
 
 #### Implementation details
 * Kotlin/TornadoFX
@@ -446,6 +540,30 @@ must have an interface to dynamically create passes (variable number of resource
     * `ui.sync()`
         * Read all incoming commands, modify data in exposed models
         * Triggers observables?
+
+* Implementation details
+    * Use JSON for messages (for now)
+    * Query protocol?
+        * struct Query: id
+        * reply: serialized JSON (or error)
+        * id: in the form `root.context1.context2.id.part`
+            * e.g. `componentMaps.transforms.by_id.452210.rotation`
+            * `components.transforms.range.1000.1240`
+            * basically an RPC
+            * each component returns an interface
+            * in server: cache models by ID
+            * RPC: call model.rpc(method: &str, params: Json) -> Json
+                * automatically generated by a macro
+                * #[rpc_method]
+                * or manually implemented: impl RpcInterface for Object { ... }
+    * Subscribe/publish?
+
+* Next step:
+    * DONE have the value change regularly
+    * DONE have a javafx view, query an updated value regularly
+    * DONE bind a remote object to an observable
+    * Send useful data (current FPS?)
+    * Receive useful data (camera movement?)
 
 * All endpoints for an API are stored in an enum
 

@@ -7,7 +7,6 @@ pub mod texture_format;
 pub mod upload_buffer;
 pub mod fence;
 pub mod state_group;
-pub mod program;
 pub mod pipeline;
 pub mod bind;
 pub mod framebuffer;

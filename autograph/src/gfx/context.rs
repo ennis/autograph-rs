@@ -1,6 +1,7 @@
 use gl::types::*;
 use gl;
 use std::sync::{Arc, Mutex};
+use std::ops::Deref;
 use std::os::raw::c_void;
 use std::str;
 use std::slice;
@@ -28,13 +29,13 @@ pub struct ContextConfig {
 }
 
 #[derive(Debug)]
-pub struct Context {
+pub struct ContextObject {
     cfg: ContextConfig,
     sampler_cache: Mutex<HashMap<SamplerDesc, Arc<Sampler>>>,
 }
 
-impl Context {
-    pub fn new(cfg: &ContextConfig) -> Arc<Context> {
+impl ContextObject {
+    pub fn new(cfg: &ContextConfig) -> Arc<ContextObject> {
         unsafe {
             gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
             gl::DebugMessageCallback(debug_callback as GLDEBUGPROC, 0 as *const c_void);
@@ -56,7 +57,7 @@ impl Context {
             );
         }
 
-        Arc::new(Context {
+        Arc::new(ContextObject {
             cfg: *cfg,
             sampler_cache: Mutex::new(HashMap::new()),
         })
@@ -71,3 +72,21 @@ impl Context {
             .clone()
     }
 }
+
+#[derive(Clone,Debug)]
+pub struct Context(Arc<ContextObject>);
+
+impl Context {
+    pub fn new(cfg: &ContextConfig) -> Context {
+        Context(ContextObject::new(cfg))
+    }
+}
+
+impl Deref for Context {
+    type Target = Arc<ContextObject>;
+    fn deref(&self) -> &Arc<ContextObject>
+    {
+        &self.0
+    }
+}
+

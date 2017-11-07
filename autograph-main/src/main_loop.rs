@@ -12,7 +12,7 @@ use std::cell::RefCell;
 pub struct MainLoop<'a> {
     window: &'a glutin::GlWindow,
     pub cache: Arc<Cache>,
-    pub context: Arc<gfx::Context>,
+    pub context: Arc<gfx::ContextObject>,
     pub queue: RefCell<gfx::Queue>,
 }
 
@@ -23,7 +23,7 @@ impl<'a> MainLoop<'a> {
         &self.window
     }
 
-    pub fn context(&self) -> &Arc<gfx::Context> {
+    pub fn context(&self) -> &Arc<gfx::ContextObject> {
         &self.context
     }
 
@@ -47,7 +47,7 @@ impl<'a> MainLoop<'a> {
 
         // create an instance of gfx::Context
         // NOTE: useless for now
-        let context = gfx::Context::new(config);
+        let context = gfx::ContextObject::new(config);
 
         // create a queue
         let queue = gfx::Queue::new(&context);
@@ -62,7 +62,7 @@ impl<'a> MainLoop<'a> {
 
     pub fn run<F>(&self, mut body: F)
     where
-        F: FnMut(&gfx::Frame, &Arc<gfx::Framebuffer>, f32) -> bool,
+        F: FnMut(&gfx::Frame, &Arc<gfx::FramebufferObject>, f32) -> bool,
     {
         let mut loop_start_time = time::PreciseTime::now();
         let mut last_debug_time = time::PreciseTime::now();
@@ -73,7 +73,7 @@ impl<'a> MainLoop<'a> {
         // imgui stuff
         while running {
             // get default framebuffer from GL window
-            let default_framebuffer = Arc::new(gfx::Framebuffer::from_gl_window(
+            let default_framebuffer = Arc::new(gfx::FramebufferObject::from_gl_window(
                 &self.context,
                 &self.window,
             ));

@@ -4,66 +4,111 @@ use super::context::Context;
 use std::sync::Arc;
 use std::cmp::max;
 use super::texture_format::TextureFormat;
-use super::texture::Texture;
+use super::texture::RawTexture;
 use glutin::GlWindow;
+use std::ops::Deref;
 
 #[derive(Debug)]
-pub struct Renderbuffer {
-    context: Arc<Context>,
+pub struct RenderbufferObject {
+    context: Context,
     format: TextureFormat,
     size: (u32, u32),
     obj: GLuint,
 }
 
-impl Renderbuffer {
+impl RenderbufferObject {
     pub fn new(
-        context: &Arc<Context>,
+        context: &Context,
         width: u32,
         height: u32,
         format: TextureFormat,
         num_samples: u32,
-    ) -> Renderbuffer {
+    ) -> RenderbufferObject {
         unimplemented!()
     }
 }
 
 #[derive(Debug)]
-pub struct Framebuffer {
-    pub(super) context: Arc<Context>,
+pub struct FramebufferObject {
+    pub(super) gctx: Context,
     pub(super) size: (u32, u32),
     pub(super) obj: GLuint,
     pub(super) attachments: Vec<FramebufferAttachment>,
     pub(super) depth_attachment: FramebufferAttachment,
 }
 
+
 // TODO: FramebufferAttachment trait?
 #[derive(Clone, Debug)]
 pub enum FramebufferAttachment {
-    Renderbuffer(Arc<Renderbuffer>),
-    Texture(Arc<Texture>),
-    TextureLayer(Arc<Texture>, u32),
+    Renderbuffer(Arc<RenderbufferObject>),
+    Texture(RawTexture),    // TODO Texture2dAny
+    TextureLayer(RawTexture, u32),  // TODO Texture2dAny
     Default,
     Empty,
 }
 
+impl FramebufferObject {
+    pub fn from_gl_window(gctx: &Context, window: &GlWindow) -> FramebufferObject {
+        let pixel_size = window.get_inner_size_pixels().unwrap();
+        FramebufferObject {
+            gctx: gctx.clone(),
+            size: pixel_size,
+            attachments: Vec::new(),
+            depth_attachment: FramebufferAttachment::Default,
+            obj: 0,
+        }
+    }
+
+    pub fn size(&self) -> (u32, u32) {
+        self.size
+    }
+
+    pub fn gl_object(&self) -> GLuint {
+        self.obj
+    }
+}
+
+impl Drop for FramebufferObject {
+    fn drop(&mut self) {
+        unsafe {
+            gl::DeleteFramebuffers(1, &mut self.obj);
+        }
+    }
+}
+
+
+#[derive(Clone, Debug)]
+pub struct Framebuffer(Arc<FramebufferObject>);
+
+impl Deref for Framebuffer
+{
+    type Target = Arc<FramebufferObject>;
+    fn deref(&self) -> &Arc<FramebufferObject>
+    {
+        &self.0
+    }
+}
+
+
 pub struct FramebufferBuilder {
-    context: Arc<Context>,
+    gctx: Context,
     size: (u32, u32),
     attachments: Vec<FramebufferAttachment>,
     depth_attachment: FramebufferAttachment,
 }
 
 impl FramebufferBuilder {
-    pub fn new(ctx: &Arc<Context>) -> Self {
+    pub fn new(gctx: &Context) -> Self {
         FramebufferBuilder {
-            context: ctx.clone(),
+            gctx: gctx.clone(),
             size: (0, 0),
             attachments: Vec::new(),
             depth_attachment: FramebufferAttachment::Empty,
         }
     }
 
-    pub fn check_or_update_size(&mut self, size: (u32, u32)) -> bool {
+    fn check_or_update_size(&mut self, size: (u32, u32)) -> bool {
         if self.size == (0, 0) {
             self.size = size;
             true
@@ -79,7 +124,7 @@ impl FramebufferBuilder {
         self.attachments.insert(slot as usize, attachment);
     }
 
-    pub fn attach_renderbuffer(mut self, slot: u32, renderbuffer: &Arc<Renderbuffer>) -> Self {
+    pub fn attach_renderbuffer(mut self, slot: u32, renderbuffer: &Arc<RenderbufferObject>) -> Self {
         assert!(self.check_or_update_size(renderbuffer.size));
         self.attach(
             slot,
@@ -88,7 +133,7 @@ impl FramebufferBuilder {
         self
     }
 
-    pub fn attach_texture(mut self, slot: u32, texture: &Arc<Texture>) -> Self {
+    pub fn attach_texture(mut self, slot: u32, texture: &RawTexture) -> Self {
         assert!(self.check_or_update_size(
             (texture.width(), texture.height())
         ));
@@ -96,13 +141,13 @@ impl FramebufferBuilder {
         self
     }
 
-    pub fn attach_depth_renderbuffer(mut self, renderbuffer: &Arc<Renderbuffer>) -> Self {
+    pub fn attach_depth_renderbuffer(mut self, renderbuffer: &Arc<RenderbufferObject>) -> Self {
         assert!(self.check_or_update_size(renderbuffer.size));
         self.depth_attachment = FramebufferAttachment::Renderbuffer(renderbuffer.clone());
         self
     }
 
-    pub fn attach_depth_texture(mut self, texture: &Arc<Texture>) -> Self {
+    pub fn attach_depth_texture(mut self, texture: &RawTexture) -> Self {
         assert!(self.check_or_update_size(
             (texture.width(), texture.height())
         ));
@@ -127,7 +172,7 @@ impl FramebufferBuilder {
                     gl::NamedFramebufferTexture(
                         obj,
                         gl::COLOR_ATTACHMENT0 + index as u32,
-                        tex.object(),
+                        tex.gl_object(),
                         0,
                     );
                 },
@@ -161,37 +206,12 @@ impl FramebufferBuilder {
             );
         }
 
-        Framebuffer {
+        Framebuffer(Arc::new(FramebufferObject {
             obj,
             attachments: self.attachments,
-            context: self.context,
+            gctx: self.gctx,
             depth_attachment: self.depth_attachment,
             size: self.size,
-        }
-    }
-}
-
-impl Framebuffer {
-    pub fn from_gl_window(context: &Arc<Context>, window: &GlWindow) -> Framebuffer {
-        let pixel_size = window.get_inner_size_pixels().unwrap();
-        Framebuffer {
-            context: context.clone(),
-            size: pixel_size,
-            attachments: Vec::new(),
-            depth_attachment: FramebufferAttachment::Default,
-            obj: 0,
-        }
-    }
-
-    pub fn size(&self) -> (u32, u32) {
-        self.size
-    }
-}
-
-impl Drop for Framebuffer {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteFramebuffers(1, &mut self.obj);
-        }
+        }))
     }
 }

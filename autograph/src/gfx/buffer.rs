@@ -7,9 +7,10 @@ use super::context::Context;
 use std::sync::Arc;
 use super::buffer_data::BufferData;
 use std::clone::Clone;
+use std::ops::Deref;
 
 #[derive(Copy, Clone, Debug)]
-pub struct RawBufferSlice {
+pub(super) struct RawBufferSliceGL {
     pub obj: GLuint,
     pub offset: usize,
     pub size: usize,
@@ -23,14 +24,12 @@ pub enum BufferUsage {
 }
 
 #[derive(Debug)]
-pub struct Buffer<T: BufferData + ?Sized> {
-    context: Arc<Context>,
+pub struct RawBufferObject {
+    gctx: Context,
     obj: GLuint,
-    len: usize,
-    usage: BufferUsage,
-    _phantom: PhantomData<T>,
+    byte_size: usize,
+    usage: BufferUsage
 }
-
 
 unsafe fn create_buffer<T: BufferData + ?Sized>(
     byte_size: usize,
@@ -62,16 +61,31 @@ unsafe fn create_buffer<T: BufferData + ?Sized>(
     obj
 }
 
-// Represents an OpenGL buffer without any type info
-pub trait BufferAny {
-    fn object(&self) -> GLuint;
+#[derive(Clone,Debug)]
+pub struct RawBuffer(Arc<RawBufferObject>);
+
+#[derive(Clone, Debug)]
+pub struct RawBufferSlice {
+    pub owner: RawBuffer,
+    pub offset: usize,
+    pub byte_size: usize,
+}
+
+impl RawBufferSlice {
+    pub unsafe fn into_typed<T: BufferData + ?Sized>(self) -> BufferSlice<T> {
+        let elem_size = mem::size_of::<T::Element>();
+        assert!(self.byte_size % elem_size == 0);
+        BufferSlice {
+            raw: self,
+            _phantom: PhantomData
+        }
+    }
 }
 
 
+#[derive(Debug)]
 pub struct BufferSlice<T: BufferData + ?Sized> {
-    pub owner: Arc<BufferAny>,
-    pub byte_offset: usize,
-    pub len: usize, // number of elements
+    pub raw: RawBufferSlice,
     _phantom: PhantomData<*const T>,
 }
 
@@ -79,97 +93,54 @@ pub struct BufferSlice<T: BufferData + ?Sized> {
 // https://github.com/rust-lang/rust/issues/26925
 impl<T: BufferData + ?Sized> Clone for BufferSlice<T> {
     fn clone(&self) -> Self {
-        BufferSlice { owner: self.owner.clone(),
-            byte_offset: self.byte_offset,
-            len: self.len,
+        BufferSlice {
+            raw: self.raw.clone(),
             _phantom: PhantomData
         }
     }
 }
 
 impl<T: BufferData + ?Sized> BufferSlice<T> {
+    pub fn len(&self) -> usize {
+        self.raw.byte_size / mem::size_of::<T::Element>()
+    }
+
     pub fn byte_size(&self) -> usize {
-        self.len * mem::size_of::<T::Element>()
+        self.raw.byte_size
     }
-    pub fn into_slice_any(self) -> BufferSliceAny {
-        let byte_size = self.byte_size();
-        BufferSliceAny {
-            owner: self.owner,
-            byte_offset: self.byte_offset,
-            byte_size
-        }
-    }
-}
 
-// Untyped buffer slice
-#[derive(Clone)]
-pub struct BufferSliceAny {
-    pub owner: Arc<BufferAny>,
-    pub byte_offset: usize,
-    pub byte_size: usize,
-}
-
-impl BufferSliceAny {
-    pub unsafe fn cast<T: BufferData + ?Sized>(self) -> BufferSlice<T> {
-        BufferSlice {
-            owner: self.owner,
-            byte_offset: self.byte_offset,
-            len: {
-                let elem_size = mem::size_of::<T::Element>();
-                assert!(self.byte_size % elem_size == 0);
-                self.byte_size / elem_size
-            },
-            _phantom: PhantomData,
-        }
+    pub fn into_raw(self) -> RawBufferSlice {
+        self.raw
     }
 }
 
 pub struct BufferMapping<T: BufferData + ?Sized> {
-    pub owner: Arc<BufferAny>,
+    pub owner: RawBuffer,
     pub ptr: *mut T,
     pub len: usize,
     _phantom: PhantomData<*const T>,
 }
 
-/*#[derive(Copy,Clone,Debug)]
-pub struct BufferDesc {
 
-}*/
-
-impl<T: BufferData + ?Sized> Buffer<T> {
-    pub fn new(ctx: &Arc<Context>, len: usize, usage: BufferUsage) -> Buffer<T> {
-        Buffer {
-            context: ctx.clone(),
-            obj: unsafe { create_buffer::<T>(len * mem::size_of::<T::Element>(), usage, None) },
-            len,
-            usage,
-            _phantom: PhantomData,
+impl RawBufferObject {
+    pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> RawBufferObject {
+        RawBufferObject {
+            gctx: gctx.clone(),
+            obj: unsafe { create_buffer::<u8>(byte_size, usage, None) },
+            byte_size,
+            usage
         }
     }
 
-    pub fn with_data(ctx: &Arc<Context>, usage: BufferUsage, data: &T) -> Buffer<T> {
-        let size = mem::size_of_val(data);
-        Buffer {
-            context: ctx.clone(),
+    pub fn with_data<T: BufferData + ?Sized>(gctx: &Context, usage: BufferUsage, data: &T) -> RawBufferObject {
+        let byte_size = mem::size_of_val(data);
+        RawBufferObject {
+            gctx: gctx.clone(),
             obj: unsafe { create_buffer(mem::size_of_val(data), usage, Some(data)) },
-            len: data.len(),
-            usage,
-            _phantom: PhantomData,
+            byte_size,
+            usage
         }
     }
-
-    /*
-    pub unsafe fn raw_slice(&self, offset: usize, size: usize) -> RawBufferSlice
-    {
-        assert!(offset + size <= self.size);
-        RawBufferSlice { size, obj: self.obj, offset }
-    }
-
-    pub unsafe fn as_raw_slice(&self) -> RawBufferSlice
-    {
-        RawBufferSlice { size: self.size, obj: self.obj, offset: 0 }
-    }
-    */
 
     // TODO mut and non-mut functions
     pub unsafe fn map_persistent_unsynchronized(&self) -> *mut c_void {
@@ -190,16 +161,75 @@ impl<T: BufferData + ?Sized> Buffer<T> {
         gl::MapNamedBufferRange(self.obj, 0, self.byte_size() as isize, flags)
     }
 
-    pub fn len(&self) -> usize {
-        self.len
+    pub fn gl_object(&self) -> GLuint {
+        self.obj
     }
 
     pub fn byte_size(&self) -> usize {
-        self.len * mem::size_of::<T::Element>()
+        self.byte_size
     }
 }
 
-pub trait AsSlice<T: BufferData + ?Sized> {
+impl RawBuffer
+{
+    pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> RawBuffer {
+        RawBuffer(Arc::new(RawBufferObject::new(gctx, byte_size, usage)))
+    }
+
+    pub fn with_data<T: BufferData + ?Sized>(gctx: &Context, usage: BufferUsage, data: &T) -> RawBuffer {
+        RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data)))
+    }
+
+    // This is unsafe because nothing prevents the user from creating two overlapping
+    // slices, and immutability of the buffer contents is not enforced by this API
+    pub unsafe fn get_slice(&self, offset: usize, byte_size: usize) -> RawBufferSlice {
+        RawBufferSlice {
+            owner: self.clone(),
+            byte_size,
+            offset
+        }
+    }
+
+    pub fn gl_object(&self) -> GLuint {
+        self.0.gl_object()
+    }
+
+    pub fn byte_size(&self) -> usize {
+        self.0.byte_size
+    }
+}
+
+impl Deref for RawBuffer
+{
+    type Target = RawBufferObject;
+    fn deref(&self) -> &RawBufferObject {
+        &self.0
+    }
+}
+
+#[derive(Clone,Debug)]
+pub struct Buffer<T: BufferData + ?Sized>(RawBuffer, PhantomData<*const T>);
+
+impl<T: BufferData + ?Sized> Deref for Buffer<T>
+{
+    type Target = RawBuffer;
+    fn deref(&self) -> &RawBuffer {
+        &self.0
+    }
+}
+
+impl<T: BufferData+?Sized> Buffer<T>
+{
+    pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> Buffer<T> {
+        Buffer(RawBuffer(Arc::new(RawBufferObject::new(gctx, byte_size, usage))), PhantomData)
+    }
+
+    pub fn with_data(gctx: &Context, usage: BufferUsage, data: &T) -> Buffer<T> {
+        Buffer(RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data))), PhantomData)
+    }
+}
+
+/*pub trait AsSlice<T: BufferData + ?Sized> {
     fn as_slice(&self) -> BufferSlice<T>;
     fn as_slice_any(&self) -> BufferSliceAny;
     unsafe fn get_slice_any(&self, byte_offset: usize, byte_size: usize) -> BufferSliceAny;
@@ -232,18 +262,9 @@ impl<T: BufferData + ?Sized> AsSlice<T> for Arc<Buffer<T>> {
             byte_offset: byte_offset,
         }
     }
-}
+}*/
 
-// TODO Deref<Target=BufferSlice> for Arc<Buffer<T>>
-
-
-impl<T: BufferData + ?Sized> BufferAny for Buffer<T> {
-    fn object(&self) -> GLuint {
-        self.obj
-    }
-}
-
-impl<T: BufferData + ?Sized> Drop for Buffer<T> {
+impl Drop for RawBufferObject {
     fn drop(&mut self) {
         unsafe {
             gl::DeleteBuffers(1, &self.obj);
