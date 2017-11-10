@@ -79,6 +79,51 @@ TODO
 
 #### Prioritize
 * DONE GlObject type reforms: shorthands for Arc<GlObject>
+* Name bikeshedding for the new shader system
+    * Be versatile!
+    * A component-based environment for creating rendering pipelines with less boilerplate, more encapsulation, more flexibility
+        * Shader components
+        * Single passes
+        * Full multi-pass pipelines
+    * TFX? (Destiny's implementation)
+    * Something-FX?
+    * shadergraph
+    * rendergraph
+    * HLRG - high-level render graph
+    * just call it autograph::rendergraph
+        * compiler - in-engine rendergraph compiler
+            * parser.rs - nom parser for source files
+            * mod.rs - splice GLSL snippets together + instantiate components
+            * syntax.rs - AST for HLRG source files
+        * loader.rs - load a packaged/serialized rendergraph file
+            * self-contained - cannot reference other components
+        * cache.rs - cache for compiled pipelines / components
+        * mod.rs
+            * `RenderGraph`
+            * can contain multiple passes
+            * passes can share parameters
+            * query all passes / subgraphs / exported components
+        * ~~component.rs - individual components~~
+            * `Component::from_file(...)`
+            * Should not need that - components should be manipulated outside the engine
+        * gpu_pass.rs - GpuPass/GpuPassSet type 
+            * `GpuPassSet::from_file(...)`
+            * `GpuPassSet::create_pipeline(...) -> GpuPipeline`   // synthesize a pipeline, possibly pull it from the cache
+        * render_pipeline.rs - RenderPipeline type
+            * `RenderPipeline::from_file`
+            * `RenderPipeline::create_frame_graph`
+        * metadata.rs - common metadata types
+            * enum Metadata
+            * VertexShader/FragmentShader/etc.
+        * types.rs - parameter types
+            * VecN, MatNxN
+            * lambda/components
+        * interface.rs - static interface validation macros
+            * `shader_interface!`
+* Scene submission:
+    * TODO
+    * autograph::render
+        * `auto_params.rs` - auto-binding of shader parameters
 * shader reform: complete specification of shader state in data
     * New parser not based on regexps?
         * extend GLSL with custom directives: use phaazon's nom parser

@@ -6,7 +6,6 @@
 #![feature(log_syntax)]
 #![feature(const_unsafe_cell_new)]
 
-extern crate flame;
 extern crate glutin;
 extern crate typed_arena;
 extern crate smallvec;
@@ -29,8 +28,10 @@ extern crate num_traits;
 extern crate url;
 extern crate notify;
 extern crate imgui;
+#[macro_use]
+extern crate nom;
 
-
+pub mod rendergraph;
 pub mod framegraph;
 pub mod id_table;
 pub mod scene_object;

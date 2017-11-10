@@ -62,6 +62,7 @@ impl Deref for GraphicsPipeline
     }
 }
 
+#[derive(Debug)]
 pub enum PrimitiveTopology {
     Triangle,
     Line,

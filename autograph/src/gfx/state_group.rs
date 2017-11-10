@@ -12,6 +12,8 @@ pub struct BlendState {
     pub func_dst_alpha: GLenum,
 }
 
+pub const MAX_BLEND_STATES: usize = 8;
+
 impl Default for BlendState {
     fn default() -> BlendState {
         BlendState {

@@ -37,3 +37,7 @@ imgui = "*"
 imgui-sys = "*"
 serde = "*"
 serde_derive = "*"
+
+[dependencies.nom]
+version = "*"
+features = ["nightly"]

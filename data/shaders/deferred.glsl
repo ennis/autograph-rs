@@ -22,6 +22,13 @@ layout(std140, binding = 1) uniform ObjectParameters {
 };
 
 
+pass {
+	primitive_topology triangle;
+	vertex vs_main;
+	fragment fs_main;
+	depth_test on;
+}
+
 // @FileResource("...")
 // @vertex {
 //
