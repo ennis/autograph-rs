@@ -390,7 +390,7 @@ pub fn preprocess_combined_shader_source(
 
 #[test]
 fn test_preprocess_shaders() {
-    pretty_env_logger::init().unwrap();
+    //pretty_env_logger::init().unwrap();
     let mut src = String::new();
     let path = Path::new("data/shaders/DeferredGeometry.glsl");
     File::open(path).unwrap().read_to_string(&mut src).unwrap();

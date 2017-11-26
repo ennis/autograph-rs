@@ -1,9 +1,8 @@
 #version 450
 #include "utils.glsli"
 
-#pragma stages(vertex,fragment)
-#pragma input_layout(rgb32f,0,0, rgb32f,0,12, rgb32f,0,24, rg32f,0,36)
-#pragma primitive_topology(triangle)
+//#pragma input_layout(rgb32f,0,0, rgb32f,0,12, rgb32f,0,24, rg32f,0,36)
+//#pragma primitive_topology(triangle)
 
 layout(std140, binding = 0) uniform CameraParameters {
   mat4 uViewMatrix;
@@ -22,12 +21,36 @@ layout(std140, binding = 1) uniform ObjectParameters {
 };
 
 
+struct CameraParameters {
+	mat4 uViewMatrix;
+	mat4 uProjMatrix;
+	mat4 uViewProjMatrix;
+	mat4 uInvProjMatrix;
+	mat4 uPrevViewProjMatrixVelocity;
+	mat4 uViewProjMatrixVelocity;
+	vec2 uTAAOffset;
+};
+
+
+// anonymous parameter: members of the struct will be available at global scope
+@param CameraParameters;
+
+// One file can contain multiple shader entry points, and can define multiple passes
+// But where to put parameters that belong to only one pass?
+// Solution 1: define shader entry points and parameters inside pass blocks  
+// Solution 2: pass parameters as arguments to the entry points
+//		(-) verbose (must modify file at three locations)
+
+
 pass {
 	primitive_topology triangle;
 	vertex vs_main;
 	fragment fs_main;
 	depth_test on;
 }
+
+
+
 
 // @FileResource("...")
 // @vertex {

@@ -71,6 +71,10 @@ TODO
     * Can have view-dependent geometry
     * Layered composition
 * Shading VS Geometry strokes?
+* Screen-space silhouette-aware "paint" effects
+    * Segment the input meshes into topological cylinders/spheres (no inner silhouettes)
+    * Detect overlapping silhouette mesh parts, store a list of IDs per pixel
+* Take inspiration from photoshop for paint effects
 
 #### Testing
 * Curved stroke placement
@@ -212,7 +216,52 @@ TODO
     * specify render targets in shader
         * doable: `@renderTarget(mainDiffuse)`
         * otherwise, bind as static or dynamic interface
-        
+
+
+#### Static interface matching
+* Goal: make shader parameters (uniforms, samplers, vertex input, render targets) conform to a particular interface
+* The shader interface is specified in Rust code as a struct:
+    
+```
+#[derive(VertexInput)]
+struct Vertex {
+    position: [f32;3],
+    normals: [f32;3],
+    tangents: [f32;3]
+};
+
+#[derive(ShaderInterface)]
+struct ShaderParameters 
+{
+    #[vertex_buffer(0)]
+    vertices: BufferSlice<VertexType>,
+    #[index_buffer]
+    indices: BufferSlice<i32>,
+    #[uniform_buffer(0)]
+    camera_params: BufferSlice<CameraParams>,
+    #[uniform_buffer(1)]
+    model_params: BufferSlice<ModelParams>,
+    #[texture(0)]
+    diffuse_tex: (gfx::Texture, gfx::Sampler),
+
+    // render targets are checked against the fragment shader output signature
+    // A relaxed implementation can allow extra outputs in the fragment shader
+    #[render_target(0)]
+    target_diffuse: gfx::Texture,
+
+    // The depth render target can also be a renderbuffer
+    #[depth_render_target]
+    target_depth: gfx::Texture,
+
+    // all other parameters are implemented as push constants
+    model_matrix: Matrix4,
+
+    // if the shader contains parameters that are not specified in 
+    // the static interface, they can be set as dynamic parameters
+
+}
+
+```
 
 #### HLSG: high-level shader graph
 * written in some easy-to-parse language

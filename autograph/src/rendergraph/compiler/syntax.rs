@@ -3,8 +3,7 @@
 // TODO Components, Passes, Metadata
 use gfx::{BlendState, MAX_BLEND_STATES, DepthStencilState, RasterizerState, PrimitiveTopology};
 
-#[derive(Debug)]
-pub struct Pass {
+/*pub struct Pass {
     pub primitive_topology: PrimitiveTopology,
     pub blend_states: [BlendState; MAX_BLEND_STATES],
     pub depth_stencil_state: DepthStencilState,
@@ -14,7 +13,7 @@ pub struct Pass {
     pub gs_entry: Option<String>,
     pub tcs_entry: Option<String>,
     pub tes_entry: Option<String>,
-}
+}*/
 
 #[derive(Debug)]
 pub struct ComputePass {
@@ -24,8 +23,14 @@ pub struct ComputePass {
 
 
 #[derive(Debug)]
+pub struct Pass {
+    pub directives: Vec<PassDirective>
+}
+
+#[derive(Debug)]
 pub enum PassDirective {
     PrimitiveTopology(PrimitiveTopology),
+    DepthTest(bool),
     VertexShader(String),
     FragmentShader(String),
     GeometryShader(String),

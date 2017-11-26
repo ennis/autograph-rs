@@ -66,6 +66,8 @@ impl Deref for GraphicsPipeline
 pub enum PrimitiveTopology {
     Triangle,
     Line,
+    Point,
+    Patch
 }
 
 pub struct GraphicsPipelineBuilder<'a> {

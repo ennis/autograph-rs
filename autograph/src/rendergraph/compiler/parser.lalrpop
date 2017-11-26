@@ -1,0 +1,84 @@
+use std::str::from_utf8_unchecked;
+// Pass, etc.
+use rendergraph::compiler::syntax::*;
+// Metadata, Struct, Type
+use rendergraph::types::*;
+use gfx::PrimitiveTopology;
+
+grammar;
+
+// TODO parse floats, function definitions
+
+Comma<T>: Vec<T> = { // (0)
+    <v:(<T> ",")*> <e:T?> => match e { // (1)
+        None=> v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+pub Pass: Box<Pass> = {
+    "pass" "{" <directives:PassDirective*> "}" => Box::new(Pass { directives })
+};
+
+PrimitiveTopology: PrimitiveTopology = {
+    "triangle" => PrimitiveTopology::Triangle,
+    "line" => PrimitiveTopology::Line,
+    "point" => PrimitiveTopology::Point,
+    "patch" => PrimitiveTopology::Patch
+};
+
+OnOffBool: bool = {
+    "on" => true,
+    "off" => false
+};
+
+MetadataArg: Value = {
+    <Identifier> => Value::Ident(<>),
+    // TODO
+};
+
+pub MetadataArgs : Vec<Value> = {
+    "(" <a:Comma<MetadataArg> > ")" => a,
+    () => Vec::new(),
+};
+
+pub Metadata: Metadata = {
+    "@" <m:Identifier> <a:MetadataArgs> => Metadata::Custom(m,a),
+};
+
+pub Identifier: String = {
+    r"[[:alpha:]]\w*" => <>.to_owned()
+};
+
+pub StructMember: StructMember = {
+    <metadata:Metadata*> <ty:Identifier> <name:Identifier> ";" => StructMember { ty, name, metadata },
+};
+
+pub Struct: Struct = {
+    <md:Metadata*> "struct" <n:Identifier> "{" <m:StructMember*> "}" => {
+        Struct {
+            name: n,
+            members: m,
+            metadata: md,
+        }
+    }
+};
+
+pub ShaderEntryPointName: String = {
+    <Identifier>
+};
+
+pub PassDirective: PassDirective = {
+    "primitive_topology" <topo:PrimitiveTopology> ";" => PassDirective::PrimitiveTopology(topo),
+    "depth_test" <enabled:OnOffBool> ";" => PassDirective::DepthTest(enabled),
+    "vertex" <n:ShaderEntryPointName> ";" => PassDirective::VertexShader(n),
+    "fragment" <n:ShaderEntryPointName> ";" => PassDirective::FragmentShader(n),
+    "tess_control" <n:ShaderEntryPointName> ";" => PassDirective::TessControlShader(n),
+    "tess_eval" <n:ShaderEntryPointName> ";" => PassDirective::TessEvalShader(n),
+    "geometry" <n:ShaderEntryPointName> ";" => PassDirective::GeometryShader(n),
+    "compute" <n:ShaderEntryPointName> ";" => PassDirective::ComputeShader(n),
+};

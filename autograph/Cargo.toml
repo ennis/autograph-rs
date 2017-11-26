@@ -7,6 +7,7 @@ build = "build.rs"
 [build-dependencies]
 gl_generator = "0.5.0"
 embed-resource = "*"
+lalrpop = "*"
 
 [dependencies]
 typed-arena = "1.3.0"
@@ -16,7 +17,7 @@ smallvec = "0.4.1"
 libc = "*"
 nalgebra = "*"
 alga = "*"
-regex = "0.2.2"
+regex = "*"
 pretty_env_logger = "0.1.1"
 log = "0.3.8"
 itertools = "*"
@@ -28,7 +29,7 @@ spirv_headers = "*"
 spirv-reflect = { path = "../spirv-reflect" }
 petgraph = "*"
 glutin = "*"
-assimp-sys = { path = '../ext/assimp-sys' }
+assimp-sys = { git = "https://github.com/Eljay/assimp-sys.git", branch = "vcpkg" }
 num-traits = "*"
 flame = "*"
 url = "*"
@@ -37,7 +38,5 @@ imgui = "*"
 imgui-sys = "*"
 serde = "*"
 serde_derive = "*"
-
-[dependencies.nom]
-version = "*"
-features = ["nightly"]
+lalrpop = "*"
+lalrpop-util = "*"

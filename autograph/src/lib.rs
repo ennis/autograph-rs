@@ -28,8 +28,6 @@ extern crate num_traits;
 extern crate url;
 extern crate notify;
 extern crate imgui;
-#[macro_use]
-extern crate nom;
 
 pub mod rendergraph;
 pub mod framegraph;

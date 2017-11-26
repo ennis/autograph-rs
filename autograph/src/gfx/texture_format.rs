@@ -13,6 +13,7 @@ pub enum TextureDimensions {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[allow(non_camel_case_types)]
 // These are actually Vulkan formats
 pub enum TextureFormat {
     UNDEFINED = 0,
