@@ -47,6 +47,7 @@ pass {
 	vertex vs_main;
 	fragment fs_main;
 	depth_test on;
+	blend (0, off);
 }
 
 

@@ -1,6 +1,7 @@
 use nom::*;
 use std::str::from_utf8_unchecked;
 use super::syntax::*;
+use gfx;
 
 /// Parse a single comment.
 named!(pub comment,
@@ -298,19 +299,19 @@ named!(pub double_lit<&[u8], f64>,
 );
 
 /// Parse a constant boolean.
-named!(pub bool_lit<&[u8], bool>,
+named!(pub bool_lit<bool>,
   alt!(
     value!(true, atag!("true")) |
     value!(false, atag!("false"))
   )
 );
 
-named!(pub p_primitive_topology<&[u8], PassDirective>,
+named!(pub p_primitive_topology<PassDirective>,
     do_parse!(
         atag!("primitive_topology") >>
         v: alt!(
-            value!(PrimitiveTopology::Triangle, atag!("triangle")) |
-            value!(PrimitiveTopology::Line, atag!("line"))
+            value!(gfx::PrimitiveTopology::Triangle, atag!("triangle")) |
+            value!(gfx::PrimitiveTopology::Line, atag!("line"))
         ) >>
         tag!(";") >>
         (PassDirective::PrimitiveTopology(v))
@@ -318,12 +319,36 @@ named!(pub p_primitive_topology<&[u8], PassDirective>,
 );
 
 
-named!(pub p_vertex_shader<&[u8], PassDirective>,
+named!(pub p_vertex_shader<PassDirective>,
     do_parse!(
         atag!("vertex") >>
         v: identifier_str >>
         tag!(";") >>
-        (PassDirective::VertexShader(v))
+        (PassDirective::VertexShader(bytes_to_string(v)))
     )
 );
 
+named!(pub p_depth_test<PassDirective>,
+    do_parse!(
+        atag!("depth_test") >>
+        v: alt!(
+            value!(true, atag!("on")) |
+            value!(false, atag!("off"))
+        ) >>
+        tag!(";") >>
+        (PassDirective::DepthTest(v))
+    )
+);
+
+named!(pub p_pass<Pass>, do_parse!(
+    atag!("pass") >>
+    n: identifier_str >>
+    tag!("{") >>
+    directives: many0!(alt!(
+        p_primitive_topology |
+        p_vertex_shader |
+        p_depth_test
+    )) >>
+    tag!("}") >>
+    (Pass { name: bytes_to_string(n), directives: directives })
+));
