@@ -4,6 +4,7 @@ use rendergraph::compiler::syntax::*;
 // Metadata, Struct, Type
 use rendergraph::types::*;
 use gfx::PrimitiveTopology;
+use std::str::FromStr;
 
 grammar;
 
@@ -20,6 +21,8 @@ Comma<T>: Vec<T> = { // (0)
     }
 };
 
+Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
+
 pub Pass: Box<Pass> = {
     "pass" "{" <directives:PassDirective*> "}" => Box::new(Pass { directives })
 };
@@ -34,6 +37,33 @@ PrimitiveTopology: PrimitiveTopology = {
 OnOffBool: bool = {
     "on" => true,
     "off" => false
+};
+
+pub TypeKeyword: Type = {
+    // Primitive types
+    "float" => TYPE_FLOAT,
+    "int" => TYPE_INT,
+    "sampler2D" => TYPE_SAMPLER2D,
+    // Vector types
+    "vec2" => TYPE_VEC2,
+    "vec3" => TYPE_VEC3,
+    "vec4" => TYPE_VEC4,
+    "ivec2" => TYPE_IVEC2,
+    "ivec3" => TYPE_IVEC3,
+    "ivec4" => TYPE_IVEC4,
+    // Matrix types
+    "mat2" => TYPE_MAT2,
+    "mat3" => TYPE_MAT3,
+    "mat4" => TYPE_MAT4,
+};
+
+pub TypeSpecifier: Type = {
+    // Base
+    <t:TypeKeyword> => t,
+    // Type ref
+    <t:Identifier> => Type::Struct(t),
+    // Array type
+    <t:TypeSpecifier> "[" <a:Num> "]" => Type::Array(Box::new(t), a as usize),
 };
 
 MetadataArg: Value = {
@@ -81,4 +111,21 @@ pub PassDirective: PassDirective = {
     "tess_eval" <n:ShaderEntryPointName> ";" => PassDirective::TessEvalShader(n),
     "geometry" <n:ShaderEntryPointName> ";" => PassDirective::GeometryShader(n),
     "compute" <n:ShaderEntryPointName> ";" => PassDirective::ComputeShader(n),
+};
+
+FunctionName: String = { <Identifier> };
+ParameterName: String = { <Identifier> };
+
+ParameterQualifier: () = {
+    "in" => (),
+    "out" => (),
+    "inout" => (),
+    () => ()
+};
+
+Parameter = { <ParameterQualifier> <TypeSpecifier> <ParameterName> <Metadata*> };
+ParameterList = { <Comma<Parameter>> };
+
+pub FunctionDeclaration = {
+    <Metadata*> <TypeSpecifier> <FunctionName> <ParameterList>
 };

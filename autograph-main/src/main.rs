@@ -118,7 +118,7 @@ fn main() {
     let mut ids = IdTable::new();
     let mut scene_objects = SceneObjects::new();
     let root_object_id = scene_loader::load_scene_file(
-        Path::new("data/scenes/sponza/sponza.obj"),
+        Path::new("data/scenes/bone.obj"),
         &mut ids,
         main_loop.context(),
         main_loop.cache(),
@@ -194,6 +194,13 @@ fn main() {
                     let mouse_pos = ui.imgui().mouse_pos();
                     ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos.0, mouse_pos.1));
                 });
+
+            ui.main_menu_bar(|| {
+                ui.menu(im_str!("Engine")).build(|| {
+                    ui.menu_item(im_str!("Take screenshot")).build();
+                });
+                ui.text(im_str!("Frame time: {}", delta_s));
+            });
 
             imgui_renderer.render(frame, default_framebuffer, ui);
             running
