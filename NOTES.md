@@ -183,6 +183,9 @@ TODO
     * Parameters are exposed to the UI
     * Parameters can be other components/lambdas
     * Reference components by file name
+* GLSL/HLSL shader snippets
+    * The parser should understand GLSL function signatures w/ attributes
+        * Issue: this is intrusive; requires an almost complete GLSL parser
 * In-engine or off-engine?
     * The engine should know things
     * Should be able to edit nodes in real time
@@ -243,9 +246,18 @@ struct ShaderParameters
     model_params: BufferSlice<ModelParams>,
     #[texture(0)]
     diffuse_tex: (gfx::Texture, gfx::Sampler),
+    #[image(0,read_write,rgba16f)]
+    rwimage: gfx::Texture,
+
+    #[viewport(0)]
+    viewport: Viewport,
+
+    #[scissor(0)]
+    scissor: Scissor,
 
     // render targets are checked against the fragment shader output signature
     // A relaxed implementation can allow extra outputs in the fragment shader
+    // A framebuffer will be automatically constructed from a cache
     #[render_target(0)]
     target_diffuse: gfx::Texture,
 
@@ -254,14 +266,32 @@ struct ShaderParameters
     target_depth: gfx::Texture,
 
     // all other parameters are implemented as push constants
+    // the order must match
+    #[push_constant]
     model_matrix: Matrix4,
 
     // if the shader contains parameters that are not specified in 
     // the static interface, they can be set as dynamic parameters
-
 }
 
 ```
+
+#### Engine-wide parameters
+```
+let up = UniformParameters::new();
+up.add("uCameraParameters", buffer);
+up.add("uDefaultTexture", texture);
+
+let cmd_params = DynamicParameters::chain(up);
+
+frame.draw(
+    pipeline: impl Pipeline,
+    static_interface: impl ShaderInterface,
+    cmd_params: impl DynamicParameters,
+);
+
+```
+
 
 #### HLSG: high-level shader graph
 * written in some easy-to-parse language
@@ -292,6 +322,15 @@ struct ShaderParameters
 * draw(pipeline, pipeline params, dynamic params)
 * trait PipelineInterface
 * macro gpu_interface!{}
+* uniform parameter resolvers
+    * auto-bind from engine variables
+    * auto-bind from file
+        * done on pipeline load
+    * uniform binding:
+        1. bind pipeline-constant uniforms (and render states)
+            * shader program(s)
+        2. bind static interface uniforms (and render states)
+        3. bind remaining dynamic uniforms (and render states)
 
 #### Renderer
 * 'Blackboard' with optionally evaluated passes
