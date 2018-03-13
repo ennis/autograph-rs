@@ -478,7 +478,7 @@ fn parse_gfx_pass<'a>(cx: &mut ExtCtxt, p: &mut Parser<'a>, sp: Span) -> PResult
 
     let name = p.parse_ident()?;
     // parse an argument list + return type
-    let sig = p.parse_fn_decl(false)?.unwrap();
+    let sig = p.parse_fn_decl(false)?.into_inner();
     match sig.output {
         FunctionRetTy::Default(_) => {}
         FunctionRetTy::Ty(_) => {

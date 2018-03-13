@@ -1,6 +1,5 @@
 extern crate gl_generator;
 extern crate embed_resource;
-extern crate lalrpop;
 
 use gl_generator::{Api, Fallbacks, GlobalGenerator, Profile, Registry};
 use std::env;
@@ -21,6 +20,4 @@ fn main() {
         .unwrap();
 
     embed_resource::compile("hidpi.rc");
-
-    lalrpop::process_root().unwrap();
 }

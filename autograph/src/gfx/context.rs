@@ -47,14 +47,6 @@ impl ContextObject {
                 0 as *const u32,
                 1,
             );
-            gl::DebugMessageInsert(
-                gl::DEBUG_SOURCE_APPLICATION,
-                gl::DEBUG_TYPE_MARKER,
-                1111,
-                gl::DEBUG_SEVERITY_NOTIFICATION,
-                -1,
-                "Started logging OpenGL messages".as_ptr() as *const i8,
-            );
         }
 
         Arc::new(ContextObject {

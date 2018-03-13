@@ -2,6 +2,7 @@
 
 // TODO Components, Passes, Metadata
 use gfx::{BlendState, MAX_BLEND_STATES, DepthStencilState, RasterizerState, PrimitiveTopology};
+use rendergraph::types::*;
 
 /*pub struct Pass {
     pub primitive_topology: PrimitiveTopology,
@@ -21,7 +22,6 @@ pub struct ComputePass {
     pub local_size: [u32; 3]
 }
 
-
 #[derive(Debug)]
 pub struct Pass {
     pub directives: Vec<PassDirective>
@@ -37,4 +37,22 @@ pub enum PassDirective {
     TessControlShader(String),
     TessEvalShader(String),
     ComputeShader(String),
+}
+
+
+#[derive(Debug)]
+pub struct Argument {
+    pub metadata: Vec<Metadata>,
+    pub ty: Type,
+    pub name: String,
+}
+
+#[derive(Debug)]
+pub struct FunctionDefinition
+{
+    pub metadata: Vec<Metadata>,
+    pub name: String,
+    pub args: Vec<Argument>,
+    pub ret_ty: Type,
+    pub body: String
 }

@@ -1,0 +1,278 @@
+use std::ascii::AsciiExt;
+
+struct Lexer<'a> {
+    text: &'a str,
+    pos: usize,
+    line: usize
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum Token {
+    Ident,
+    LitFloat,
+    LitInt,
+    LitIntHex,
+    LitString,
+    LitChar,
+    AtSign,
+    LBrace,
+    RBrace,
+    LParens,
+    RParens,
+    LAngle,
+    RAngle,
+    Colon,
+    Semicolon,
+    Comma,
+    KwPass,
+    Eof
+}
+
+fn detect_keyword(s: &str) -> Token {
+    match s {
+        "pass" => Token::KwPass,
+        _ => Token::Ident,
+    }
+}
+
+struct PError {
+    range: Option<(usize, usize)>
+}
+
+impl Default for PError {
+    fn default() -> Self {
+        PError { range: None }
+    }
+}
+
+impl<'a> Lexer<'a> {
+    fn new(text: &str) -> Lexer {
+        Lexer {
+            text,
+            pos: 0,
+            line: 1
+        }
+    }
+
+    fn is_eof(&self) -> bool {
+        unimplemented!()
+    }
+
+    fn expect_eof(&mut self) -> Result<(),PError> {
+        unimplemented!()
+    }
+
+    fn skip_ws(&mut self) {
+        self.eat_while(char::is_whitespace);
+    }
+
+    // Eat a character (advances current position)
+    // Returns None on EOF
+    fn eat0(&mut self) -> Option<char> {
+        // TODO use unchecked variant, we know that we are on a codepoint boundary
+        let mut ci = self.text[self.pos..].char_indices();
+        let ch = ci.next()?.1;
+        let next = ci.next();    // next can be EOF
+        if let Some(next) = next {
+            self.pos += next.0;
+        } else {
+            // end of string
+            self.pos = self.text.len();
+        }
+        Some(ch)
+    }
+
+    // Eat a character, handle newlines
+    // CR-LF are converted to LF
+    fn eat(&mut self) -> Option<char> {
+        let ch = self.eat0();
+        if ch == Some('\r') {
+            // CR
+            // peek ahead and consume LF, if found
+            if self.peek() == Some('\n') {
+                self.eat0();
+            }
+            self.line += 1;
+            Some('\n')
+        } else if ch == Some('\n') {
+            // LF
+            self.line += 1;
+            ch
+        } else {
+            ch
+        }
+    }
+
+    fn peek(&mut self) -> Option<char> {
+        self.text[self.pos..].chars().next()
+    }
+
+    fn eat_if<F: Fn(char) -> bool>(&mut self, f: F) -> Option<char> {
+        let c = self.peek()?;
+        if !f(c) {
+            None
+        } else {
+            self.eat();
+            Some(c)
+        }
+    }
+
+    fn eat_ident(&mut self) -> &'a str {
+        let start = self.pos;
+        let mut c = self.eat().unwrap();
+        assert!(c.is_alphabetic());
+        let (_, end) = self.eat_while(char::is_alphanumeric);
+        &self.text[start..end]
+    }
+
+    fn eat_while<F: Fn(char) -> bool>(&mut self, f: F) -> (usize,usize) {
+        let start = self.pos;
+        loop {
+            let c = self.peek();
+            match c {
+                None => break,
+                Some(c) if !f(c) => break,
+                _ => self.eat()
+            };
+        }
+        let end = self.pos;
+        (start,end)
+    }
+
+    fn skip_until_end_of_line(&mut self) {
+        loop {
+            let c = self.eat();
+            if let Some(c) = c {
+                if c == '\r' {
+                    // peek ahead and consume LF, if found
+                    if self.peek() == Some('\n') {
+
+                    }
+                    break;
+                } else if c == '\n' {
+                    break;
+                }
+            }
+            else {
+                // EOF
+                break;
+            }
+        }
+    }
+
+    // Having seen a digit character, parse the rest
+    fn eat_number(&mut self) -> Option<(Token, &'a str)>
+    {
+        let start = self.pos;
+        let c = self.eat().unwrap();
+        assert!(c.is_numeric());
+
+        if c == '0' {
+            match self.peek() {
+                Some('x') => {
+                    // Leading 0x, parse hex literal
+                    // skip x
+                    self.eat();
+                    // If next char is not an hex digit, this is a syntax error
+                    self.eat_if(char::is_ascii_hexdigit)?;
+                    // Eat all hex digits
+                    self.eat_while(char::is_ascii_hexdigit);
+                    return (Token::LitIntHex, &self.text[start..self.pos]);
+                },
+                Some('p') => {
+                    // FP hex literal
+                    unimplemented!()
+                },
+                Some(c) if c.is_ascii_digit() => {
+                    // octal
+                    unimplemented!()
+                },
+                _ => {
+                    // anything else
+                }
+            }
+        }
+
+        // decimal
+        self.eat_while(char::is_ascii_digit);
+        self.skip_ws();
+        let mut tk = Token::LitInt;
+        if self.peek() == Some('.') {
+            // FP digit
+            self.eat();
+            self.skip_ws();
+            // decimal dot must be followed by a decimal digit
+            self.eat_if(char::is_ascii_digit)?;
+            self.eat_while(char::is_ascii_digit);
+            self.skip_ws();
+            tk = Token::LitFloat;
+        }
+        if self.peek() == Some('e') {
+            // exponent part
+            self.eat();
+            self.skip_ws();
+            // exponent must be followed by a decimal digit
+            self.eat_if(char::is_ascii_digit)?;
+            self.eat_while(char::is_ascii_digit);
+            tk = Token::LitFloat;
+        }
+        (tk, self.text[start..self.pos])
+    }
+
+    fn next(&mut self) -> (Token, &'a str) {
+        // skip whitespace
+        self.skip_ws();
+        let start = self.pos;
+        // read next char
+        if let Some(c) = self.peek() {
+            // decide what to do with it
+            // detect comments
+            match c {
+                '/' => {
+                    self.eat();
+                    if self.peek() == Some('/') {
+                        // comment
+                        self.skip_until_end_of_line();
+                    }
+                },
+                _ => ()
+            }
+            // detect idents & keywords
+            if c.is_alphabetic() {
+                // keywords or ident
+                let s = self.eat_ident();
+                // detect keywords
+                (detect_keyword(s), s)
+            } else if c.is_numeric() {
+                self.eat_number()
+            } else {
+                unimplemented!()
+            }
+        } else {
+            // no more characters, return EOF
+            (Token::Eof, "")
+        }
+    }
+
+    fn p_pass(&mut self) -> Result<&str, PError> {
+        unimplemented!()
+    }
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lex_ident() {
+        let tk = Lexer::new("ident").next();
+        assert_eq!(tk, (Token::Ident, "ident"));
+        let tk = Lexer::new("  ident   ").next();
+        assert_eq!(tk, (Token::Ident, "ident"));
+        let tk = Lexer::new("  id988   ").next();
+        assert_eq!(tk, (Token::Ident, "id988"));
+        let tk = Lexer::new("  988id   ").next();
+        assert_ne!(tk, (Token::Ident, "988id"));
+    }
+}

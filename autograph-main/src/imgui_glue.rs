@@ -8,6 +8,7 @@ use autograph::gl::types::*;
 use glutin;
 use std::path::Path;
 use std::sync::Arc;
+use failure::Error;
 
 pub struct Renderer {
     pipeline: gfx::GraphicsPipeline,
@@ -16,15 +17,9 @@ pub struct Renderer {
 
 static IMGUI_SHADER_PATH: &str = "data/shaders/imgui.glsl";
 
-fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<gfx::GraphicsPipeline, String> {
-    let sh = compile_shaders_from_combined_source(path)?;
+fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<gfx::GraphicsPipeline, Error> {
     Ok(gfx::GraphicsPipelineBuilder::new()
-        .with_vertex_shader(sh.vertex)
-        .with_fragment_shader(sh.fragment)
-        .with_geometry_shader(sh.geometry)
-        .with_tess_eval_shader(sh.tess_eval)
-        .with_tess_control_shader(sh.tess_control)
-        .with_primitive_topology(sh.primitive_topology)
+        .with_glsl_file(path)?
         .with_rasterizer_state(&gfx::RasterizerState {
             fill_mode: gl::FILL,
             ..Default::default()
@@ -38,11 +33,7 @@ fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<gfx::GraphicsPipeli
             func_src_alpha: gl::ONE,
             func_dst_alpha: gl::ZERO,
         })
-        .with_input_layout(&sh.input_layout)
-        .build(gctx)
-        .map_err(|gfx::GraphicsPipelineBuildError::ProgramLinkError(log)| {
-            format!("Program link error: {}", log)
-        })?)
+        .build(gctx)?)
 }
 
 impl Renderer {
@@ -235,7 +226,7 @@ pub fn handle_event(
                         _ => {}
                     }
                 }
-                &MouseMoved {
+                &CursorMoved {
                     position: (x, y), ..
                 } => mouse_state.pos = (x as i32, y as i32),
                 &MouseInput { state, button, .. } => match button {

@@ -2,7 +2,6 @@ use gl;
 use gl::types::*;
 use std::collections::vec_deque::VecDeque;
 use super::context::Context;
-use std::sync::Arc;
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FenceValue(pub i64);

@@ -21,10 +21,24 @@ Comma<T>: Vec<T> = { // (0)
     }
 };
 
-Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
+match {
+    r"[0-9]+" => T_NUM,
+} else {
+    r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?" => T_FLOAT,
+}
+
+match {
+    r"pass" => T_KW_PASS,
+    r"{",
+    r"}",
+    r"=",
+}
+else {
+    r"[[:alpha:]]\w*" => T_IDENT
+}
 
 pub Pass: Box<Pass> = {
-    "pass" "{" <directives:PassDirective*> "}" => Box::new(Pass { directives })
+    T_KW_PASS "{" <directives:PassDirective*> "}" => Box::new(Pass { directives })
 };
 
 PrimitiveTopology: PrimitiveTopology = {
@@ -81,7 +95,7 @@ pub Metadata: Metadata = {
 };
 
 pub Identifier: String = {
-    r"[[:alpha:]]\w*" => <>.to_owned()
+    T_IDENT => <>.to_owned()
 };
 
 pub StructMember: StructMember = {

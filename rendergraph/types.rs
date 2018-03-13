@@ -1,15 +1,5 @@
 //! Types
 
-#[derive(Copy,Clone,Debug,Eq,PartialEq)]
-pub enum PrimitiveType {
-    Float,
-    Int,
-    UnsignedInt,
-    Half,
-    Double,
-    Sampler2D,
-}
-
 #[derive(Debug)]
 pub enum Value {
     Ident(String),
@@ -23,9 +13,19 @@ pub enum Metadata {
     Custom(String, Vec<Value>)
 }
 
+#[derive(Copy,Clone,Debug,Eq,PartialEq)]
+pub enum PrimitiveType {
+    Float,
+    Int,
+    UnsignedInt,
+    Half,
+    Double,
+    Sampler2D,
+}
+
 #[derive(Debug)]
 pub struct StructMember {
-    pub ty: String,
+    pub ty: Type,
     pub name: String,
     pub metadata: Vec<Metadata>
 }

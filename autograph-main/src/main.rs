@@ -9,6 +9,7 @@ extern crate pretty_env_logger;
 extern crate glutin;
 extern crate nalgebra;
 extern crate alga;
+extern crate failure;
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -28,7 +29,6 @@ use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
 use glutin::GlContext;
-use autograph::shader_preprocessor::*;
 use autograph::shader_compiler::*;
 use autograph::gfx;
 use autograph::gl;
@@ -91,6 +91,13 @@ fn main() {
         .with_vsync(true)
         .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 5)));
     let window = glutin::GlWindow::new(window_builder, context_builder, &event_loop).unwrap();
+
+    autograph::gl::load_with(|s| {
+        let val = window.get_proc_address(s) as *const std::os::raw::c_void;
+        println!("get_proc_address {} val {:?}", s, val);
+        val
+    });
+
     debug!(
         "inner_size_points={:?}, inner_size_pixels={:?}",
         window.get_inner_size_points(),
@@ -118,7 +125,7 @@ fn main() {
     let mut ids = IdTable::new();
     let mut scene_objects = SceneObjects::new();
     let root_object_id = scene_loader::load_scene_file(
-        Path::new("data/scenes/bone.obj"),
+        Path::new("data/scenes/youmu/youmu.fbx"),
         &mut ids,
         main_loop.context(),
         main_loop.cache(),
@@ -128,6 +135,7 @@ fn main() {
     let mut camera_control = CameraControl::default();
     // allocations for the frame graph
     let mut fg_allocator = FrameGraphAllocator::new();
+    let mut bgcolor = [0f32; 3];
 
     // start main loop
     main_loop.run(
@@ -155,7 +163,7 @@ fn main() {
             unsafe {
                 gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
                 gl::Disable(gl::SCISSOR_TEST);
-                gl::ClearColor(0.0, 1.0, 0.0, 1.0);
+                gl::ClearColor(bgcolor[0], bgcolor[1], bgcolor[2], 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             }
 
@@ -186,13 +194,14 @@ fn main() {
 
             // UI test
             ui.window(im_str!("Hello world"))
-                .size((300.0, 100.0), imgui::ImGuiSetCond_FirstUseEver)
+                .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
                 .build(|| {
                     ui.text(im_str!("Hello world!"));
                     ui.text(im_str!("This...is...imgui-rs!"));
                     ui.separator();
                     let mouse_pos = ui.imgui().mouse_pos();
                     ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos.0, mouse_pos.1));
+                    ui.color_picker(im_str!("Background color"), &mut bgcolor).build();
                 });
 
             ui.main_menu_bar(|| {

@@ -1,12 +1,12 @@
-mod parser;
+mod parser2;
 mod syntax;
 
 #[cfg(test)]
 mod tests {
-    use super::parser;
+    use super::parser2;
     use super::syntax;
 
-    #[test]
+    /*#[test]
     fn parse_struct() {
         const SRC: &str = r#"
         struct CameraParameters {
@@ -56,7 +56,8 @@ mod tests {
             float d;
         };
         "#;
-        parser::parse_Struct(SRC).unwrap();
-    }
+        let r = parser::parse_Struct(SRC).unwrap();
+        println!("{:?}", r);
+    }*/
 
 }

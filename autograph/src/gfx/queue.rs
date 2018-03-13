@@ -1,8 +1,7 @@
 use super::fence::{Fence, FenceValue};
 use super::context::{Context, ContextConfig};
 use super::upload_buffer::UploadBuffer;
-use std::cell::{Cell, RefCell};
-use std::sync::Arc;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
 use super::buffer::*;

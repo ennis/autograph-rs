@@ -1,7 +1,6 @@
 use nalgebra::*;
 use gfx::buffer::{Buffer, BufferUsage};
 use gfx::context::Context;
-use std::sync::Arc;
 use aabb::*;
 use std::f32;
 

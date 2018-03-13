@@ -1,6 +1,4 @@
 use nalgebra::*;
-use nalgebra::storage::{Storage};
-use alga::general::Field;
 use std::cmp::Ord;
 use num_traits::Bounded;
 

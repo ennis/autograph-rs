@@ -100,7 +100,7 @@ impl<'a> MainLoop<'a> {
             loop_start_time = end_time;
             let duration_since_last_print = last_debug_time.to(end_time);
             if last_debug_time.to(end_time) > time::Duration::seconds(PRINT_FPS_EVERY_SECONDS) {
-                println!(
+                info!(
                     "Last frame time was {:?} ms ({:?} FPS) | average over {} frames: {:?} ms ({:?} FPS)",
                     frame_duration.num_milliseconds(),
                     1_000_000_000f32 / frame_duration.num_nanoseconds().unwrap() as f32,

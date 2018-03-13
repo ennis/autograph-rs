@@ -4,7 +4,6 @@ use super::context::Context;
 use super::buffer_data::BufferData;
 use super::buffer::{RawBuffer, RawBufferSlice, BufferSlice, BufferUsage};
 use std::collections::vec_deque::VecDeque;
-use std::sync::Arc;
 use super::fence::FenceValue;
 use std::ptr::copy_nonoverlapping;
 

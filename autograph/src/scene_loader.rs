@@ -11,6 +11,7 @@ use cache::{Cache, CacheTrait};
 use std::slice;
 use std::path::Path;
 use std::ffi::{CStr, CString};
+use failure::Error;
 
 struct AssimpSceneImporter<'a> {
     path: &'a Path,
@@ -158,7 +159,7 @@ pub fn load_scene_file(
     gctx: &gfx::Context,
     cache: &Arc<Cache>,
     scene_objects: &mut SceneObjects,
-) -> Result<ID, String> {
+) -> Result<ID, Error> {
     let c_path = CString::new(path.to_str().unwrap()).unwrap();
     debug!("Import scene {:?}", c_path);
     //let postproc_flags = AIPROCESS_OPTIMIZE_MESHES | AIPROCESS_OPTIMIZE_GRAPH |
@@ -170,7 +171,7 @@ pub fn load_scene_file(
         let log = CStr::from_ptr(aiGetErrorString()).to_str().unwrap();
         if aiscene.is_null() {
             error!("Importing scene failed");
-            return Err(format!("Failed to import scene: {}", log));
+            return Err(format_err!("Failed to import scene: {}", log));
         }
         let p_root_node = (*aiscene).root_node;
 

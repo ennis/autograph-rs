@@ -1,7 +1,6 @@
 use super::queue::{Queue, FrameResources};
 use super::buffer_data::BufferData;
 use super::sampler::SamplerDesc;
-use super::context::Context;
 use super::texture::RawTexture;
 use super::upload_buffer::UploadBuffer;
 use super::buffer::{BufferSlice,RawBuffer,RawBufferSlice};
@@ -13,7 +12,6 @@ use super::fence::FenceValue;
 
 use std::marker::PhantomData;
 use std::cell::RefCell;
-use std::sync::Arc;
 use std::mem;
 
 use gl;

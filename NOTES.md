@@ -183,12 +183,63 @@ TODO
     * Parameters are exposed to the UI
     * Parameters can be other components/lambdas
     * Reference components by file name
+* Uniform scope?
+    * As function parameters -> pass down to functions manually
+    * As scope variables inside passes or components -> graph rep?
+    * Automagically bound?
+        * scope variables: some vars must be visible in scope to instantiate a component (injection)
+    * As component parameters?
+
+```
+component PainterlyFilter: ImageFilter {
+    @scope UVSet uvSet0;    // will autobind to uvSet0 if it's visible in scope
+    uniform UVSet uvSet1;   // requires a uniform (with scope, it might be e.g. a constant)
+
+    vec4 stuff() { return ...; }    // function that uses uvSet0
+    vec4 stuff2() { return ...; }    // same
+}
+```
+
+* Kotlin as a shading language?
+    * DSL? Reflection? Separate?
+    * Unify composition and inheritance
+
+```
+// This shows as a group
+class PainterlyFilter: ImageFilter {
+    // This shows as a function node in the graph
+    override fun stuff() {
+        <<code>>
+    }
+}
+
+// This shows as a node in the graph editor
+class ImageFilter: Pass {
+    // ...
+}
+
+// Adding an 'ImageFilter' node will show up in code like this:
+val Node001 = object : ImageFilter {
+    override val XXX = UNBOUND()
+    override fun YYY() = UNBOUND()
+} 
+
+// Nodes are values:
+val n001: ImageFilter {
+    apply = { ... }
+}
+
+```
+
+* Using kotlin directly 
+
 * In-engine or off-engine?
     * The engine should know things
-    * Should be able to edit nodes in real time
+    * Should be able to edit/reload nodes in real time
     * Engine only sees a 'compiled' version of the HLG
         * only has to fill the parameters
     * compilation is done off engine by a tool
+    * don't put a parser in the engine => prefer an external editor
 * Engine: query shaders from the HL graph (HLG)
 * Pipeline is a type implementing the `GpuPass` trait
     * Also possibly the `StaticShaderInterface` trait
@@ -216,7 +267,44 @@ TODO
     * specify render targets in shader
         * doable: `@renderTarget(mainDiffuse)`
         * otherwise, bind as static or dynamic interface
+* vocabulary
+    * attributes(name,values)
+    * function(parameters,return-type,attributes)
+    * constant
+    * component(items)
+    * item(declaration|definition)
+    * a component that has a declaration item without a definition is a component template
+    * definition(function|constant|pass|state)
+    * state: blend|rasterizer|depthstencil
+    * pass: 
+* implementation
+    * GUI editor?
+    * custom language
+    * repurposed language
+    * rust DSL
+    * kotlin DSL
+    * dual code<->visual representation
+* Serialized form
+    * All files are standalone (no cross-refs outside editor - duplicate functions if necessary)
+    * SPIR-V bytecode?
+* ~~Component instantiation must happen late (in-engine)~~
+    * e.g. have a 'ForwardPassTemplate', but instantiate with a lighting function known only at runtime
+        * Or: compile permutations in advance?
+        * Engine: simply load a SPIR-V binary, read its reflection information
+        * => Shader library files
+    * instantiation = resolving function names, setting constants
+        * resolving functions = linking
+        * setting constants = SPIR-V specialization constants
+* Simpler choice: precompile permutations
 
+```
+let fwdshbase = lib
+    .query("ForwardShading")
+    .with("VertexDeformation=CharacterVS")
+    .with("ShadingModel=Phong")
+    .with("BlendMode=XXX");
+
+```
 
 #### Static interface matching
 * Goal: make shader parameters (uniforms, samplers, vertex input, render targets) conform to a particular interface
@@ -381,6 +469,7 @@ struct ShaderParameters
             * must accumulate inside the loop
         * Type-safe inputs and outputs?
             * Any + explicit test
+    * Unroll loops on graph creation
 
         
 
@@ -511,6 +600,7 @@ Operations:
 Limitations:
 * Cannot borrow a reference to a component that outlives the frame (collect() may rehash)
 * Cannot add new components in place: must do a functional update / staging area for new components (deferred creation)
+    * new components visible only next frame
 * Cannot delete components: that's OK (deferred cleanup)
 * References must be IDs
 

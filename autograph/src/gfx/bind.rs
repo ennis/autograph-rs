@@ -1,7 +1,6 @@
 use gl;
 use gl::types::*;
 use super::pipeline::GraphicsPipeline;
-use super::context::Context;
 use super::buffer_data::BufferData;
 use super::framebuffer::Framebuffer;
 

@@ -1,29 +1,19 @@
 [package]
-name = "autograph-main"
+name = "rendergraph"
 version = "0.1.0"
 authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
 [dependencies]
-autograph = { path = "../autograph" }
-autograph_codegen = { path = "../autograph_codegen" }
 typed-arena = "1.3.0"
 bitflags = "0.9"
 lazy_static = "0.2.8"
 smallvec = "0.4.1"
 libc = "*"
-nalgebra = "*"
-alga = "*"
-regex = "0.2.2"
+regex = "*"
 pretty_env_logger = "0.1.1"
-log = "0.4.1"
+log = "0.3.8"
 itertools = "*"
-winit = "*"
 time = "*"
 petgraph = "*"
-glutin = "*"
-num-traits = "*"
-imgui = "*"
-imgui-sys = "*"
 serde = "*"
 serde_derive = "*"
-failure = "*"

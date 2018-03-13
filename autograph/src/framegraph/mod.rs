@@ -5,9 +5,7 @@ use petgraph::*;
 use petgraph::graph::*;
 use petgraph::graph::NodeIndex;
 use gfx;
-use std::sync::Arc;
 use std::cell::{Cell, RefCell};
-use std::marker::PhantomData;
 use std::collections::HashMap;
 
 mod execution;

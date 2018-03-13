@@ -13,6 +13,8 @@ use super::state_group::*;
 use super::context::Context;
 use std::sync::Arc;
 use std::ops::Deref;
+use std::path::Path;
+use failure::Error;
 
 #[derive(Copy, Clone, Debug)]
 pub struct VertexAttribute {
@@ -70,7 +72,7 @@ pub enum PrimitiveTopology {
     Patch
 }
 
-pub struct GraphicsPipelineBuilder<'a> {
+pub struct GraphicsPipelineBuilder {
     // with_vertex_shader
     // with_fragment_shader
     // with_combined_shader_source
@@ -87,7 +89,7 @@ pub struct GraphicsPipelineBuilder<'a> {
     geometry_shader: Option<Shader>,
     tess_control_shader: Option<Shader>,
     tess_eval_shader: Option<Shader>,
-    input_layout: Option<&'a [VertexAttribute]>,
+    input_layout: Option<Vec<VertexAttribute>>,
     primitive_topology: GLenum,
 }
 
@@ -189,11 +191,19 @@ fn link_program(obj: GLuint) -> Result<(), String> {
     }
 }
 
+#[derive(Debug, Fail)]
 pub enum GraphicsPipelineBuildError {
-    ProgramLinkError(String),
+    #[fail(display = "Program link error")]
+    ProgramLinkError { log: String },
+    #[fail(display = "Input layout was not specified")]
+    MissingInputLayout,
+    #[fail(display = "Vertex shader was not specified")]
+    MissingVertexShader,
+    #[fail(display = "Fragment shader was not specified")]
+    MissingFragmentShader,
 }
 
-impl<'a> GraphicsPipelineBuilder<'a> {
+impl GraphicsPipelineBuilder {
     pub fn new() -> Self {
         GraphicsPipelineBuilder {
             blend_states: Default::default(),
@@ -209,6 +219,28 @@ impl<'a> GraphicsPipelineBuilder<'a> {
         }
     }
 
+    pub fn with_glsl_file<P: AsRef<Path>>(mut self, path: P) -> Result<Self,Error>
+    {
+        use shader_compiler::compile_shaders_from_combined_source;
+        let compiled = compile_shaders_from_combined_source(path)?;
+
+        let mut tmp = self.with_vertex_shader(compiled.vertex)
+            .with_fragment_shader(compiled.fragment)
+            .with_input_layout(compiled.input_layout)
+            .with_primitive_topology(compiled.primitive_topology);
+        if let Some(geometry) = compiled.geometry {
+            tmp = tmp.with_geometry_shader(geometry);
+        }
+        if let Some(tess_control) = compiled.tess_control {
+            tmp = tmp.with_geometry_shader(tess_control);
+        }
+        if let Some(tess_eval) = compiled.tess_eval {
+            tmp = tmp.with_geometry_shader(tess_eval);
+        }
+
+        Ok(tmp)
+    }
+
     pub fn with_vertex_shader(mut self, shader: Shader) -> Self {
         self.vertex_shader = Some(shader);
         self
@@ -219,18 +251,18 @@ impl<'a> GraphicsPipelineBuilder<'a> {
         self
     }
 
-    pub fn with_tess_control_shader(mut self, shader: Option<Shader>) -> Self {
-        self.tess_control_shader = shader;
+    pub fn with_tess_control_shader(mut self, shader: Shader) -> Self {
+        self.tess_control_shader = Some(shader);
         self
     }
 
-    pub fn with_tess_eval_shader(mut self, shader: Option<Shader>) -> Self {
-        self.tess_eval_shader = shader;
+    pub fn with_tess_eval_shader(mut self, shader: Shader) -> Self {
+        self.tess_eval_shader = Some(shader);
         self
     }
 
-    pub fn with_geometry_shader(mut self, shader: Option<Shader>) -> Self {
-        self.geometry_shader = shader;
+    pub fn with_geometry_shader(mut self, shader: Shader) -> Self {
+        self.geometry_shader = Some(shader);
         self
     }
 
@@ -244,8 +276,8 @@ impl<'a> GraphicsPipelineBuilder<'a> {
         self
     }
 
-    pub fn with_input_layout<'b: 'a>(mut self, attribs: &'b [VertexAttribute]) -> Self {
-        self.input_layout = Some(attribs);
+    pub fn with_input_layout<VA: Into<Vec<VertexAttribute>>>(mut self, attribs: VA) -> Self {
+        self.input_layout = Some(attribs.into());
         self
     }
 
@@ -264,24 +296,21 @@ impl<'a> GraphicsPipelineBuilder<'a> {
         self
     }
 
-    pub fn build(self, gctx: &Context) -> Result<GraphicsPipeline, GraphicsPipelineBuildError> {
+    pub fn build(self, gctx: &Context) -> Result<GraphicsPipeline, Error> {
         let vao =
-            unsafe { gen_vertex_array(self.input_layout.expect("No input layout specified!")) };
+            unsafe { gen_vertex_array(&self.input_layout.ok_or(GraphicsPipelineBuildError::MissingInputLayout)?) };
 
+        // TODO: this leaks on error return
         let program = unsafe { gl::CreateProgram() };
 
         unsafe {
             gl::AttachShader(
                 program,
-                self.vertex_shader
-                    .expect("must specify a vertex shader")
-                    .obj,
+                self.vertex_shader.ok_or(GraphicsPipelineBuildError::MissingVertexShader)?.obj,
             );
             gl::AttachShader(
                 program,
-                self.fragment_shader
-                    .expect("must specify a fragment shader")
-                    .obj,
+                self.fragment_shader.ok_or(GraphicsPipelineBuildError::MissingFragmentShader)?.obj,
             );
             if let Some(s) = self.geometry_shader {
                 gl::AttachShader(program, s.obj);
@@ -295,7 +324,7 @@ impl<'a> GraphicsPipelineBuilder<'a> {
         }
         // link shaders
         link_program(program)
-            .map_err(|log| GraphicsPipelineBuildError::ProgramLinkError(log))?;
+            .map_err(|log| GraphicsPipelineBuildError::ProgramLinkError { log })?;
 
         Ok(GraphicsPipeline(Arc::new(inner::GraphicsPipeline {
             depth_stencil_state: self.depth_stencil_state,

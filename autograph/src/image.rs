@@ -1,7 +1,5 @@
 use gfx;
-use cache::{Cache, CacheTrait, ReloadReason};
 use std::cell::RefCell;
-use std::sync::Arc;
 
 pub enum TargetFormat {
     // Texture format = the one that needs the least conversion from the file

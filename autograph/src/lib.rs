@@ -5,7 +5,10 @@
 #![feature(trace_macros)]
 #![feature(log_syntax)]
 #![feature(const_unsafe_cell_new)]
+#![feature(ascii_ctype)]
 
+#[macro_use]
+extern crate failure;
 extern crate glutin;
 extern crate typed_arena;
 extern crate smallvec;
@@ -21,7 +24,6 @@ extern crate log;
 extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
-#[macro_use]
 extern crate itertools;
 extern crate petgraph;
 extern crate num_traits;
@@ -29,13 +31,12 @@ extern crate url;
 extern crate notify;
 extern crate imgui;
 
-pub mod rendergraph;
+//pub mod rendergraph;
 pub mod framegraph;
 pub mod id_table;
 pub mod scene_object;
 pub mod aabb;
 pub mod cache;
-pub mod shader_preprocessor;
 pub mod gl;
 pub mod gfx;
 pub mod scene_loader;
