@@ -34,6 +34,8 @@ struct CameraParameters {
 
 // anonymous parameter: members of the struct will be available at global scope
 @param CameraParameters;
+// passed inside a push constant
+@param mat4 uModelMatrix;
 
 // One file can contain multiple shader entry points, and can define multiple passes
 // But where to put parameters that belong to only one pass?
@@ -41,6 +43,39 @@ struct CameraParameters {
 // Solution 2: pass parameters as arguments to the entry points
 //		(-) verbose (must modify file at three locations)
 
+// Locations are automatically assigned
+struct VsInput {
+	vec3 iPosition;
+	vec3 iNormal;
+	vec3 iTangent;
+	vec2 iTexcoords;
+};
+
+struct VsToFs {
+	@Position vec4 position;
+	@Interpolation(smooth) vec3 Nv0;
+	@Interpolation(smooth) vec3 Tv0;
+	@Interpolation(centroid) vec2 uv;
+};
+
+@VertexShader
+VsToFs vs_main(
+	@VertexInput(0) VsInput vsin,
+	// + Some uniforms that appear only for this entry point 
+) 
+{
+	VsToFs vsout;
+	gl_Position = uViewProjMatrix * uModelMatrix * vec4(iPosition, 1.0f);
+	mat4 uViewModel = uViewMatrix * uModelMatrix;
+	Nv0 = (uViewModel * vec4(iNormal, 0.0)).xyz;
+	Tv0 = (uViewModel * vec4(iTangent, 0.0)).xyz;
+	//Pv = (uViewModel * vec4(iPosition, 1.0)).xyz;
+	uv = vec2(iTexcoords.x, 1-iTexcoords.y);
+	//uv = iTexcoords;
+	// positions for velocity calculation
+	prevPos = uPrevViewProjMatrixVelocity * uPrevModelMatrix * vec4(iPosition, 1.0f);
+	curPos = uViewProjMatrixVelocity * uModelMatrix * vec4(iPosition, 1.0f);
+}
 
 pass {
 	primitive_topology triangle;
