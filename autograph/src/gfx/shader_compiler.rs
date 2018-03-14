@@ -6,7 +6,6 @@ use std::io::Read;
 use failure::Error;
 use std::path::{Path, PathBuf};
 use regex::Regex;
-use std::io::prelude::*;
 use gfx::pipeline::VertexAttribute;
 
 bitflags! {
@@ -32,7 +31,7 @@ struct IncludeFile<'a> {
     path: &'a Path,
 }
 
-// Preprocess a combined GLSL source file: extract the additional informations in the custom pragmas
+// Preprocesses a combined GLSL source file: extract the additional informations in the custom pragmas
 // and returns the result in (last_seen_version, enabled_pipeline_stages, input_layout, topology)
 fn preprocess_shader_internal<'a>(
     preprocessed: &mut String,
@@ -121,7 +120,7 @@ fn preprocess_shader_internal<'a>(
                 } else {
                     *last_seen_version = Some(ver);
                 },
-                Err(err) => {
+                Err(_err) => {
                     error!(
                         "{:?}({:?}): Malformed version directive: \" {:?} \"",
                         this_file.path,
@@ -172,7 +171,7 @@ fn preprocess_shader_internal<'a>(
             } else if let Some(captures) = INPUT_LAYOUT_PRAGMA_RE.captures(pragma_str) {
                 let entries = &captures[1];
                 let mut iter = entries.split(",").map(|s| s.trim());
-                let mut index = 0;
+                //let mut index = 0;
                 let mut layout = Vec::new();
 
                 if input_layout.is_some() {
@@ -229,7 +228,7 @@ fn preprocess_shader_internal<'a>(
                         normalized: attrib_format.2,
                     });
 
-                    index += 1;
+                    //index += 1;
                 }
 
                 *input_layout = Some(layout);
@@ -284,7 +283,7 @@ fn preprocess_shader_internal<'a>(
 }
 
 #[derive(Debug)]
-pub struct PreprocessedShaders {
+struct PreprocessedShaders {
     pub vertex: Option<String>,
     pub fragment: Option<String>,
     pub geometry: Option<String>,
@@ -295,11 +294,11 @@ pub struct PreprocessedShaders {
     pub primitive_topology: Option<GLenum>,
 }
 
-pub fn preprocess_combined_shader_source<P: AsRef<Path>>(
+fn preprocess_combined_shader_source<P: AsRef<Path>>(
     source: &str,
     path: P,
     macros: &[&str],
-    include_paths: &[&Path],
+    _include_paths: &[&Path],
 ) -> (PipelineStages, PreprocessedShaders) {
     lazy_static! {
         static ref MACRO_DEF_RE: Regex = Regex::new(r"^(\w+)(?:=(\w*))?$").unwrap();
@@ -412,14 +411,15 @@ struct GLSLCompilationError {
     log: String,
 }
 
-// The shader "compiler" for combined-source GLSL files
+/// The shader "compiler" for combined-source GLSL files.
+/// Loads a combined GLSL source from the given path and returns compiled OpenGL shaders along with some pipeline configuration.
 pub fn compile_shaders_from_combined_source<P: AsRef<Path>>(src_path: P) -> Result<CompiledShaders, Error> {
     // load combined shader source
     let mut src = String::new();
     File::open(src_path.as_ref())?.read_to_string(&mut src)?;
 
     // preprocess combined source code
-    let (stages, pp) = preprocess_combined_shader_source(&src, src_path.as_ref(), &[], &[]);
+    let (_stages, pp) = preprocess_combined_shader_source(&src, src_path.as_ref(), &[], &[]);
 
     // try to compile shaders
     let print_error_log = |log: &str, stage| {

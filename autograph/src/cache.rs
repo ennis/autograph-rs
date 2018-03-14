@@ -28,7 +28,7 @@ pub struct Cache {
 }
 
 impl ::std::fmt::Debug for Cache {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+    fn fmt(&self, _f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         Ok(())
     }
 }
@@ -37,7 +37,7 @@ impl Cache {
     pub fn new() -> Arc<Cache> {
         // setup notification channel
         let (tx, rx) = channel();
-        let mut watcher = notify::watcher(tx, Duration::from_secs(1)).unwrap();
+        let watcher = notify::watcher(tx, Duration::from_secs(1)).unwrap();
 
         Arc::new(Cache {
             cached_objects: RefCell::new(HashMap::new()),

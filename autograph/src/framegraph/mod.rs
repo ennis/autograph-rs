@@ -3,7 +3,6 @@
 //!
 use petgraph::*;
 use petgraph::graph::*;
-use petgraph::graph::NodeIndex;
 use gfx;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -80,7 +79,7 @@ enum Node<'a> {
 }
 
 impl<'a> ::std::fmt::Debug for Node<'a> {
-    fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+    fn fmt(&self, _formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         // TODO
         Ok(())
     }

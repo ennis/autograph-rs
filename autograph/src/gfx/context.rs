@@ -9,13 +9,13 @@ use super::sampler::{Sampler, SamplerDesc};
 use std::collections::HashMap;
 
 extern "system" fn debug_callback(
-    source: GLenum,
-    ty: GLenum,
-    id: GLuint,
-    severity: GLenum,
+    _source: GLenum,
+    _ty: GLenum,
+    _id: GLuint,
+    _severity: GLenum,
     length: GLsizei,
     msg: *const GLchar,
-    data: *mut GLvoid,
+    _data: *mut GLvoid,
 ) {
     let str = unsafe {
         str::from_utf8(slice::from_raw_parts(msg as *const u8, length as usize)).unwrap()

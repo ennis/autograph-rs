@@ -120,7 +120,7 @@ impl TextureObject {
     }
 
     /// Create a new texture object based on the given description
-    pub fn new(gctx: &Context, desc: &TextureDesc) -> TextureObject {
+    pub fn new(_gctx: &Context, desc: &TextureDesc) -> TextureObject {
         let target = match desc.dimensions {
             TextureDimensions::Tex1D => gl::TEXTURE_1D,
             TextureDimensions::Tex2D => if desc.sample_count > 1 {

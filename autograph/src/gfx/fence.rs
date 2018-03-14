@@ -18,7 +18,7 @@ pub struct Fence {
 }
 
 impl Fence {
-    pub fn new(gctx: &Context, init_value: FenceValue) -> Fence {
+    pub fn new(_gctx: &Context, init_value: FenceValue) -> Fence {
         Fence {
             sync_points: VecDeque::new(),
             current_value: init_value,
@@ -79,7 +79,7 @@ impl Fence {
     }
 
 
-    fn wait_until(&mut self, timeout: u64) {
+    fn wait_until(&mut self, _timeout: u64) {
         unimplemented!()
     }
 }

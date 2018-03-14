@@ -1,12 +1,3 @@
-// Pipeline =
-//  - shaders
-//  - (parsed from shader) input layout
-//  - (optional) uniform slot reflection
-//  - (optional) outputs reflection
-//  - (optional, parsed from shader) samplers
-//  - Rasterizer state, Blend states, etc.
-// Binary program can be saved to a file
-
 use gl;
 use gl::types::*;
 use super::state_group::*;
@@ -64,6 +55,7 @@ impl Deref for GraphicsPipeline
     }
 }
 
+/// The topology of the primitives passed to the GPU in vertex buffers.
 #[derive(Debug)]
 pub enum PrimitiveTopology {
     Triangle,
@@ -72,15 +64,8 @@ pub enum PrimitiveTopology {
     Patch
 }
 
+/// Builder for graphics pipelines
 pub struct GraphicsPipelineBuilder {
-    // with_vertex_shader
-    // with_fragment_shader
-    // with_combined_shader_source
-    // with_input_layout
-    // with_rasterizer_state
-    // with_depth_stencil_state
-    // with_all_blend_states(...)
-    // with_blend_state
     blend_states: [BlendState; 8], // TODO hardcoded limit
     rasterizer_state: RasterizerState,
     depth_stencil_state: DepthStencilState,
@@ -154,9 +139,6 @@ impl Shader {
             }
         }
     }
-
-    // TODO: from_spirv, from_binary?
-    // (runtime) reflection for spirv
 }
 
 impl Drop for Shader {
@@ -204,6 +186,7 @@ pub enum GraphicsPipelineBuildError {
 }
 
 impl GraphicsPipelineBuilder {
+    /// Starts building a new graphics pipeline.
     pub fn new() -> Self {
         GraphicsPipelineBuilder {
             blend_states: Default::default(),
@@ -219,9 +202,10 @@ impl GraphicsPipelineBuilder {
         }
     }
 
-    pub fn with_glsl_file<P: AsRef<Path>>(mut self, path: P) -> Result<Self,Error>
+    /// Loads shaders from the GLSL source file specified by path.
+    pub fn with_glsl_file<P: AsRef<Path>>(self, path: P) -> Result<Self,Error>
     {
-        use shader_compiler::compile_shaders_from_combined_source;
+        use gfx::shader_compiler::compile_shaders_from_combined_source;
         let compiled = compile_shaders_from_combined_source(path)?;
 
         let mut tmp = self.with_vertex_shader(compiled.vertex)
@@ -322,7 +306,7 @@ impl GraphicsPipelineBuilder {
                 gl::AttachShader(program, s.obj);
             }
         }
-        // link shaders
+
         link_program(program)
             .map_err(|log| GraphicsPipelineBuildError::ProgramLinkError { log })?;
 

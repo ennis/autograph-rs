@@ -2,7 +2,6 @@ use imgui;
 use imgui_sys;
 use autograph::gfx;
 use autograph::cache::{Cache, CacheTrait};
-use autograph::shader_compiler::*;
 use autograph::gl;
 use autograph::gl::types::*;
 use glutin;

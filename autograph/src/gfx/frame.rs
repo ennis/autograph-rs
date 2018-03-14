@@ -287,8 +287,8 @@ impl StateCache
 }
 
 
-/// Draw command builder
-/// statically locks the frame object: allocate your buffers before starting a command!
+/// Draw command builder.
+/// Statically locks the frame object: allocate your buffers before starting a command!
 // TODO move this into its own module
 // TODO simplify lifetimes
 pub struct DrawCommandBuilder<'a,'q:'a> {
@@ -364,11 +364,11 @@ impl<'a,'y> DrawCommandBuilder<'a,'y> {
         self
     }
 
-    pub fn with_all_viewports(mut self, v: (f32, f32, f32, f32)) -> Self {
+    pub fn with_all_viewports(mut self, _v: (f32, f32, f32, f32)) -> Self {
         unimplemented!()
     }
 
-    pub fn with_viewport(mut self, index: i32, v: (f32, f32, f32, f32)) -> Self {
+    pub fn with_viewport(mut self, _index: i32, _v: (f32, f32, f32, f32)) -> Self {
         unimplemented!()
     }
 

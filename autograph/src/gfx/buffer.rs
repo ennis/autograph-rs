@@ -144,7 +144,7 @@ impl RawBufferObject {
 
     // TODO mut and non-mut functions
     pub unsafe fn map_persistent_unsynchronized(&self) -> *mut c_void {
-        let mut flags = match self.usage {
+        let flags = match self.usage {
             BufferUsage::READBACK => {
                 gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT |
                     gl::MAP_COHERENT_BIT

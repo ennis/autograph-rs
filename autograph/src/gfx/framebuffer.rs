@@ -18,11 +18,11 @@ pub struct RenderbufferObject {
 
 impl RenderbufferObject {
     pub fn new(
-        context: &Context,
-        width: u32,
-        height: u32,
-        format: TextureFormat,
-        num_samples: u32,
+        _gctx: &Context,
+        _width: u32,
+        _height: u32,
+        _format: TextureFormat,
+        _num_samples: u32,
     ) -> RenderbufferObject {
         unimplemented!()
     }
@@ -50,7 +50,7 @@ pub enum FramebufferAttachment {
 
 impl FramebufferObject {
     pub fn from_gl_window(gctx: &Context, window: &GlWindow) -> FramebufferObject {
-        let pixel_size = window.get_inner_size_pixels().unwrap();
+        let pixel_size = window.get_inner_size().unwrap();
         FramebufferObject {
             gctx: gctx.clone(),
             size: pixel_size,
@@ -91,10 +91,10 @@ impl Deref for Framebuffer
 }
 
 impl Framebuffer {
+    /// Returns the default framebuffer object associated to the given GlWindow
     pub fn from_gl_window(gctx: &Context, window: &GlWindow) -> Framebuffer {
         Framebuffer(Arc::new(FramebufferObject::from_gl_window(gctx,window)))
     }
-
 }
 
 pub struct FramebufferBuilder {
@@ -161,7 +161,7 @@ impl FramebufferBuilder {
         self
     }
 
-    pub fn attach_texture_layer(mut self, slot: u32) -> Self {
+    pub fn attach_texture_layer(self, _slot: u32) -> Self {
         unimplemented!()
     }
 

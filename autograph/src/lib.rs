@@ -43,5 +43,4 @@ pub mod scene_loader;
 pub mod mesh;
 pub mod camera;
 pub mod image;
-pub mod shader_compiler;
 pub mod lazy;

@@ -12,9 +12,10 @@ pub enum TextureDimensions {
     TexCube,
 }
 
+/// Storage formats of texture data.
+/// These are actually Vulkan formats.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
-// These are actually Vulkan formats
 pub enum TextureFormat {
     UNDEFINED = 0,
     R4G4_UNORM_PACK8 = 1,

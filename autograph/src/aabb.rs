@@ -1,6 +1,4 @@
 use nalgebra::*;
-use std::cmp::Ord;
-use num_traits::Bounded;
 
 #[derive(Copy, Clone, Debug)]
 pub struct AABB<N: Real> {

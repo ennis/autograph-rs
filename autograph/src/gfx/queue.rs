@@ -83,6 +83,6 @@ impl Queue {
     }
 }
 
-pub fn create_context_and_queue(config: &ContextConfig) -> (Context, Queue) {
+pub fn create_context_and_queue(_config: &ContextConfig) -> (Context, Queue) {
     unimplemented!()
 }

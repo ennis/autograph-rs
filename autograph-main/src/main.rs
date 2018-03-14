@@ -29,7 +29,6 @@ use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
 use glutin::GlContext;
-use autograph::shader_compiler::*;
 use autograph::gfx;
 use autograph::gl;
 use autograph::gl::types::*;

@@ -14,7 +14,6 @@ pub enum TextureMinFilter {
     Linear = gl::LINEAR as isize,
 }
 
-
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub enum TextureMagFilter {
     Nearest = gl::NEAREST as isize,

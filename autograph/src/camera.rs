@@ -105,7 +105,6 @@ impl CameraControl {
 
     /// Returns a `Camera` for the current viewpoint.
     pub fn camera(&self) -> Camera {
-        let view = self.get_look_at();
         Camera {
             frustum: Default::default(),
             view: self.get_look_at(),
