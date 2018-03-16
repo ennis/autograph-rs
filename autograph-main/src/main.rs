@@ -124,7 +124,7 @@ fn main() {
     let mut ids = IdTable::new();
     let mut scene_objects = SceneObjects::new();
     let root_object_id = scene_loader::load_scene_file(
-        Path::new("data/scenes/youmu/youmu.fbx"),
+        Path::new("data/scenes/sponza/sponza.obj"),
         &mut ids,
         main_loop.context(),
         main_loop.cache(),

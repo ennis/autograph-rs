@@ -1,8 +1,8 @@
 #version 450
 #include "utils.glsli"
 
-//#pragma input_layout(rgb32f,0,0, rgb32f,0,12, rgb32f,0,24, rg32f,0,36)
-//#pragma primitive_topology(triangle)
+#pragma input_layout(rgb32f,0,0, rgb32f,0,12, rgb32f,0,24, rg32f,0,36)
+#pragma primitive_topology(triangle)
 
 layout(std140, binding = 0) uniform CameraParameters {
   mat4 uViewMatrix;

@@ -12,13 +12,5 @@ regex = "0.2.2"
 syn = "*"
 quote = "*"
 
-[target.'cfg(NOT_A_PLATFORM)'.dependencies]
-rustc = {path = "../../rust/src/librustc"}
-syntax = {path = "../../rust/src/libsyntax"}
-syntax_ext = {path = "../../rust/src/libsyntax_ext"}
-syntax_pos = {path = "../../rust/src/libsyntax_pos"}
-rustc_plugin = {path = "../../rust/src/librustc_plugin"}
-
-
 [lib]
 proc-macro = true

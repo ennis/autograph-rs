@@ -13,8 +13,9 @@ pub mod framebuffer;
 pub mod queue;
 pub mod buffer_data;
 pub mod frame;
-mod shader_compiler;
+mod glsl;
 pub mod shader_interface;
+pub mod shader;
 
 pub use self::state_group::*;
 pub use self::texture::*;

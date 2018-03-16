@@ -205,7 +205,7 @@ impl GraphicsPipelineBuilder {
     /// Loads shaders from the GLSL source file specified by path.
     pub fn with_glsl_file<P: AsRef<Path>>(self, path: P) -> Result<Self,Error>
     {
-        use gfx::shader_compiler::compile_shaders_from_combined_source;
+        use gfx::glsl::compile_shaders_from_combined_source;
         let compiled = compile_shaders_from_combined_source(path)?;
 
         let mut tmp = self.with_vertex_shader(compiled.vertex)

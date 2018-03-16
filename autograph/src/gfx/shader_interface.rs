@@ -106,6 +106,15 @@ pub trait VertexType
     fn get_layout() -> &'static [Type];
 }
 
+/// Descriptions of shader interfaces
+pub trait ShaderInterfaceDesc
+{
+    fn get_named_uniforms(&self) -> &'static [NamedUniformDesc];
+    fn get_render_targets(&self) -> &'static [RenderTargetDesc];
+    fn get_vertex_buffers(&self) -> &'static [VertexBufferDesc];
+    fn get_index_buffer(&self) -> Option<IndexBufferDesc>;
+}
+
 /// Trait implemented by types that represent a shader interface.
 /// A shader interface is a set of uniforms, vertex attributes, render targets
 /// that describe the inputs and outputs of a graphics pipeline.
@@ -125,9 +134,5 @@ pub trait VertexType
 /// ```
 pub trait ShaderInterface
 {
-    fn get_named_uniforms() -> &'static [NamedUniformDesc];
-    fn get_render_targets() -> &'static [RenderTargetDesc];
-    fn get_vertex_buffers() -> &'static [VertexBufferDesc];
-    fn get_index_buffer() -> Option<IndexBufferDesc>;
+    fn get_description() -> &'static ShaderInterfaceDesc;
 }
-

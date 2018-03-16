@@ -1,5 +1,5 @@
 use nalgebra::*;
-use aabb::{partial_max, partial_min, AABB};
+use aabb::{partial_max, AABB};
 use std::f32;
 
 #[derive(Copy, Clone, Debug, Default)]
