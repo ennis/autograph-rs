@@ -7,8 +7,11 @@ use failure::Error;
 use std::path::{Path, PathBuf};
 use regex::Regex;
 use gfx::pipeline::VertexAttribute;
+use gfx::pipeline::GraphicsPipelineBuilder;
 use gfx::shader;
 use gfx::shader_interface;
+
+mod interface;
 
 bitflags! {
     #[derive(Default)]
@@ -665,3 +668,25 @@ fn test_preprocess_shaders() {
     let results = preprocess_combined_shader_source(&src, path, &[], &[]);
     println!("{:?}", results);
 }
+
+pub trait GraphicsPipelineBuilderExt: Sized
+{
+    /// Loads shaders from the GLSL combined source file specified by path.
+    fn with_glsl_file<P: AsRef<Path>>(self, path: P) -> Result<Self,Error>;
+}
+
+impl GraphicsPipelineBuilderExt for GraphicsPipelineBuilder
+{
+    fn with_glsl_file<P: AsRef<Path>>(self, path: P) -> Result<Self,Error>
+    {
+        use gfx::glsl::compile_shaders_from_combined_source;
+        let compiled = compile_shaders_from_combined_source(path)?;
+
+        let mut tmp = self.with_shader_pipeline(Box::new(compiled.shader_pipeline))
+            .with_input_layout(compiled.input_layout)
+            .with_primitive_topology(compiled.primitive_topology);
+
+        Ok(tmp)
+    }
+}
+

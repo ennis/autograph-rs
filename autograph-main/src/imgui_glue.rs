@@ -4,6 +4,8 @@ use autograph::gfx;
 use autograph::cache::{Cache, CacheTrait};
 use autograph::gl;
 use autograph::gl::types::*;
+use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
+use autograph::gfx::draw::DrawExt;
 use glutin;
 use std::path::Path;
 use std::sync::Arc;

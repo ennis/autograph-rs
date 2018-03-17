@@ -4,6 +4,7 @@ use super::state_group::*;
 use super::context::Context;
 use gfx;
 use gfx::shader::GraphicsShaderPipeline;
+use gfx::shader_interface::{ShaderInterface,ShaderInterfaceDesc};
 use std::sync::Arc;
 use std::ops::Deref;
 use std::path::Path;
@@ -52,6 +53,12 @@ pub(super) mod inner {
     }
 }
 
+/// trait GraphicsPipeline: Clone
+///     - bind(
+/// struct UntypedGraphicsPipeline: GraphicsPipeline
+/// struct TypedGraphicsPipeline<T>: UntypedGraphicsPipeline
+///
+
 #[derive(Clone,Debug)]
 pub struct GraphicsPipeline(Arc<inner::GraphicsPipeline>);
 
@@ -62,6 +69,19 @@ impl Deref for GraphicsPipeline
         &self.0
     }
 }
+
+/*impl GraphicsPipeline
+{
+    fn with_shader_interface<T: ShaderInterface>(&self) -> TypedGraphicsPipeline<T>
+    {
+        // TODO check interface here
+        unimplemented!()
+    }
+}*/
+
+/// A graphics pipeline with an attached interface type
+//pub struct TypedGraphicsPipeline<T: ShaderInterface>(Arc<inner::GraphicsPipeline>);
+
 
 /// The topology of the primitives passed to the GPU in vertex buffers.
 #[derive(Debug)]
@@ -123,19 +143,6 @@ impl GraphicsPipelineBuilder {
             input_layout: None,
             primitive_topology: gl::TRIANGLES,
         }
-    }
-
-    /// Loads shaders from the GLSL combined source file specified by path.
-    pub fn with_glsl_file<P: AsRef<Path>>(self, path: P) -> Result<Self,Error>
-    {
-        use gfx::glsl::compile_shaders_from_combined_source;
-        let compiled = compile_shaders_from_combined_source(path)?;
-
-        let mut tmp = self.with_shader_pipeline(Box::new(compiled.shader_pipeline))
-            .with_input_layout(compiled.input_layout)
-            .with_primitive_topology(compiled.primitive_topology);
-
-        Ok(tmp)
     }
 
     pub fn with_shader_pipeline(mut self, shader_pipeline: Box<gfx::shader::GraphicsShaderPipeline>) -> Self {
