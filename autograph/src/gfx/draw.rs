@@ -14,7 +14,7 @@ use gfx::{BufferSlice, RawBufferSlice, SamplerDesc};
 use std::marker::PhantomData;
 use std::mem;
 
-pub trait DrawExt
+pub trait DrawExt<'queue>
 {
     fn clear_texture(
         &self,
@@ -52,10 +52,10 @@ pub trait DrawExt
 
     /// Begins building a draw command.
     /// This function does not perform any type checking.
-    fn begin_draw<'a>(&'a self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'a>;
+    fn begin_draw<'frame>(&'frame self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'frame,'queue> where 'queue:'frame;
 }
 
-impl<'q> DrawExt for Frame<'q>
+impl<'queue> DrawExt<'queue> for Frame<'queue>
 {
     //====================== COMMANDS =======================
     fn clear_texture(
@@ -147,7 +147,7 @@ impl<'q> DrawExt for Frame<'q>
 
     /// Begin building a draw command.
     /// This function does not perform any type checking.
-    fn begin_draw<'a>(&'a self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'a>
+    fn begin_draw<'frame>(&'frame self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'frame,'queue> where 'queue:'frame
     {
         DrawCommandBuilder::new(self, target, pipeline)
     }
@@ -155,8 +155,8 @@ impl<'q> DrawExt for Frame<'q>
 
 /// Draw command builder.
 /// Statically locks the frame object: allocate your buffers before starting a command!
-pub struct DrawCommandBuilder<'dc> {
-    frame: &'dc Frame<'dc>,
+pub struct DrawCommandBuilder<'frame,'queue:'frame> {
+    frame: &'frame Frame<'queue>,
     uniforms: Uniforms,        // holds arrays of uniforms
     vertex_input: VertexInput, // vertex buffers + index buffer (optional)
     framebuffer: Framebuffer,
@@ -165,12 +165,12 @@ pub struct DrawCommandBuilder<'dc> {
     viewports: [(f32, f32, f32, f32); 8]
 }
 
-impl<'dc> DrawCommandBuilder<'dc>
+impl<'frame,'queue:'frame> DrawCommandBuilder<'frame,'queue>
 {
-    fn new<'frame>(frame: &'frame Frame<'frame>,
+    fn new(frame: &'frame Frame<'queue>,
                   target: &Framebuffer,
                   pipeline: &GraphicsPipeline,
-    ) -> DrawCommandBuilder<'frame>
+    ) -> DrawCommandBuilder<'frame,'queue>
     {
         let fb_size = target.size();
         DrawCommandBuilder {
@@ -304,7 +304,7 @@ impl<'dc> DrawCommandBuilder<'dc>
     //======================= DRAW COMMANDS ============================
     pub fn draw_arrays(mut self,
                        first: usize,
-                       count: usize) -> &'dc Frame<'dc> {
+                       count: usize) -> &'frame Frame<'queue> {
         unsafe {
             self.bind_all();
             gl::DrawArrays(
@@ -320,7 +320,7 @@ impl<'dc> DrawCommandBuilder<'dc>
                         first: usize,
                         count: usize,
                         base_vertex: usize
-    ) -> &'dc Frame<'dc>
+    ) -> &'frame Frame<'queue>
     {
         let index_stride = match self.vertex_input.index_buffer_type {
             gl::UNSIGNED_INT => 4,
@@ -341,7 +341,7 @@ impl<'dc> DrawCommandBuilder<'dc>
     }
 
     /// Draw a quad. This overrides any vertex buffer set on slot 0.
-    pub fn draw_quad(mut self) -> &'dc Frame<'dc>
+    pub fn draw_quad(mut self) -> &'frame Frame<'queue>
     {
         unimplemented!()
     }
