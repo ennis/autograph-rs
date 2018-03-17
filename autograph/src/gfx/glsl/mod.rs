@@ -10,6 +10,7 @@ use gfx::pipeline::VertexAttribute;
 use gfx::pipeline::GraphicsPipelineBuilder;
 use gfx::shader;
 use gfx::shader_interface;
+use gfx::shader::DefaultUniformBinder;
 
 mod interface;
 
@@ -484,7 +485,8 @@ pub struct GlslGraphicsShaderPipeline {
     pub geometry: Option<Shader>,
     pub tess_control: Option<Shader>,
     pub tess_eval: Option<Shader>,
-    pub program: GLuint
+    pub program: GLuint,
+    uniform_binder: DefaultUniformBinder
 }
 
 impl ::std::fmt::Debug for GlslGraphicsShaderPipeline {
@@ -529,6 +531,10 @@ impl shader::GraphicsShaderPipeline for GlslGraphicsShaderPipeline
 
     fn get_program(&self) -> Result<GLuint, Error> {
         Ok(self.program)
+    }
+
+    unsafe fn bind(&self) -> &shader::UniformBinder {
+        return &self.uniform_binder
     }
 }
 
@@ -648,7 +654,8 @@ pub fn compile_shaders_from_combined_source<P: AsRef<Path>>(src_path: P) -> Resu
             geometry,
             tess_control,
             tess_eval,
-            program
+            program,
+            uniform_binder: DefaultUniformBinder
         },
         input_layout: pp.input_layout
             .ok_or(format_err!("Missing input layout in combined shader source: {}", src_path.as_ref().display()))?,

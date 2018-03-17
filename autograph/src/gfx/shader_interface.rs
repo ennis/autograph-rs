@@ -86,6 +86,12 @@ pub struct TextureBindingDesc
     data_type: TextureDataType
 }
 
+/// The layout of vertex data in a vertex buffer.
+pub struct VertexLayout
+{
+    types: &'static [Type],
+    stride: usize
+}
 
 ///
 /// Trait implemented by types that represent vertex data in a vertex buffer.
@@ -103,7 +109,7 @@ pub struct TextureBindingDesc
 /// ```
 pub trait VertexType
 {
-    fn get_layout() -> &'static [Type];
+    fn get_layout() -> &'static VertexLayout;
 }
 
 /// Descriptions of shader interfaces

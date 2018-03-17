@@ -5,7 +5,7 @@ use autograph::cache::{Cache, CacheTrait};
 use autograph::gl;
 use autograph::gl::types::*;
 use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
-use autograph::gfx::draw::DrawExt;
+use autograph::gfx::draw::{DrawExt, DrawCmd};
 use glutin;
 use std::path::Path;
 use std::sync::Arc;
@@ -116,7 +116,21 @@ impl Renderer {
 
             let uniforms = frame.upload(&matrix);
 
-            frame.begin_draw(target, &self.pipeline)
+            frame.draw(target, &self.pipeline, DrawCmd::DrawIndexed { first: idx_start, count: cmd.elem_count as usize, base_vertex: 0 })
+                .with_vertex_buffer(0, &vertex_buffer)
+                .with_index_buffer(&index_buffer)
+                .with_uniform_buffer(0, &uniforms)
+                .with_texture(0,
+                              &self.texture,
+                              &gfx::SamplerDesc {
+                                  addr_u: gfx::TextureAddressMode::Wrap,
+                                  addr_v: gfx::TextureAddressMode::Wrap,
+                                  addr_w: gfx::TextureAddressMode::Wrap,
+                                  mag_filter: gfx::TextureMagFilter::Nearest,
+                                  min_filter: gfx::TextureMinFilter::Linear,
+                              });
+
+            /*frame.begin_draw(target, &self.pipeline)
                 .with_vertex_buffer(0, &vertex_buffer)
                 .with_index_buffer(&index_buffer)
                 .with_uniform_buffer(0, &uniforms)
@@ -141,7 +155,7 @@ impl Renderer {
                     idx_start,
                     cmd.elem_count as usize,
                     0,
-                );
+                );*/
 
             idx_start = idx_end;
         }
