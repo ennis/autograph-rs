@@ -1,6 +1,7 @@
 use gl;
 use gl::types::*;
 use super::pipeline::GraphicsPipeline;
+use super::shader::GraphicsShaderPipeline;
 use super::buffer_data::BufferData;
 use super::framebuffer::Framebuffer;
 
@@ -111,7 +112,7 @@ pub(super) unsafe fn bind_graphics_pipeline(pipe: &GraphicsPipeline, mask: State
     }
 
     if mask.contains(SG_PROGRAM) {
-        gl::UseProgram(pipe.program);
+        gl::UseProgram(pipe.shader_pipeline.get_program().unwrap());
     }
 }
 

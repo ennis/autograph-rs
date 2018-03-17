@@ -2,6 +2,8 @@ use gl;
 use gl::types::*;
 use super::state_group::*;
 use super::context::Context;
+use gfx;
+use gfx::shader::GraphicsShaderPipeline;
 use std::sync::Arc;
 use std::ops::Deref;
 use std::path::Path;
@@ -21,23 +23,29 @@ pub(super) mod inner {
     use gl::types::*;
     use gfx::state_group::*;
     use gfx::Context;
+    use gfx::shader::GraphicsShaderPipeline;
 
-    # [derive(Debug)]
     pub struct GraphicsPipeline {
         // TODO fix public access
         pub gctx: Context,
         pub blend_states: [BlendState; 8], // TODO hardcoded limit
         pub rasterizer_state: RasterizerState,
         pub depth_stencil_state: DepthStencilState,
+        pub shader_pipeline: Box<GraphicsShaderPipeline>,
         pub vao: GLuint,
-        pub program: GLuint,
         pub primitive_topology: GLenum,
+    }
+
+    impl ::std::fmt::Debug for GraphicsPipeline {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            unimplemented!()
+        }
     }
 
     impl Drop for GraphicsPipeline {
         fn drop(&mut self) {
             unsafe {
-                gl::DeleteProgram(self.program);
+                //gl::DeleteProgram(self.program);
                 gl::DeleteVertexArrays(1, &mut self.vao);
             }
         }
@@ -69,11 +77,7 @@ pub struct GraphicsPipelineBuilder {
     blend_states: [BlendState; 8], // TODO hardcoded limit
     rasterizer_state: RasterizerState,
     depth_stencil_state: DepthStencilState,
-    vertex_shader: Option<Shader>,
-    fragment_shader: Option<Shader>,
-    geometry_shader: Option<Shader>,
-    tess_control_shader: Option<Shader>,
-    tess_eval_shader: Option<Shader>,
+    shader_pipeline: Option<Box<gfx::shader::GraphicsShaderPipeline>>,
     input_layout: Option<Vec<VertexAttribute>>,
     primitive_topology: GLenum,
 }
@@ -100,89 +104,12 @@ unsafe fn gen_vertex_array(attribs: &[VertexAttribute]) -> GLuint {
     vao
 }
 
-pub struct Shader {
-    obj: GLuint,
-    stage: GLenum,
-}
-
-impl Shader {
-    pub fn compile(source: &str, stage: GLenum) -> Result<Shader, String> {
-        unsafe {
-            let obj = gl::CreateShader(stage);
-            let srcs = [source.as_ptr() as *const i8];
-            let lens = [source.len() as GLint];
-            gl::ShaderSource(
-                obj,
-                1,
-                &srcs[0] as *const *const i8,
-                &lens[0] as *const GLint,
-            );
-            gl::CompileShader(obj);
-            let mut status: GLint = 0;
-            let mut log_size: GLint = 0;
-            gl::GetShaderiv(obj, gl::COMPILE_STATUS, &mut status);
-            gl::GetShaderiv(obj, gl::INFO_LOG_LENGTH, &mut log_size);
-            if status != gl::TRUE as GLint {
-                error!("Error compiling shader");
-                let mut log_buf: Vec<u8> = Vec::with_capacity(log_size as usize);
-                gl::GetShaderInfoLog(
-                    obj,
-                    log_size,
-                    &mut log_size,
-                    log_buf.as_mut_ptr() as *mut i8,
-                );
-                log_buf.set_len(log_size as usize);
-                gl::DeleteShader(obj);
-                Err(String::from_utf8(log_buf).unwrap())
-            } else {
-                Ok(Shader { stage, obj })
-            }
-        }
-    }
-}
-
-impl Drop for Shader {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteShader(self.obj);
-        }
-    }
-}
-
-fn link_program(obj: GLuint) -> Result<(), String> {
-    unsafe {
-        gl::LinkProgram(obj);
-        let mut status: GLint = 0;
-        let mut log_size: GLint = 0;
-        gl::GetProgramiv(obj, gl::LINK_STATUS, &mut status);
-        gl::GetProgramiv(obj, gl::INFO_LOG_LENGTH, &mut log_size);
-        //trace!("LINK_STATUS: log_size: {}, status: {}", log_size, status);
-        if status != gl::TRUE as GLint {
-            let mut log_buf: Vec<u8> = Vec::with_capacity(log_size as usize);
-            gl::GetProgramInfoLog(
-                obj,
-                log_size,
-                &mut log_size,
-                log_buf.as_mut_ptr() as *mut i8,
-            );
-            log_buf.set_len(log_size as usize);
-            Err(String::from_utf8(log_buf).unwrap())
-        } else {
-            Ok(())
-        }
-    }
-}
-
 #[derive(Debug, Fail)]
 pub enum GraphicsPipelineBuildError {
-    #[fail(display = "Program link error")]
-    ProgramLinkError { log: String },
     #[fail(display = "Input layout was not specified")]
     MissingInputLayout,
-    #[fail(display = "Vertex shader was not specified")]
-    MissingVertexShader,
-    #[fail(display = "Fragment shader was not specified")]
-    MissingFragmentShader,
+    #[fail(display = "Shader pipeline was not specified")]
+    MissingShaderPipeline,
 }
 
 impl GraphicsPipelineBuilder {
@@ -192,61 +119,27 @@ impl GraphicsPipelineBuilder {
             blend_states: Default::default(),
             rasterizer_state: Default::default(),
             depth_stencil_state: Default::default(),
-            tess_eval_shader: None,
-            tess_control_shader: None,
-            fragment_shader: None,
-            vertex_shader: None,
-            geometry_shader: None,
+            shader_pipeline: None,
             input_layout: None,
             primitive_topology: gl::TRIANGLES,
         }
     }
 
-    /// Loads shaders from the GLSL source file specified by path.
+    /// Loads shaders from the GLSL combined source file specified by path.
     pub fn with_glsl_file<P: AsRef<Path>>(self, path: P) -> Result<Self,Error>
     {
         use gfx::glsl::compile_shaders_from_combined_source;
         let compiled = compile_shaders_from_combined_source(path)?;
 
-        let mut tmp = self.with_vertex_shader(compiled.vertex)
-            .with_fragment_shader(compiled.fragment)
+        let mut tmp = self.with_shader_pipeline(Box::new(compiled.shader_pipeline))
             .with_input_layout(compiled.input_layout)
             .with_primitive_topology(compiled.primitive_topology);
-        if let Some(geometry) = compiled.geometry {
-            tmp = tmp.with_geometry_shader(geometry);
-        }
-        if let Some(tess_control) = compiled.tess_control {
-            tmp = tmp.with_geometry_shader(tess_control);
-        }
-        if let Some(tess_eval) = compiled.tess_eval {
-            tmp = tmp.with_geometry_shader(tess_eval);
-        }
 
         Ok(tmp)
     }
 
-    pub fn with_vertex_shader(mut self, shader: Shader) -> Self {
-        self.vertex_shader = Some(shader);
-        self
-    }
-
-    pub fn with_fragment_shader(mut self, shader: Shader) -> Self {
-        self.fragment_shader = Some(shader);
-        self
-    }
-
-    pub fn with_tess_control_shader(mut self, shader: Shader) -> Self {
-        self.tess_control_shader = Some(shader);
-        self
-    }
-
-    pub fn with_tess_eval_shader(mut self, shader: Shader) -> Self {
-        self.tess_eval_shader = Some(shader);
-        self
-    }
-
-    pub fn with_geometry_shader(mut self, shader: Shader) -> Self {
-        self.geometry_shader = Some(shader);
+    pub fn with_shader_pipeline(mut self, shader_pipeline: Box<gfx::shader::GraphicsShaderPipeline>) -> Self {
+        self.shader_pipeline = Some(shader_pipeline);
         self
     }
 
@@ -284,38 +177,12 @@ impl GraphicsPipelineBuilder {
         let vao =
             unsafe { gen_vertex_array(&self.input_layout.ok_or(GraphicsPipelineBuildError::MissingInputLayout)?) };
 
-        // TODO: this leaks on error return
-        let program = unsafe { gl::CreateProgram() };
-
-        unsafe {
-            gl::AttachShader(
-                program,
-                self.vertex_shader.ok_or(GraphicsPipelineBuildError::MissingVertexShader)?.obj,
-            );
-            gl::AttachShader(
-                program,
-                self.fragment_shader.ok_or(GraphicsPipelineBuildError::MissingFragmentShader)?.obj,
-            );
-            if let Some(s) = self.geometry_shader {
-                gl::AttachShader(program, s.obj);
-            }
-            if let Some(s) = self.tess_control_shader {
-                gl::AttachShader(program, s.obj);
-            }
-            if let Some(s) = self.tess_eval_shader {
-                gl::AttachShader(program, s.obj);
-            }
-        }
-
-        link_program(program)
-            .map_err(|log| GraphicsPipelineBuildError::ProgramLinkError { log })?;
-
         Ok(GraphicsPipeline(Arc::new(inner::GraphicsPipeline {
             depth_stencil_state: self.depth_stencil_state,
             rasterizer_state: self.rasterizer_state,
             blend_states: self.blend_states,
             vao,
-            program,
+            shader_pipeline: self.shader_pipeline.ok_or(GraphicsPipelineBuildError::MissingShaderPipeline)?,
             primitive_topology: self.primitive_topology,
             gctx: gctx.clone(),
         })))

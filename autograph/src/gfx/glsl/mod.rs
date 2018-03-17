@@ -7,6 +7,8 @@ use failure::Error;
 use std::path::{Path, PathBuf};
 use regex::Regex;
 use gfx::pipeline::VertexAttribute;
+use gfx::shader;
+use gfx::shader_interface;
 
 bitflags! {
     #[derive(Default)]
@@ -31,8 +33,8 @@ struct IncludeFile<'a> {
     path: &'a Path,
 }
 
-// Preprocesses a combined GLSL source file: extract the additional informations in the custom pragmas
-// and returns the result in (last_seen_version, enabled_pipeline_stages, input_layout, topology)
+/// Preprocesses a combined GLSL source file: extract the additional informations in the custom pragmas
+/// and returns the result in (last_seen_version, enabled_pipeline_stages, input_layout, topology)
 fn preprocess_shader_internal<'a>(
     preprocessed: &mut String,
     source: &str,
@@ -392,20 +394,156 @@ fn preprocess_combined_shader_source<P: AsRef<Path>>(
     )
 }
 
+pub struct Shader {
+    obj: GLuint,
+    stage: GLenum,
+}
 
-pub struct CompiledShaders {
-    pub vertex: gfx::Shader,
-    pub fragment: gfx::Shader,
-    pub geometry: Option<gfx::Shader>,
-    pub tess_control: Option<gfx::Shader>,
-    pub tess_eval: Option<gfx::Shader>,
+impl Shader {
+    pub fn compile(source: &str, stage: GLenum) -> Result<Shader, String> {
+        unsafe {
+            let obj = gl::CreateShader(stage);
+            let srcs = [source.as_ptr() as *const i8];
+            let lens = [source.len() as GLint];
+            gl::ShaderSource(
+                obj,
+                1,
+                &srcs[0] as *const *const i8,
+                &lens[0] as *const GLint,
+            );
+            gl::CompileShader(obj);
+            let mut status: GLint = 0;
+            let mut log_size: GLint = 0;
+            gl::GetShaderiv(obj, gl::COMPILE_STATUS, &mut status);
+            gl::GetShaderiv(obj, gl::INFO_LOG_LENGTH, &mut log_size);
+            if status != gl::TRUE as GLint {
+                error!("Error compiling shader");
+                let mut log_buf: Vec<u8> = Vec::with_capacity(log_size as usize);
+                gl::GetShaderInfoLog(
+                    obj,
+                    log_size,
+                    &mut log_size,
+                    log_buf.as_mut_ptr() as *mut i8,
+                );
+                log_buf.set_len(log_size as usize);
+                gl::DeleteShader(obj);
+                Err(String::from_utf8(log_buf).unwrap())
+            } else {
+                Ok(Shader { stage, obj })
+            }
+        }
+    }
+}
+
+impl Drop for Shader {
+    fn drop(&mut self) {
+        unsafe {
+            gl::DeleteShader(self.obj);
+        }
+    }
+}
+
+fn link_program(obj: GLuint) -> Result<GLuint, String> {
+    unsafe {
+        gl::LinkProgram(obj);
+        let mut status: GLint = 0;
+        let mut log_size: GLint = 0;
+        gl::GetProgramiv(obj, gl::LINK_STATUS, &mut status);
+        gl::GetProgramiv(obj, gl::INFO_LOG_LENGTH, &mut log_size);
+        //trace!("LINK_STATUS: log_size: {}, status: {}", log_size, status);
+        if status != gl::TRUE as GLint {
+            let mut log_buf: Vec<u8> = Vec::with_capacity(log_size as usize);
+            gl::GetProgramInfoLog(
+                obj,
+                log_size,
+                &mut log_size,
+                log_buf.as_mut_ptr() as *mut i8,
+            );
+            log_buf.set_len(log_size as usize);
+            Err(String::from_utf8(log_buf).unwrap())
+        } else {
+            Ok(obj)
+        }
+    }
+}
+
+impl shader::Shader for Shader {}
+impl shader::VertexShader for Shader {}
+impl shader::FragmentShader for Shader {}
+impl shader::GeometryShader for Shader {}
+impl shader::TessControlShader for Shader {}
+impl shader::TessEvalShader for Shader {}
+impl shader::ComputeShader for Shader {}
+
+pub struct GlslGraphicsShaderPipeline {
+    pub vertex: Shader,
+    pub fragment: Shader,
+    pub geometry: Option<Shader>,
+    pub tess_control: Option<Shader>,
+    pub tess_eval: Option<Shader>,
+    pub program: GLuint
+}
+
+impl ::std::fmt::Debug for GlslGraphicsShaderPipeline {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        unimplemented!()
+    }
+}
+
+impl Drop for GlslGraphicsShaderPipeline {
+    fn drop(&mut self) {
+        unsafe {
+            gl::DeleteProgram(self.program);
+        }
+    }
+}
+
+impl shader::GraphicsShaderPipeline for GlslGraphicsShaderPipeline
+{
+    fn vertex_shader(&self) -> &shader::VertexShader {
+        &self.vertex
+    }
+
+    fn fragment_shader(&self) -> &shader::FragmentShader {
+        &self.fragment
+    }
+
+    fn geometry_shader(&self) -> Option<&shader::GeometryShader> {
+        self.geometry.as_ref().map(|x| x as &shader::GeometryShader)
+    }
+
+    fn tess_control_shader(&self) -> Option<&shader::TessControlShader> {
+        self.tess_control.as_ref().map(|x| x as &shader::TessControlShader)
+    }
+
+    fn tess_eval_shader(&self) -> Option<&shader::TessEvalShader> {
+        self.tess_eval.as_ref().map(|x| x as &shader::TessEvalShader)
+    }
+
+    fn is_compatible_with(&self, interface: &shader_interface::ShaderInterfaceDesc) -> bool {
+        unimplemented!()
+    }
+
+    fn get_program(&self) -> Result<GLuint, Error> {
+        Ok(self.program)
+    }
+}
+
+pub struct GlslCombinedSource {
+    pub shader_pipeline: GlslGraphicsShaderPipeline,
     pub input_layout: Vec<gfx::VertexAttribute>,
     pub primitive_topology: GLenum,
 }
 
+impl ::std::fmt::Debug for GlslCombinedSource {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        unimplemented!()
+    }
+}
+
 #[derive(Fail, Debug)]
 #[fail(display = "Compilation of GLSL shader failed (path: {:?}, stage: {:?}).", source_path, stage)]
-struct GLSLCompilationError {
+struct GlslCompilationError {
     source_path: PathBuf,
     stage: PipelineStages,
     log: String,
@@ -413,7 +551,7 @@ struct GLSLCompilationError {
 
 /// The shader "compiler" for combined-source GLSL files.
 /// Loads a combined GLSL source from the given path and returns compiled OpenGL shaders along with some pipeline configuration.
-pub fn compile_shaders_from_combined_source<P: AsRef<Path>>(src_path: P) -> Result<CompiledShaders, Error> {
+pub fn compile_shaders_from_combined_source<P: AsRef<Path>>(src_path: P) -> Result<GlslCombinedSource, Error> {
     // load combined shader source
     let mut src = String::new();
     File::open(src_path.as_ref())?.read_to_string(&mut src)?;
@@ -433,54 +571,82 @@ pub fn compile_shaders_from_combined_source<P: AsRef<Path>>(src_path: P) -> Resu
     };
 
     // Compile shaders
-    let vertex = gfx::Shader::compile(&pp.vertex.unwrap(), gl::VERTEX_SHADER)
+    let vertex = Shader::compile(&pp.vertex.unwrap(), gl::VERTEX_SHADER)
         .map_err(|log| {
             print_error_log(&log, PS_VERTEX);
-            GLSLCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_VERTEX, log }
+            GlslCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_VERTEX, log }
         })?;
-    let fragment = gfx::Shader::compile(&pp.fragment.unwrap(), gl::FRAGMENT_SHADER)
+    let fragment = Shader::compile(&pp.fragment.unwrap(), gl::FRAGMENT_SHADER)
         .map_err(|log| {
             print_error_log(&log, PS_FRAGMENT);
-            GLSLCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_FRAGMENT, log }
+            GlslCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_FRAGMENT, log }
         })?;
 
     let geometry = if let Some(ref geometry) = pp.geometry {
-        Some(gfx::Shader::compile(&geometry, gl::GEOMETRY_SHADER)
+        Some(Shader::compile(&geometry, gl::GEOMETRY_SHADER)
             .map_err(|log| {
                 print_error_log(&log, PS_GEOMETRY);
-                GLSLCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_GEOMETRY, log }
+                GlslCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_GEOMETRY, log }
             })?)
     } else {
         None
     };
 
     let tess_control = if let Some(ref tess_control) = pp.tess_control {
-        Some(gfx::Shader::compile(&tess_control, gl::TESS_CONTROL_SHADER)
+        Some(Shader::compile(&tess_control, gl::TESS_CONTROL_SHADER)
             .map_err(|log| {
                 print_error_log(&log, PS_TESS_CONTROL);
-                GLSLCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_TESS_CONTROL, log }
+                GlslCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_TESS_CONTROL, log }
             })?)
     } else {
         None
     };
 
     let tess_eval = if let Some(ref tess_eval) = pp.tess_eval {
-        Some(gfx::Shader::compile(&tess_eval, gl::TESS_EVALUATION_SHADER)
+        Some(Shader::compile(&tess_eval, gl::TESS_EVALUATION_SHADER)
             .map_err(|log| {
                 print_error_log(&log, PS_TESS_EVAL);
-                GLSLCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_TESS_EVAL, log }
+                GlslCompilationError { source_path: src_path.as_ref().to_owned(), stage: PS_TESS_EVAL, log }
             })?)
     } else {
         None
     };
 
+    // TODO: this leaks on error return
+    let program = unsafe { gl::CreateProgram() };
+
+    unsafe {
+        gl::AttachShader(program, vertex.obj);
+        gl::AttachShader(program, fragment.obj);
+        if let Some(ref s) = geometry {
+            gl::AttachShader(program, s.obj);
+        }
+        if let Some(ref s) = tess_control {
+            gl::AttachShader(program, s.obj);
+        }
+        if let Some(ref s) = tess_eval {
+            gl::AttachShader(program, s.obj);
+        }
+    }
+
+    link_program(program)
+        .map_err(|log| {
+            unsafe {
+                gl::DeleteProgram(program);
+            }
+            format_err!("Program link failed: {}", log)
+        })?;
+
     // Specify layout
-    Ok(CompiledShaders {
-        vertex,
-        fragment,
-        geometry,
-        tess_control,
-        tess_eval,
+    Ok(GlslCombinedSource {
+        shader_pipeline: GlslGraphicsShaderPipeline {
+            vertex,
+            fragment,
+            geometry,
+            tess_control,
+            tess_eval,
+            program
+        },
         input_layout: pp.input_layout
             .ok_or(format_err!("Missing input layout in combined shader source: {}", src_path.as_ref().display()))?,
         primitive_topology: pp.primitive_topology
