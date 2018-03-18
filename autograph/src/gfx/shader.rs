@@ -13,7 +13,7 @@ pub trait TessControlShader: Shader {}
 pub trait TessEvalShader: Shader {}
 pub trait ComputeShader: Shader {}
 
-/// Provides methods for safely binding uniforms to the OpenGL pipeline.
+/// Provides methods for safely and unsafely binding uniforms to the OpenGL pipeline.
 pub unsafe trait UniformBinder
 {
     unsafe fn bind_uniform_f32_unchecked(&self, location: u32, v: f32);
@@ -37,6 +37,7 @@ pub unsafe trait UniformBinder
     //unsafe fn bind_uniform_buffers_unchecked(&self, start_slot: i32, )
 }
 
+/// The default uniform binder: does not perform any verification.
 pub struct DefaultUniformBinder;
 
 unsafe impl UniformBinder for DefaultUniformBinder
@@ -143,7 +144,8 @@ pub trait GraphicsShaderPipeline
     fn tess_eval_shader(&self) -> Option<&TessEvalShader>;
     fn is_compatible_with(&self, interface: &ShaderInterfaceDesc) -> bool;
     fn get_program(&self) -> Result<GLuint, Error>;
-    /// Must not allocate
+    /// Bind the shaders to the OpenGL pipeline. Returns an UniformBinder instance
+    /// that will check the parameters
     unsafe fn bind(&self) -> &UniformBinder;
 }
 

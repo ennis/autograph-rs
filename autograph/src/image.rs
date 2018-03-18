@@ -5,13 +5,13 @@ pub enum TargetFormat {
     // Texture format = the one that needs the least conversion from the file
     Auto,
     // May fail
-    Required(gfx::TextureFormat),
+    Required(gfx::Format),
 }
 
 /// A cached image
 struct CachedImage {
     data: Vec<u8>,
-    format: gfx::TextureFormat,
+    format: gfx::Format,
     texture: RefCell<gfx::RawTexture>,
 }
 

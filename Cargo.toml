@@ -2,5 +2,6 @@
 members = [
     "spirv-reflect",
     "autograph",
-    "autograph-main"
+    "autograph-main",
+    "autograph-derive"
 ]

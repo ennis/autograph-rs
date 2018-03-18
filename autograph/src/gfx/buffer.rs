@@ -8,6 +8,7 @@ use std::sync::Arc;
 use super::buffer_data::BufferData;
 use std::clone::Clone;
 use std::ops::Deref;
+use gfx::shader_interface::VertexType;
 
 #[derive(Copy, Clone, Debug)]
 pub(super) struct RawBufferSliceGL {
@@ -228,6 +229,28 @@ impl<T: BufferData+?Sized> Buffer<T>
         Buffer(RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data))), PhantomData)
     }
 }
+
+#[derive(Clone,Debug)]
+pub struct VertexBuffer<T: VertexType + ?Sized>(Buffer<T>);
+
+impl<T: VertexType + ?Sized> VertexBuffer<T> {
+    pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> VertexBuffer<T> {
+         VertexBuffer(Buffer::new(gctx, byte_size, usage))
+    }
+
+    pub fn with_data(gctx: &Context, usage: BufferUsage, data: &T) -> VertexBuffer<T> {
+        VertexBuffer(Buffer::with_data(gctx, usage, data))
+    }
+}
+
+impl<T: VertexType + ?Sized> Deref for VertexBuffer<T>
+{
+    type Target = Buffer<T>;
+    fn deref(&self) -> &Buffer<T> {
+        &self.0
+    }
+}
+
 
 /*pub trait AsSlice<T: BufferData + ?Sized> {
     fn as_slice(&self) -> BufferSlice<T>;

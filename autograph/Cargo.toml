@@ -9,6 +9,7 @@ gl_generator = "*"
 embed-resource = "*"
 
 [dependencies]
+memoffset = "*"
 image = "*"
 failure = "*"
 typed-arena = "1.3.0"
@@ -24,6 +25,7 @@ log = "0.4.1"
 itertools = "*"
 winit = "*"
 time = "*"
+
 #glsl-to-spirv = "*"
 #rspirv = "*"
 #spirv_headers = "*"

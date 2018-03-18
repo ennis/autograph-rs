@@ -5,12 +5,12 @@ authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
 [dependencies]
 autograph = { path = "../autograph" }
-bitflags = "0.9"
 lazy_static = "0.2.8"
 log = "*"
-regex = "0.2.2"
-syn = "*"
-quote = "*"
+quote = "0.4"
+syn = "0.12"
+darling = "*"
+proc-macro2 = "*"
 
 [lib]
 proc-macro = true

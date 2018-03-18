@@ -19,6 +19,8 @@ extern crate bitflags;
 #[macro_use]
 extern crate imgui;
 extern crate imgui_sys;
+#[macro_use]
+extern crate autograph_derive;
 
 mod imgui_glue;
 mod main_loop;
@@ -54,6 +56,41 @@ struct CameraParameters {
     prev_viewproj_matrix_velocity: Matrix4<f32>,
     viewproj_matrix_velocity: Matrix4<f32>,
     temporal_aa_offset: [f32; 2],
+}
+
+#[repr(C)]
+#[derive(Copy,Clone,Debug)]
+#[derive(VertexType)]
+struct MyVertexType {
+    position: [f32; 3],
+    normal: [f32; 3],
+    tangent: [f32; 3],
+    texcoord: [f32; 2],
+}
+
+/*struct GpuVec2(Vector2<f32>);
+
+unsafe impl gfx::VertexElementType for Vector2<f32>
+{
+    fn get_equivalent_type() -> gfx::Type {
+        unimplemented!()
+    }
+}*/
+
+#[derive(ShaderInterface)]
+struct TestShaderInterface
+{
+    #[named_uniform(rename="transform")]
+    matrix: [f32; 4],
+    #[named_uniform]
+    color: [f32; 4],
+    #[texture_binding(index="0",rename="diffuse")]
+    #[autobind(path="data/textures/background.png")]
+    texture: gfx::RawTexture,
+    #[vertex_buffer(index="0")]
+    vertices: gfx::VertexBuffer<MyVertexType>,
+    #[index_buffer]
+    indices: gfx::RawBufferSlice
 }
 
 impl CameraParameters {
@@ -96,6 +133,10 @@ fn main() {
         println!("get_proc_address {} val {:?}", s, val);
         val
     });
+
+    debug!("vertex layout = {:#?}", <MyVertexType as gfx::VertexType>::get_layout());
+    debug!("textures = {:#?}", <TestShaderInterface as gfx::ShaderInterface>::get_description().get_texture_bindings());
+    debug!("named uniforms = {:#?}", <TestShaderInterface as gfx::ShaderInterface>::get_description().get_named_uniforms());
 
     debug!(
         "inner_size_points={:?}, inner_size_pixels={:?}",

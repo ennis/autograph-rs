@@ -1,11 +1,16 @@
-use super::texture_format::TextureFormat;
+use super::format::Format;
+use super::buffer_data::BufferData;
+use super::state_cache::StateCache;
+use super::shader::UniformBinder;
+use super::pipeline::GraphicsPipeline;
+use failure::Error;
 
 #[derive(Copy,Clone,Debug,Eq,PartialEq)]
 pub enum PrimitiveType {
-    Float,
     Int,
     UnsignedInt,
     Half,
+    Float,
     Double,
 }
 
@@ -15,6 +20,7 @@ pub enum Type {
     Array(Box<Type>,usize),
     Vector(PrimitiveType,u8),
     Matrix(PrimitiveType,u8,u8),
+    Unknown
     //Struct(String)
 }
 
@@ -30,35 +36,38 @@ pub const TYPE_MAT2: Type = Type::Matrix(PrimitiveType::Float, 2, 2);
 pub const TYPE_MAT3: Type = Type::Matrix(PrimitiveType::Float, 3, 3);
 pub const TYPE_MAT4: Type = Type::Matrix(PrimitiveType::Float, 4, 4);
 
+// vertex type: interpretation (FLOAT,UNORM,SNORM,INTEGER)
+
 #[derive(Clone, Debug)]
 pub struct RenderTargetDesc
 {
-    name: Option<String>,
-    index: Option<i32>,
-    format: Option<TextureFormat>
+    pub name: Option<String>,
+    pub index: Option<i32>,
+    pub format: Option<Format>
 }
 
 #[derive(Clone, Debug)]
 pub struct NamedUniformDesc
 {
-    name: String,
-    ty: Type
+    pub name: String,
+    pub ty: Type
 }
 
 /// An input buffer for vertex data
 #[derive(Clone, Debug)]
 pub struct VertexBufferDesc
 {
-    name: Option<String>,
-    index: Option<i32>,
-    layout: &'static [Type]
+    pub name: Option<String>,
+    pub index: Option<i32>,
+    pub layout: &'static VertexLayout
 }
 
 /// An input buffer for indices
 #[derive(Clone, Debug)]
 pub struct IndexBufferDesc
 {
-    indexty: Type
+    pub name: Option<String>,
+    pub index_ty: Type
 }
 
 /// Texture basic data type (NOT storage format)
@@ -67,7 +76,8 @@ pub enum TextureDataType
 {
     Float,  // and also depth
     Integer,
-    UnsignedInteger
+    UnsignedInteger,
+    Unknown
 }
 
 /// Represents a texture binding expected by a shader.
@@ -78,19 +88,58 @@ pub struct TextureBindingDesc
 {
     /// name of the texture binding in shader, can be None.
     /// name and index should not be both None
-    name: Option<String>,
+    pub name: Option<String>,
     /// index (texture uint) of the texture binding in shader, can be None.
     /// name and index should not be both None
-    index: Option<i32>,
+    pub index: Option<i32>,
     /// Basic data type of the texture
-    data_type: TextureDataType
+    pub data_type: TextureDataType
+}
+
+/// Trait implemented by types that can serve as a vertex element.
+pub unsafe trait VertexElementType {
+    /// Returns the equivalent OpenGL type (the type seen by the shader).
+    fn get_equivalent_type() -> Type;
+    /// Returns the corresponding data format (the layout of the data in memory).
+    fn get_format() -> Format;
+}
+
+macro_rules! impl_vertex_element_type {
+    ($t:ty, $equiv:expr, $fmt:ident) => {
+        unsafe impl VertexElementType for $t {
+            fn get_equivalent_type() -> Type { $equiv }
+            fn get_format() -> Format { Format::$fmt }
+        }
+    };
+}
+
+impl_vertex_element_type!(f32, Type::Primitive(PrimitiveType::Float), R32_SFLOAT);
+impl_vertex_element_type!([f32;2], Type::Vector(PrimitiveType::Float,2), R32G32_SFLOAT);
+impl_vertex_element_type!([f32;3], Type::Vector(PrimitiveType::Float,3), R32G32B32_SFLOAT);
+impl_vertex_element_type!([f32;4], Type::Vector(PrimitiveType::Float,4), R32G32B32A32_SFLOAT);
+
+/// Description of a vertex attribute.
+#[derive(Clone,Debug)]
+pub struct VertexAttributeDesc
+{
+    /// Attribute name.
+    pub name: Option<String>,
+    /// Location.
+    pub loc: u8,
+    /// The equivalent OpenGL type.
+    pub ty: Type,
+    /// Storage format of the vertex attribute.
+    pub format: Format,
+    /// Relative offset.
+    pub offset: u8
 }
 
 /// The layout of vertex data in a vertex buffer.
+#[derive(Clone, Debug)]
 pub struct VertexLayout
 {
-    types: &'static [Type],
-    stride: usize
+    pub attributes: &'static [VertexAttributeDesc],
+    pub stride: usize
 }
 
 ///
@@ -107,26 +156,46 @@ pub struct VertexLayout
 ///     texcoords: Vec2,
 /// }
 /// ```
-pub trait VertexType
+pub trait VertexType: BufferData
 {
     fn get_layout() -> &'static VertexLayout;
 }
 
-/// Descriptions of shader interfaces
-pub trait ShaderInterfaceDesc
+/// Descriptions of shader interfaces.
+///
+/// This trait is a facade to recover information about the bindings defined in a shader interface.
+/// It is meant to be derived automatically with `#[derive(ShaderInterface)]`, but you can implement it by hand.
+///
+/// TODO replace it with a simple struct?
+pub trait ShaderInterfaceDesc: Sync + 'static
 {
-    fn get_named_uniforms(&self) -> &'static [NamedUniformDesc];
-    fn get_render_targets(&self) -> &'static [RenderTargetDesc];
-    fn get_vertex_buffers(&self) -> &'static [VertexBufferDesc];
+    /// Returns the list of named uniform items (`#[named_uniform]`)
+    fn get_named_uniforms(&self) -> &[NamedUniformDesc];
+    /// Returns the list of render target items (`#[render_target(...)]`)
+    fn get_render_targets(&self) -> &[RenderTargetDesc];
+    /// Returns the list of vertex buffer items (`#[vertex_buffer(index=...)]`)
+    fn get_vertex_buffers(&self) -> &[VertexBufferDesc];
+    /// Returns the index buffer item, if any (`#[index_buffer]`)
     fn get_index_buffer(&self) -> Option<IndexBufferDesc>;
+    /// Returns the list of texture/sampler pairs (`#[texture_binding(index=...,data_type=...]`)
+    fn get_texture_bindings(&self) -> &[TextureBindingDesc];
+}
+
+pub trait InterfaceBinder<T: ShaderInterface>
+{
+    /// Binds the contents of the shader interface to the OpenGL pipeline, without any validation.
+    /// Validation is intended to be done when creating the graphics/compute pipeline.
+    unsafe fn bind_unchecked(&self, interface: &T, uniform_binder: &UniformBinder);
 }
 
 /// Trait implemented by types that represent a shader interface.
+///
 /// A shader interface is a set of uniforms, vertex attributes, render targets
 /// that describe the inputs and outputs of a graphics pipeline.
 ///
 /// ```rust
 /// #[derive(ShaderInterface)]
+/// #[shader_interface(deny_incomplete)]
 /// struct MyShaderInterface {
 ///     #[vertex_buffer(index=0)]
 ///     vbuf: VertexBuffer<MyVertexType>,    // a type-safe wrapper around a buffer
@@ -141,4 +210,18 @@ pub trait ShaderInterfaceDesc
 pub trait ShaderInterface
 {
     fn get_description() -> &'static ShaderInterfaceDesc;
+    /// Creates an _interface binder_ object that will handle binding interfaces of this specific
+    /// type to the OpenGL pipeline.
+    fn create_interface_binder(pipeline: &GraphicsPipeline) -> Result<Box<InterfaceBinder<Self>>, Error> where Self: Sized;
 }
+
+//
+// pipeline.into_typed::<T: ShaderInterface>()
+//      let binder = <T as ShaderInterface>::create_interface_binder(self)
+//      TypedGraphicsPipeline { orig: pipeline.clone(), binder }
+//
+// draw()
+//   typed_pipeline.bind()
+//      pipeline.bind()
+//      interface_binder.bind(binder)
+//

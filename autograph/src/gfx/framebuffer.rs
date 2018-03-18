@@ -3,7 +3,7 @@ use gl::types::*;
 use super::context::Context;
 use std::sync::Arc;
 use std::cmp::max;
-use super::texture_format::TextureFormat;
+use super::format::Format;
 use super::texture::RawTexture;
 use glutin::GlWindow;
 use std::ops::Deref;
@@ -11,7 +11,7 @@ use std::ops::Deref;
 #[derive(Debug)]
 pub struct RenderbufferObject {
     context: Context,
-    format: TextureFormat,
+    format: Format,
     size: (u32, u32),
     obj: GLuint,
 }
@@ -21,7 +21,7 @@ impl RenderbufferObject {
         _gctx: &Context,
         _width: u32,
         _height: u32,
-        _format: TextureFormat,
+        _format: Format,
         _num_samples: u32,
     ) -> RenderbufferObject {
         unimplemented!()

@@ -6,6 +6,8 @@
 #![feature(log_syntax)]
 #![feature(const_unsafe_cell_new)]
 #![feature(ascii_ctype)]
+#![feature(macro_reexport)]
+
 
 #[macro_use]
 extern crate failure;
@@ -21,6 +23,7 @@ extern crate pretty_env_logger;
 #[macro_use]
 extern crate log;
 #[macro_use]
+#[macro_reexport(lazy_static)]
 extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
@@ -30,6 +33,18 @@ extern crate num_traits;
 extern crate url;
 extern crate notify;
 extern crate imgui;
+
+#[macro_use]
+#[macro_reexport(offset_of)]
+extern crate memoffset;
+
+// Hack for autograph-derive
+/*#[macro_export]
+#[doc(hidden)]
+macro_rules! vertex_type_offset_of {
+    ($father:ty, $($field:tt)+) => { offset_of!($father,$($field)+) }
+}*/
+
 
 //pub mod rendergraph;
 pub mod framegraph;

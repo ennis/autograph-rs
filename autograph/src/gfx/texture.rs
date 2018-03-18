@@ -1,10 +1,21 @@
 use gl;
 use gl::types::*;
-use super::texture_format::*;
+use super::format::*;
 use std::cmp::*;
 use super::context::Context;
 use std::sync::Arc;
 use std::ops::{Deref,DerefMut};
+
+/// The dimensions of a texture.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum TextureDimensions {
+    Tex1D,
+    Tex2D,
+    Tex3D,
+    Tex1DArray,
+    Tex2DArray,
+    TexCube,
+}
 
 bitflags! {
     #[derive(Default)]
@@ -22,20 +33,20 @@ pub enum MipMaps {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TextureDesc {
-    /// Texture dimensions
+    /// Texture dimensions.
     pub dimensions: TextureDimensions,
-    /// Texture format
-    pub format: TextureFormat,
-    /// Width in pixels
+    /// Texture storage format.
+    pub format: Format,
+    /// Width in pixels.
     pub width: u32,
-    /// Height in pixels, or array size of 1D texture arrays
+    /// Height in pixels, or array size of 1D texture arrays.
     pub height: u32,
-    /// Depth in pixels, or array size of 2D texture arrays
+    /// Depth in pixels, or array size of 2D texture arrays.
     pub depth: u32,
-    /// Number of samples for multisample textures
-    /// 0 means that the texture will not be allocated with multisampling
+    /// Number of samples for multisample textures.
+    /// 0 means that the texture will not be allocated with multisampling.
     pub sample_count: u32,
-    /// Number of mipmap levels that should be allocated for this texture
+    /// Number of mipmap levels that should be allocated for this texture.
     /// See also: `get_texture_mip_map_count`
     pub mip_map_count: MipMaps,
     ///
@@ -46,7 +57,7 @@ impl Default for TextureDesc {
     fn default() -> TextureDesc {
         TextureDesc {
             dimensions: TextureDimensions::Tex2D,
-            format: TextureFormat::R8G8B8A8_UNORM,
+            format: Format::R8G8B8A8_UNORM,
             width: 0,
             height: 0,
             depth: 0,
@@ -61,7 +72,7 @@ impl TextureDesc {
     pub fn default_2d() -> TextureDesc {
         TextureDesc {
             dimensions: TextureDimensions::Tex2D,
-            format: TextureFormat::R8G8B8A8_UNORM,
+            format: Format::R8G8B8A8_UNORM,
             width: 0,
             height: 0,
             depth: 1,
@@ -72,14 +83,13 @@ impl TextureDesc {
     }
 }
 
-///
 /// Wrapper for OpenGL textures
 ///
 /// To create a `Texture` object, use the constructor with a `TextureDesc`
-/// object describing the texture
+/// object describing the texture.
 /// The underlying GL texture object is created with immutable storage, meaning
 /// that it is impossible to reallocate the storage (resizing, adding mip
-/// levels) once the texture is created
+/// levels) once the texture is created.
 ///
 /// The texture object is bound to the context lifetime. It is checked dynamically.
 #[derive(Debug)]
@@ -88,10 +98,10 @@ pub struct TextureObject {
     desc: TextureDesc,
 }
 
-/// Trait for pixel types that can be uploaded to the GPU with glTextureSubImage*
-/// Describes the format of the client data
+/// Trait for pixel types that can be uploaded to the GPU with glTextureSubImage*.
+/// Describes the format of the client data.
 pub trait ClientFormatInfo {
-    fn get_format_info() -> TextureFormatInfo;
+    fn get_format_info() -> FormatInfo;
 }
 
 /// impl for (f32xN) tuples
@@ -132,7 +142,7 @@ impl TextureObject {
             _ => unimplemented!("texture type"),
         };
 
-        let glfmt = GlFormatInfo::from_texture_format(desc.format);
+        let glfmt = GlFormatInfo::from_format(desc.format);
         let mut obj = 0;
         let mip_map_count = match desc.mip_map_count {
             MipMaps::Auto => get_texture_mip_map_count(desc.width, desc.height),
@@ -229,7 +239,7 @@ impl TextureObject {
             "image data size mismatch"
         );
         // TODO check size of mip level
-        let glfmt = GlFormatInfo::from_texture_format(self.desc.format);
+        let glfmt = GlFormatInfo::from_format(self.desc.format);
 
         let mut prev_unpack_alignment = 0;
         unsafe {

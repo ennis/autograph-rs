@@ -51,7 +51,7 @@ impl Renderer {
 
         let texture = imgui.prepare_texture(|handle| {
             let desc = gfx::TextureDesc {
-                format: gfx::TextureFormat::R8G8B8A8_SRGB,
+                format: gfx::Format::R8G8B8A8_SRGB,
                 dimensions: gfx::TextureDimensions::Tex2D,
                 options: gfx::TextureOptions::empty(),
                 width: handle.width,
