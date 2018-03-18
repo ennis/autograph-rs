@@ -17,6 +17,7 @@ pub mod glsl;
 pub mod shader_interface;
 pub mod shader;
 pub mod draw;
+pub mod render_utils;
 mod state_cache;
 
 pub use self::state_group::*;
@@ -35,3 +36,5 @@ pub use self::buffer_data::*;
 pub use self::frame::*;
 pub use self::shader_interface::*;
 pub use self::shader::*;
+pub use self::render_utils::*;
+pub use self::draw::*;

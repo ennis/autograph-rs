@@ -10,7 +10,6 @@ embed-resource = "*"
 
 [dependencies]
 memoffset = "*"
-image = "*"
 failure = "*"
 typed-arena = "1.3.0"
 bitflags = "0.9"

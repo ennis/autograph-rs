@@ -9,7 +9,7 @@ extern crate autograph;
 
 use darling::FromField;
 use proc_macro::TokenStream;
-use autograph::gfx::shader_interface::*;
+//use autograph::gfx::shader_interface::*;
 
 #[proc_macro_derive(VertexType, attributes(rename))]
 pub fn vertex_type_derive(input: TokenStream) -> TokenStream {

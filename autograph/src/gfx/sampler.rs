@@ -30,6 +30,14 @@ pub struct SamplerDesc {
     pub mag_filter: TextureMagFilter,
 }
 
+pub const LINEAR_WRAP_SAMPLER: SamplerDesc = SamplerDesc {
+    addr_u: TextureAddressMode::Wrap,
+    addr_v: TextureAddressMode::Wrap,
+    addr_w: TextureAddressMode::Wrap,
+    mag_filter: TextureMagFilter::Linear,
+    min_filter: TextureMinFilter::Linear,
+};
+
 impl Default for SamplerDesc {
     fn default() -> SamplerDesc {
         SamplerDesc {

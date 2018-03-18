@@ -9,6 +9,7 @@ extern crate pretty_env_logger;
 extern crate glutin;
 extern crate nalgebra;
 extern crate alga;
+#[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate log;
@@ -21,6 +22,7 @@ extern crate imgui;
 extern crate imgui_sys;
 #[macro_use]
 extern crate autograph_derive;
+extern crate image;
 
 mod imgui_glue;
 mod main_loop;
@@ -42,7 +44,11 @@ use autograph::camera::*;
 use autograph::framegraph::{FrameGraph, FrameGraphAllocator};
 use nalgebra::*;
 
+use autograph::gfx::DrawUtilsExt;
+use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
+
 use main_loop::MainLoop;
+use image::GenericImage;
 
 const UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
@@ -151,6 +157,54 @@ fn main() {
         },
     );
 
+    // load a test image
+    let test_tex = (|| {
+        let img = image::open("data/img/26459.png")?;
+        let (width,height) = img.dimensions();
+        let format = match img.color() {
+            image::ColorType::RGB(8) => gfx::Format::R8G8B8_SRGB,
+            image::ColorType::RGBA(8) => gfx::Format::R8G8B8A8_SRGB,
+            _ => return Err(format_err!("Unsupported ColorType"))
+        };
+        let bytes: &[u8] = match img {
+            image::DynamicImage::ImageLuma8(_) => return Err(format_err!("Unsupported ColorType")),
+            image::DynamicImage::ImageLumaA8(_) => return Err(format_err!("Unsupported ColorType")),
+            image::DynamicImage::ImageRgb8(ref rgb) => &*rgb,
+            image::DynamicImage::ImageRgba8(ref rgba) => &*rgba
+        };
+        let texture_desc = gfx::TextureDesc {
+            dimensions: gfx::TextureDimensions::Tex2D,
+            format,
+            width,
+            height,
+            depth: 1,
+            sample_count: 0,
+            mip_map_count: gfx::MipMaps::Count(1),
+            options: gfx::TextureOptions::empty(),
+        };
+
+        Ok(gfx::RawTexture::with_pixels(main_loop.context(), &texture_desc, &bytes))
+    })();
+
+    // test pipeline
+    let test_pipe = gfx::GraphicsPipelineBuilder::new()
+        .with_glsl_file("data/shaders/textured_quad.glsl")
+        .unwrap()
+        .with_rasterizer_state(&gfx::RasterizerState {
+            fill_mode: gl::FILL,
+            ..Default::default()
+        })
+        .with_all_blend_states(&gfx::BlendState {
+            enabled: true,
+            mode_rgb: gl::FUNC_ADD,
+            mode_alpha: gl::FUNC_ADD,
+            func_src_rgb: gl::SRC_ALPHA,
+            func_dst_rgb: gl::ONE_MINUS_SRC_ALPHA,
+            func_src_alpha: gl::ONE,
+            func_dst_alpha: gl::ZERO,
+        })
+        .build(main_loop.context()).unwrap();
+
     // initialize the imgui state
     let (mut imgui, mut imgui_renderer, mut imgui_mouse_state) = imgui_glue::init(
         main_loop.context(),
@@ -214,8 +268,8 @@ fn main() {
 
             // Create an IMGUI frame
             let ui = imgui.frame(
-                window.get_inner_size_points().unwrap(),
-                window.get_inner_size_pixels().unwrap(),
+                window.get_inner_size().unwrap(),
+                window.get_inner_size().unwrap(),
                 delta_s);
 
             // setup camera parameters (center on root object)
@@ -231,6 +285,12 @@ fn main() {
             // new node
             let ectx = fg.finalize(main_loop.context(), &mut fg_allocator).unwrap();
             ectx.execute(frame);
+
+            // texture test
+            if let Ok(ref tex) = test_tex {
+                frame.draw_quad(default_framebuffer, &test_pipe, (-1.0f32, 1.0f32, -1.0f32, 1.0f32))
+                     .with_texture(0, &tex, &gfx::LINEAR_WRAP_SAMPLER);
+            }
 
             // UI test
             ui.window(im_str!("Hello world"))
