@@ -1,5 +1,4 @@
 #![feature(plugin, custom_attribute)]
-#![plugin(autograph_codegen)]
 #![feature(const_fn, drop_types_in_const)]
 
 #[macro_use]
@@ -26,7 +25,6 @@ extern crate image;
 
 mod imgui_glue;
 mod main_loop;
-mod passes;
 
 use std::path::Path;
 use std::fs::File;
@@ -94,9 +92,9 @@ struct TestShaderInterface
     #[autobind(path="data/textures/background.png")]
     texture: gfx::RawTexture,
     #[vertex_buffer(index="0")]
-    vertices: gfx::VertexBuffer<MyVertexType>,
+    vertices: gfx::BufferSlice<[MyVertexType]>,
     #[index_buffer]
-    indices: gfx::RawBufferSlice
+    indices: gfx::BufferSlice<[u32]>
 }
 
 impl CameraParameters {

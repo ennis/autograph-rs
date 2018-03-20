@@ -1,0 +1,20 @@
+[package]
+name = "punchcard"
+version = "0.1.0"
+authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
+
+[dependencies]
+bitflags = "*"
+lazy_static = "*"
+smallvec = "*"
+pretty_env_logger = "*"
+libc = "*"
+log = "*"
+winit = "*"
+glutin = "*"
+gl = "*"
+failure = "*"
+
+[dependencies.nanovg]
+path = "../ext/nanovg-rs"
+features = ["gl3"]

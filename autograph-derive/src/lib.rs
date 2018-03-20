@@ -49,8 +49,8 @@ fn process_vertex_struct(ast: &syn::DeriveInput,
         attrib_descs.push(quote!(::autograph::gfx::VertexAttributeDesc {
             name: Some(stringify!(#field_name).into()),
             loc: #i as u8,
-            ty: <#field_ty as ::autograph::gfx::VertexElementType>::get_equivalent_type(),
-            format: <#field_ty as ::autograph::gfx::VertexElementType>::get_format(),
+            ty: <#field_ty as ::autograph::gfx::VertexAttributeType>::EQUIVALENT_TYPE,
+            format: <#field_ty as ::autograph::gfx::VertexAttributeType>::FORMAT,
             offset: #field_offset as u8
         }));
         attrib_sizes.push(quote!(::std::mem::size_of::<#field_ty>()));
@@ -233,18 +233,30 @@ fn process_struct(ast: &syn::DeriveInput,
         vertex_buffers.iter().map(|vb| {
             let name = vb.rename.as_ref().map_or(vb.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&vb.index);
+            let ty = &vb.ty;
 
             quote! {
                 ::autograph::gfx::shader_interface::VertexBufferDesc {
                     name: Some(stringify!(#name).into()),
                     index: #index_tokens,
-                    data_type: TextureDataType::Unknown
+                    layout: <<#ty as ::autograph::gfx::VertexDataProvider>::ElementType as ::autograph::gfx::VertexType>::get_layout()
                 }
             }
         }).collect::<Vec<_>>();
     let num_vertex_buffer_items = vertex_buffer_items.len();
 
     let private_module_name = syn::Ident::new(&format!("__shader_interface_{}", struct_name), proc_macro2::Span::call_site());
+
+    let index_buffer_item = if let Some(ib) = index_buffer  {
+        let ty = &ib.ty;
+        quote! {
+            Some(IndexBufferDesc {
+                format: <<#ty as ::autograph::gfx::IndexDataProvider>::ElementType as ::autograph::gfx::IndexElementType>::FORMAT
+            })
+        }
+    } else {
+        quote!(None)
+    };
 
     // generate impls
     quote!{
@@ -259,23 +271,23 @@ fn process_struct(ast: &syn::DeriveInput,
             lazy_static!{
                 static ref NAMED_UNIFORMS: [NamedUniformDesc;#num_named_uniform_items] = [#(#named_uniform_items),*];
                 static ref TEXTURE_BINDINGS: [TextureBindingDesc;#num_texture_binding_items] = [#(#texture_binding_items),*];
+                static ref VERTEX_BUFFERS: [VertexBufferDesc;#num_vertex_buffer_items] = [#(#vertex_buffer_items),*];
+                static ref INDEX_BUFFER: Option<IndexBufferDesc> = #index_buffer_item;
             }
 
             impl ShaderInterfaceDesc for Desc {
                 fn get_named_uniforms(&self) -> &'static [NamedUniformDesc] {
                     &*NAMED_UNIFORMS
                 }
-
                 fn get_render_targets(&self) -> &'static [RenderTargetDesc] {
                      unimplemented!()
                 }
                 fn get_vertex_buffers(&self) -> &'static [VertexBufferDesc] {
-                    unimplemented!()
+                    &*VERTEX_BUFFERS
                 }
-                fn get_index_buffer(&self) -> Option<IndexBufferDesc> {
-                    unimplemented!()
+                fn get_index_buffer(&self) -> Option<&'static IndexBufferDesc> {
+                    INDEX_BUFFER.as_ref()
                 }
-
                 fn get_texture_bindings(&self) -> &'static [TextureBindingDesc] {
                     &*TEXTURE_BINDINGS
                 }

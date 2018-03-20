@@ -8,7 +8,18 @@ use std::sync::Arc;
 use super::buffer_data::BufferData;
 use std::clone::Clone;
 use std::ops::Deref;
-use gfx::shader_interface::VertexType;
+use gfx::shader_interface::{VertexType,IndexElementType};
+
+macro_rules! deref_to {
+    ($from:ty, $to:ty) => {
+        impl Deref for $from {
+            type Target = $to;
+            fn deref(&self) -> &$to {
+                &self.0
+            }
+        }
+    };
+}
 
 #[derive(Copy, Clone, Debug)]
 pub(super) struct RawBufferSliceGL {
@@ -200,8 +211,7 @@ impl RawBuffer
     }
 }
 
-impl Deref for RawBuffer
-{
+impl Deref for RawBuffer {
     type Target = RawBufferObject;
     fn deref(&self) -> &RawBufferObject {
         &self.0
@@ -211,8 +221,7 @@ impl Deref for RawBuffer
 #[derive(Clone,Debug)]
 pub struct Buffer<T: BufferData + ?Sized>(RawBuffer, PhantomData<*const T>);
 
-impl<T: BufferData + ?Sized> Deref for Buffer<T>
-{
+impl<T: BufferData + ?Sized> Deref for Buffer<T> {
     type Target = RawBuffer;
     fn deref(&self) -> &RawBuffer {
         &self.0
@@ -230,7 +239,7 @@ impl<T: BufferData+?Sized> Buffer<T>
     }
 }
 
-#[derive(Clone,Debug)]
+/*#[derive(Clone,Debug)]
 pub struct VertexBuffer<T: VertexType + ?Sized>(Buffer<T>);
 
 impl<T: VertexType + ?Sized> VertexBuffer<T> {
@@ -249,6 +258,42 @@ impl<T: VertexType + ?Sized> Deref for VertexBuffer<T>
     fn deref(&self) -> &Buffer<T> {
         &self.0
     }
+}
+
+#[derive(Clone,Debug)]
+pub struct VertexBufferSlice<T: VertexType + ?Sized>(BufferSlice<[T]>);
+
+impl<T: VertexType + ?Sized> Deref for VertexBufferSlice<T> {
+    type Target = BufferSlice<T>;
+    fn deref(&self) -> &BufferSlice<T> {
+        &self.0
+    }
+}*/
+
+/// Trait for a thing that provides vertex data
+pub trait VertexDataProvider {
+    type ElementType: VertexType;
+}
+
+impl<T: VertexType> VertexDataProvider for Buffer<[T]> {
+    type ElementType = T;
+}
+
+impl<T: VertexType> VertexDataProvider for BufferSlice<[T]> {
+    type ElementType = T;
+}
+
+/// Trait for a thing that provides index data
+pub trait IndexDataProvider {
+    type ElementType: IndexElementType;
+}
+
+impl<T: IndexElementType> IndexDataProvider for Buffer<[T]> {
+    type ElementType = T;
+}
+
+impl<T: IndexElementType> IndexDataProvider for BufferSlice<[T]> {
+    type ElementType = T;
 }
 
 

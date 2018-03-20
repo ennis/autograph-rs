@@ -12,7 +12,7 @@ impl<T: Copy + 'static> BufferData for T {
     }
 }
 
-impl<U: Copy + 'static + ?Sized> BufferData for [U] {
+impl<U: BufferData> BufferData for [U] {
     type Element = U;
     fn len(&self) -> usize {
         (&self as &[U]).len()

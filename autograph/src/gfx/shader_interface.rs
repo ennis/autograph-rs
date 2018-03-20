@@ -66,8 +66,7 @@ pub struct VertexBufferDesc
 #[derive(Clone, Debug)]
 pub struct IndexBufferDesc
 {
-    pub name: Option<String>,
-    pub index_ty: Type
+    pub format: Format
 }
 
 /// Texture basic data type (NOT storage format)
@@ -96,27 +95,46 @@ pub struct TextureBindingDesc
     pub data_type: TextureDataType
 }
 
-/// Trait implemented by types that can serve as a vertex element.
-pub unsafe trait VertexElementType {
-    /// Returns the equivalent OpenGL type (the type seen by the shader).
-    fn get_equivalent_type() -> Type;
+/// Trait implemented by types that can serve as a vertex attribute.
+pub unsafe trait VertexAttributeType {
+    /// The equivalent OpenGL type (the type seen by the shader).
+    const EQUIVALENT_TYPE: Type;
     /// Returns the corresponding data format (the layout of the data in memory).
-    fn get_format() -> Format;
+    const FORMAT: Format;
 }
 
-macro_rules! impl_vertex_element_type {
+macro_rules! impl_vertex_attrib_type {
     ($t:ty, $equiv:expr, $fmt:ident) => {
-        unsafe impl VertexElementType for $t {
-            fn get_equivalent_type() -> Type { $equiv }
-            fn get_format() -> Format { Format::$fmt }
+        unsafe impl VertexAttributeType for $t {
+            const EQUIVALENT_TYPE: Type = $equiv;
+            const FORMAT: Format = Format::$fmt;
         }
     };
 }
 
-impl_vertex_element_type!(f32, Type::Primitive(PrimitiveType::Float), R32_SFLOAT);
-impl_vertex_element_type!([f32;2], Type::Vector(PrimitiveType::Float,2), R32G32_SFLOAT);
-impl_vertex_element_type!([f32;3], Type::Vector(PrimitiveType::Float,3), R32G32B32_SFLOAT);
-impl_vertex_element_type!([f32;4], Type::Vector(PrimitiveType::Float,4), R32G32B32A32_SFLOAT);
+impl_vertex_attrib_type!(f32, Type::Primitive(PrimitiveType::Float), R32_SFLOAT);
+impl_vertex_attrib_type!([f32;2], Type::Vector(PrimitiveType::Float,2), R32G32_SFLOAT);
+impl_vertex_attrib_type!([f32;3], Type::Vector(PrimitiveType::Float,3), R32G32B32_SFLOAT);
+impl_vertex_attrib_type!([f32;4], Type::Vector(PrimitiveType::Float,4), R32G32B32A32_SFLOAT);
+
+/// Trait implemented by types that can serve as indices.
+pub unsafe trait IndexElementType: BufferData
+{
+    /// Returns the corresponding data format (the layout of the data in memory).
+    const FORMAT: Format;
+}
+
+macro_rules! impl_index_element_type {
+    ($t:ty, $fmt:ident) => {
+        unsafe impl IndexElementType for $t {
+            const FORMAT: Format = Format::$fmt;
+        }
+    };
+}
+
+impl_index_element_type!(u16, R16_UINT);
+impl_index_element_type!(u32, R32_UINT);
+
 
 /// Description of a vertex attribute.
 #[derive(Clone,Debug)]
@@ -176,8 +194,8 @@ pub trait ShaderInterfaceDesc: Sync + 'static
     /// Returns the list of vertex buffer items (`#[vertex_buffer(index=...)]`)
     fn get_vertex_buffers(&self) -> &[VertexBufferDesc];
     /// Returns the index buffer item, if any (`#[index_buffer]`)
-    fn get_index_buffer(&self) -> Option<IndexBufferDesc>;
-    /// Returns the list of texture/sampler pairs (`#[texture_binding(index=...,data_type=...]`)
+    fn get_index_buffer(&self) -> Option<&IndexBufferDesc>;
+    /// Returns the list of texture/sampler pairs (`#[texture_binding(index=...,data_type=...)]`)
     fn get_texture_bindings(&self) -> &[TextureBindingDesc];
 }
 
