@@ -94,7 +94,9 @@ struct TestShaderInterface
     #[vertex_buffer(index="0")]
     vertices: gfx::BufferSlice<[MyVertexType]>,
     #[index_buffer]
-    indices: gfx::BufferSlice<[u32]>
+    indices: gfx::BufferSlice<[u32]>,
+    #[render_target(index="0")]
+    diffuse: gfx::RawTexture,
 }
 
 impl CameraParameters {
@@ -114,6 +116,23 @@ impl CameraParameters {
             temporal_aa_offset: [0.0; 2], // TODO
         }
     }
+}
+
+fn dump_shader_interface<T: gfx::ShaderInterface>()
+{
+    let interface_desc = <T as gfx::ShaderInterface>::get_description();
+    let named_uniforms = interface_desc.get_named_uniforms();
+    let render_targets = interface_desc.get_render_targets();
+    let vertex_buffers = interface_desc.get_vertex_buffers();
+    let index_buffer = interface_desc.get_index_buffer();
+    let texture_bindings = interface_desc.get_texture_bindings();
+
+    debug!("vertex layout = {:#?}", <MyVertexType as gfx::VertexType>::get_layout());
+    debug!("texture bindings: {:#?}", texture_bindings);
+    debug!("named uniforms: {:#?}", named_uniforms);
+    debug!("render targets: {:#?}", render_targets);
+    debug!("vertex buffers: {:#?}", vertex_buffers);
+    debug!("index buffer: {:#?}", index_buffer);
 }
 
 
@@ -138,9 +157,7 @@ fn main() {
         val
     });
 
-    debug!("vertex layout = {:#?}", <MyVertexType as gfx::VertexType>::get_layout());
-    debug!("textures = {:#?}", <TestShaderInterface as gfx::ShaderInterface>::get_description().get_texture_bindings());
-    debug!("named uniforms = {:#?}", <TestShaderInterface as gfx::ShaderInterface>::get_description().get_named_uniforms());
+    dump_shader_interface::<TestShaderInterface>();
 
     debug!(
         "inner_size_points={:?}, inner_size_pixels={:?}",

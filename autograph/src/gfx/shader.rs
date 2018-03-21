@@ -1,8 +1,8 @@
-use super::shader_interface::{ShaderInterfaceDesc, VertexLayout, Type};
+use super::shader_interface::{ShaderInterfaceDesc, VertexLayout, TypeDesc};
 use failure::Error;
 use gl;
 use gl::types::*;
-use gfx::{RawBufferSlice,RawTexture,Sampler};
+use gfx::{RawBufferSlice,RawTexture,Sampler,Format};
 
 /// A trait representing a shader
 pub trait Shader {}
@@ -32,7 +32,7 @@ pub unsafe trait UniformBinder
     unsafe fn bind_shader_storage_buffer_unchecked(&self, slot: u32, buffer: &RawBufferSlice);
     unsafe fn bind_sampler(&self, index: u32, sampler: GLuint);
     unsafe fn bind_vertex_buffer_unchecked(&self, slot: u32, buffer: &RawBufferSlice, stride: usize, layout: Option<VertexLayout>);
-    unsafe fn bind_index_buffer_unchecked(&self, buffer: &RawBufferSlice, index_type: Option<Type>);
+    unsafe fn bind_index_buffer_unchecked(&self, buffer: &RawBufferSlice, index_type: Option<Format>);
     unsafe fn bind_texture_unchecked(&self, slot: u32, texture: &RawTexture, sampler: &Sampler);
     //unsafe fn bind_uniform_buffers_unchecked(&self, start_slot: i32, )
 }
@@ -119,7 +119,7 @@ unsafe impl UniformBinder for DefaultUniformBinder
         );
     }
 
-    unsafe fn bind_index_buffer_unchecked(&self, buffer: &RawBufferSlice, index_type: Option<Type>) {
+    unsafe fn bind_index_buffer_unchecked(&self, buffer: &RawBufferSlice, index_type: Option<Format>) {
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, buffer.owner.gl_object());
     }
 

@@ -135,6 +135,16 @@ struct IndexBuffer {
     #[darling(default)] rename: Option<String>,
 }
 
+#[derive(FromField)]
+#[darling(attributes(named_uniform))]
+struct RenderTarget {
+    ident: Option<syn::Ident>,
+    ty: syn::Type,
+    vis: syn::Visibility,
+    #[darling(default)] rename: Option<String>,
+    #[darling(default)] index: Option<i32>
+}
+
 fn error_multiple_interface_attrs()
 {
     panic!("Multiple interface attributes on field.");
@@ -156,6 +166,7 @@ fn process_struct(ast: &syn::DeriveInput,
     let mut named_uniforms = Vec::new();
     let mut texture_bindings = Vec::new();
     let mut vertex_buffers = Vec::new();
+    let mut render_targets = Vec::new();
     let mut index_buffer = None;
 
     match *fields {
@@ -193,6 +204,12 @@ fn process_struct(ast: &syn::DeriveInput,
                             index_buffer = Some(ib);
                             seen_interface_attr = true;
                         },
+                        "render_target" => {
+                            if seen_interface_attr { error_multiple_interface_attrs(); }
+                            let rt = <RenderTarget as FromField>::from_field(f).unwrap();
+                            render_targets.push(rt);
+                            seen_interface_attr = true;
+                        },
                         _ => {}
                     }
                 }
@@ -204,11 +221,13 @@ fn process_struct(ast: &syn::DeriveInput,
     let named_uniform_items =
         named_uniforms.iter().map(|named_uniform| {
             let name = named_uniform.rename.as_ref().map_or(named_uniform.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+            let ty = &named_uniform.ty;
+
             //let index_tokens = make_option_tokens(texbind.index);
             quote! {
                 NamedUniformDesc {
                     name: stringify!(#name).into(),
-                    ty: Type::Unknown
+                    ty: <#ty as BufferInterface>::get_description()
                 }
             }
         }).collect::<Vec<_>>();
@@ -245,6 +264,21 @@ fn process_struct(ast: &syn::DeriveInput,
         }).collect::<Vec<_>>();
     let num_vertex_buffer_items = vertex_buffer_items.len();
 
+    let render_target_items =
+        render_targets.iter().map(|rt| {
+            let name = rt.rename.as_ref().map_or(rt.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+            let index_tokens = make_option_tokens(&rt.index);
+            let ty = &rt.ty;
+            quote! {
+                ::autograph::gfx::shader_interface::RenderTargetDesc {
+                    name: Some(stringify!(#name).into()),
+                    index: #index_tokens,
+                    format: None
+                }
+            }
+        }).collect::<Vec<_>>();
+    let num_render_target_items = render_target_items.len();
+
     let private_module_name = syn::Ident::new(&format!("__shader_interface_{}", struct_name), proc_macro2::Span::call_site());
 
     let index_buffer_item = if let Some(ib) = index_buffer  {
@@ -272,6 +306,7 @@ fn process_struct(ast: &syn::DeriveInput,
                 static ref NAMED_UNIFORMS: [NamedUniformDesc;#num_named_uniform_items] = [#(#named_uniform_items),*];
                 static ref TEXTURE_BINDINGS: [TextureBindingDesc;#num_texture_binding_items] = [#(#texture_binding_items),*];
                 static ref VERTEX_BUFFERS: [VertexBufferDesc;#num_vertex_buffer_items] = [#(#vertex_buffer_items),*];
+                static ref RENDER_TARGETS: [RenderTargetDesc;#num_render_target_items] = [#(#render_target_items),*];
                 static ref INDEX_BUFFER: Option<IndexBufferDesc> = #index_buffer_item;
             }
 
@@ -280,7 +315,7 @@ fn process_struct(ast: &syn::DeriveInput,
                     &*NAMED_UNIFORMS
                 }
                 fn get_render_targets(&self) -> &'static [RenderTargetDesc] {
-                     unimplemented!()
+                     &*RENDER_TARGETS
                 }
                 fn get_vertex_buffers(&self) -> &'static [VertexBufferDesc] {
                     &*VERTEX_BUFFERS
@@ -291,6 +326,7 @@ fn process_struct(ast: &syn::DeriveInput,
                 fn get_texture_bindings(&self) -> &'static [TextureBindingDesc] {
                     &*TEXTURE_BINDINGS
                 }
+                //fn get_framebuffer(&self) ->
             }
 
             impl InterfaceBinder<#struct_name> for Binder {

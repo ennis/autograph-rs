@@ -9,35 +9,39 @@ use failure::Error;
 pub enum PrimitiveType {
     Int,
     UnsignedInt,
-    Half,
+    Half,   //?
     Float,
     Double,
 }
 
 #[derive(Clone,Debug,Eq,PartialEq)]
-pub enum Type {
+/// GLSL/SPIR-V types used to interface with shader programs.
+/// i.e. the types used to describe a buffer interface.
+///
+pub enum TypeDesc {
     Primitive(PrimitiveType),
-    Array(Box<Type>,usize),
+    Array(Box<TypeDesc>,usize),
     Vector(PrimitiveType,u8),
     Matrix(PrimitiveType,u8,u8),
+    Struct(Vec<TypeDesc>),
     Unknown
-    //Struct(String)
 }
 
-pub const TYPE_FLOAT: Type = Type::Primitive(PrimitiveType::Float);
-pub const TYPE_INT: Type = Type::Primitive(PrimitiveType::Int);
-pub const TYPE_VEC2: Type = Type::Vector(PrimitiveType::Float, 2);
-pub const TYPE_VEC3: Type = Type::Vector(PrimitiveType::Float, 3);
-pub const TYPE_VEC4: Type = Type::Vector(PrimitiveType::Float, 4);
-pub const TYPE_IVEC2: Type = Type::Vector(PrimitiveType::Int, 2);
-pub const TYPE_IVEC3: Type = Type::Vector(PrimitiveType::Int, 3);
-pub const TYPE_IVEC4: Type = Type::Vector(PrimitiveType::Int, 4);
-pub const TYPE_MAT2: Type = Type::Matrix(PrimitiveType::Float, 2, 2);
-pub const TYPE_MAT3: Type = Type::Matrix(PrimitiveType::Float, 3, 3);
-pub const TYPE_MAT4: Type = Type::Matrix(PrimitiveType::Float, 4, 4);
+pub const TYPE_FLOAT: TypeDesc = TypeDesc::Primitive(PrimitiveType::Float);
+pub const TYPE_INT: TypeDesc = TypeDesc::Primitive(PrimitiveType::Int);
+pub const TYPE_VEC2: TypeDesc = TypeDesc::Vector(PrimitiveType::Float, 2);
+pub const TYPE_VEC3: TypeDesc = TypeDesc::Vector(PrimitiveType::Float, 3);
+pub const TYPE_VEC4: TypeDesc = TypeDesc::Vector(PrimitiveType::Float, 4);
+pub const TYPE_IVEC2: TypeDesc = TypeDesc::Vector(PrimitiveType::Int, 2);
+pub const TYPE_IVEC3: TypeDesc = TypeDesc::Vector(PrimitiveType::Int, 3);
+pub const TYPE_IVEC4: TypeDesc = TypeDesc::Vector(PrimitiveType::Int, 4);
+pub const TYPE_MAT2: TypeDesc = TypeDesc::Matrix(PrimitiveType::Float, 2, 2);
+pub const TYPE_MAT3: TypeDesc = TypeDesc::Matrix(PrimitiveType::Float, 3, 3);
+pub const TYPE_MAT4: TypeDesc = TypeDesc::Matrix(PrimitiveType::Float, 4, 4);
 
 // vertex type: interpretation (FLOAT,UNORM,SNORM,INTEGER)
 
+/// Describes a render target binding (a framebuffer attachement, in GL parlance)
 #[derive(Clone, Debug)]
 pub struct RenderTargetDesc
 {
@@ -50,7 +54,7 @@ pub struct RenderTargetDesc
 pub struct NamedUniformDesc
 {
     pub name: String,
-    pub ty: Type
+    pub ty: &'static TypeDesc
 }
 
 /// An input buffer for vertex data
@@ -98,7 +102,7 @@ pub struct TextureBindingDesc
 /// Trait implemented by types that can serve as a vertex attribute.
 pub unsafe trait VertexAttributeType {
     /// The equivalent OpenGL type (the type seen by the shader).
-    const EQUIVALENT_TYPE: Type;
+    const EQUIVALENT_TYPE: TypeDesc;
     /// Returns the corresponding data format (the layout of the data in memory).
     const FORMAT: Format;
 }
@@ -106,16 +110,16 @@ pub unsafe trait VertexAttributeType {
 macro_rules! impl_vertex_attrib_type {
     ($t:ty, $equiv:expr, $fmt:ident) => {
         unsafe impl VertexAttributeType for $t {
-            const EQUIVALENT_TYPE: Type = $equiv;
+            const EQUIVALENT_TYPE: TypeDesc = $equiv;
             const FORMAT: Format = Format::$fmt;
         }
     };
 }
 
-impl_vertex_attrib_type!(f32, Type::Primitive(PrimitiveType::Float), R32_SFLOAT);
-impl_vertex_attrib_type!([f32;2], Type::Vector(PrimitiveType::Float,2), R32G32_SFLOAT);
-impl_vertex_attrib_type!([f32;3], Type::Vector(PrimitiveType::Float,3), R32G32B32_SFLOAT);
-impl_vertex_attrib_type!([f32;4], Type::Vector(PrimitiveType::Float,4), R32G32B32A32_SFLOAT);
+impl_vertex_attrib_type!(f32, TypeDesc::Primitive(PrimitiveType::Float), R32_SFLOAT);
+impl_vertex_attrib_type!([f32;2], TypeDesc::Vector(PrimitiveType::Float,2), R32G32_SFLOAT);
+impl_vertex_attrib_type!([f32;3], TypeDesc::Vector(PrimitiveType::Float,3), R32G32B32_SFLOAT);
+impl_vertex_attrib_type!([f32;4], TypeDesc::Vector(PrimitiveType::Float,4), R32G32B32A32_SFLOAT);
 
 /// Trait implemented by types that can serve as indices.
 pub unsafe trait IndexElementType: BufferData
@@ -135,6 +139,35 @@ macro_rules! impl_index_element_type {
 impl_index_element_type!(u16, R16_UINT);
 impl_index_element_type!(u32, R32_UINT);
 
+/// Trait implemented by types that are layout-compatible with an specific
+/// to GLSL/SPIR-V type.
+/// An implementation is provided for most primitive types and arrays of primitive types.
+/// Structs can derive it automatically with `#[derive(InterfaceType)]`
+pub unsafe trait BufferInterface
+{
+    fn get_description() -> &'static TypeDesc;
+}
+
+macro_rules! impl_interface_type {
+    ($t:ty, $tydesc:expr) => {
+        unsafe impl BufferInterface for $t {
+            fn get_description() -> &'static TypeDesc { static DESC: TypeDesc = $tydesc; &DESC }
+        }
+    };
+}
+
+impl_interface_type!(f32, TypeDesc::Primitive(PrimitiveType::Float));
+impl_interface_type!([f32;2], TypeDesc::Vector(PrimitiveType::Float,2));
+impl_interface_type!([f32;3], TypeDesc::Vector(PrimitiveType::Float,3));
+impl_interface_type!([f32;4], TypeDesc::Vector(PrimitiveType::Float,4));
+impl_interface_type!(i32, TypeDesc::Primitive(PrimitiveType::Int));
+impl_interface_type!([i32;2], TypeDesc::Vector(PrimitiveType::Int,2));
+impl_interface_type!([i32;3], TypeDesc::Vector(PrimitiveType::Int,3));
+impl_interface_type!([i32;4], TypeDesc::Vector(PrimitiveType::Int,4));
+impl_interface_type!([[f32;2];2], TypeDesc::Matrix(PrimitiveType::Float,2,2));
+impl_interface_type!([[f32;3];3], TypeDesc::Matrix(PrimitiveType::Float,3,3));
+impl_interface_type!([[f32;4];4], TypeDesc::Matrix(PrimitiveType::Float,4,4));
+
 
 /// Description of a vertex attribute.
 #[derive(Clone,Debug)]
@@ -145,7 +178,7 @@ pub struct VertexAttributeDesc
     /// Location.
     pub loc: u8,
     /// The equivalent OpenGL type.
-    pub ty: Type,
+    pub ty: TypeDesc,
     /// Storage format of the vertex attribute.
     pub format: Format,
     /// Relative offset.

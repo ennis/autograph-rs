@@ -221,3 +221,9 @@ impl FramebufferBuilder {
         }))
     }
 }
+
+/// Trait implemented by things that can be bound as a render target (a framebuffer attachement)
+pub trait RenderTarget
+{
+
+}

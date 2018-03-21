@@ -5,7 +5,6 @@ use super::context::Context;
 use gfx;
 use gfx::state_cache::StateCache;
 use gfx::shader::{GraphicsShaderPipeline, UniformBinder};
-use gfx::shader_interface::{ShaderInterface,ShaderInterfaceDesc};
 use std::sync::Arc;
 use std::ops::Deref;
 use std::path::Path;
