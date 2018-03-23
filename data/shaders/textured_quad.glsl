@@ -1,6 +1,6 @@
 #version 450
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_shading_language_420pack : enable
+//#extension GL_ARB_separate_shader_objects : enable
+//#extension GL_ARB_shading_language_420pack : enable
 #pragma stages(vertex,fragment)
 #pragma input_layout(rg32f,0,0,rg32f,0,8)
 #pragma primitive_topology(triangle)

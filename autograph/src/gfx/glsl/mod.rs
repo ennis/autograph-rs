@@ -78,7 +78,7 @@ impl Shader {
         unsafe {
             let mut obj = gl::CreateShader(stage);
             gl::ShaderBinary(1, &mut obj, gl::SHADER_BINARY_FORMAT_SPIR_V, bytecode.as_ptr() as *const ::std::os::raw::c_void, ::std::mem::size_of_val(bytecode) as i32);
-            let entry_point = ::std::ffi::CString::new("Hello, world!").unwrap();
+            let entry_point = ::std::ffi::CString::new("main").unwrap();
             // TODO specialization constants
             gl::SpecializeShader(obj,entry_point.as_ptr(), 0, 0 as *const GLuint,0 as *const GLuint);
             let mut status: GLint = 0;
@@ -87,6 +87,7 @@ impl Shader {
                 error!("Error loading SPIR-V shader");
                 let log = get_shader_info_log(obj);
                 gl::DeleteShader(obj);
+                //Ok(Shader { stage, obj:0 })
                 Err(format_err!("{}", log))
             } else {
                 Ok(Shader { stage, obj })
@@ -424,14 +425,16 @@ pub fn create_pipeline_via_spirv<P: AsRef<Path>>(combined_src_path: P) -> Result
     use shaderc;
     let mut compiler = shaderc::Compiler::new().unwrap();
     let mut options = shaderc::CompileOptions::new().unwrap();
-    options.set_forced_version_profile(450, shaderc::GlslProfile::Core);
+    options.set_forced_version_profile(450, shaderc::GlslProfile::None);
+    options.set_optimization_level(shaderc::OptimizationLevel::Size);
+
+    debug!("==== Preprocessed ====\n\n{}",pp.vertex.as_ref().unwrap());
 
     let vertex_compile_result = compiler.compile_into_spirv(pp.vertex.as_ref().unwrap(), shaderc::ShaderKind::Vertex, &src_path_str, "main", Some(&options))?;
     let text_result = compiler.compile_into_spirv_assembly(
         &pp.vertex.unwrap(), shaderc::ShaderKind::Vertex,
         &src_path_str, "main", Some(&options))?;
     debug!("==== SPIR-V ====\n\n{}",text_result.as_text());
-    debug!("==== SPIR-V binary ====\n\n{:#?}",vertex_compile_result.as_binary());
 
     let fragment_compile_result = compiler.compile_into_spirv(pp.fragment.as_ref().unwrap(), shaderc::ShaderKind::Fragment, &src_path_str, "main", Some(&options))?;
     let geometry_compile_result = if let Some(ref geometry) = pp.geometry {

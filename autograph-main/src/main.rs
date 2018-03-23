@@ -148,7 +148,7 @@ fn main() {
         .with_gl_profile(glutin::GlProfile::Core)
         .with_gl_debug_flag(true)
         .with_vsync(true)
-        .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 5)));
+        .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 6)));
     let window = glutin::GlWindow::new(window_builder, context_builder, &event_loop).unwrap();
 
     autograph::gl::load_with(|s| {
@@ -203,7 +203,7 @@ fn main() {
 
     // test pipeline
     let test_pipe = gfx::GraphicsPipelineBuilder::new()
-        .with_glsl_file("data/shaders/textured_quad.glsl")
+        .with_glsl_file_via_spirv("data/shaders/textured_quad.glsl")
         .unwrap()
         .with_rasterizer_state(&gfx::RasterizerState {
             fill_mode: gl::FILL,
