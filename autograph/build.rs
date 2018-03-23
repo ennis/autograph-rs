@@ -12,7 +12,7 @@ fn main() {
 
     Registry::new(
         Api::Gl,
-        (4, 5),
+        (4, 6),
         Profile::Core,
         Fallbacks::All,
         ["GL_ARB_sparse_texture"],

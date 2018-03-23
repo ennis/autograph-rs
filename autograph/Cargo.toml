@@ -24,9 +24,9 @@ log = "0.4.1"
 itertools = "*"
 winit = "*"
 time = "*"
-
+shaderc = "*"
+rspirv = "*"
 #glsl-to-spirv = "*"
-#rspirv = "*"
 #spirv_headers = "*"
 #spirv-reflect = { path = "../spirv-reflect" }
 petgraph = "*"

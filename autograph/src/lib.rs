@@ -32,6 +32,8 @@ extern crate petgraph;
 extern crate num_traits;
 extern crate url;
 extern crate notify;
+extern crate rspirv;
+extern crate shaderc;
 
 #[macro_use]
 #[macro_reexport(offset_of)]

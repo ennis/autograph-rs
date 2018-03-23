@@ -2,7 +2,6 @@
 use gfx::{Uniforms,Scissors,VertexInput,FramebufferObject,GraphicsPipeline,Framebuffer};
 use super::bind::{bind_target, bind_vertex_input, bind_uniforms, bind_graphics_pipeline, bind_scissors, SG_ALL};
 
-// TODO move this into its own module
 pub(super) struct StateCache
 {
     uniforms: Option<Uniforms>,

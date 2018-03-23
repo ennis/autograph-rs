@@ -18,6 +18,7 @@ pub mod shader_interface;
 pub mod shader;
 pub mod draw;
 pub mod render_utils;
+pub mod spirv;
 mod state_cache;
 
 pub use self::state_group::*;
