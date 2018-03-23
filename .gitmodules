@@ -1,0 +1,3 @@
+[submodule "nanovg-rs"]
+	path = ext/nanovg-rs
+	url = https://github.com/KevinKelley/nanovg-rs

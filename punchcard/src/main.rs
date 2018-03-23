@@ -84,7 +84,7 @@ fn main() {
                     path.rect((100.0, 100.0), (300.0, 300.0));
                     path.fill(nvg::FillStyle {
                         coloring_style: nvg::ColoringStyle::Paint(nvg::Paint::with_linear_gradient(
-                            &context,
+                            //&context,
                             (100.0, 100.0),
                             (400.0, 400.0),
                             nvg::Color::from_rgb(0xAA, 0x6C, 0x39),
@@ -131,7 +131,7 @@ fn main() {
                     let rolled = ((elapsed / 5.0).sin() * 0.5 + 0.5) * distance; // Distance currently rolled
                     let origin = (rolled + 100.0, 600.0);
                     let paint = nvg::Paint::with_linear_gradient(
-                        &context,
+                        //&context,
                         (0.0, 0.0),
                         (0.0, 1.0),
                         nvg::Color::new(0.2, 0.0, 0.8, 1.0),
