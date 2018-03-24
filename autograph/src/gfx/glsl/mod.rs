@@ -506,6 +506,9 @@ pub fn create_pipeline_via_spirv<P: AsRef<Path>>(combined_src_path: P) -> Result
             format_err!("Program link failed: {}", log)
         })?;
 
+    // get reflection data
+
+
     // Specify layout
     Ok(GlslViaSpirvCombinedSource {
         shader_pipeline: SpirvGraphicsShaderPipeline {

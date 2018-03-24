@@ -68,20 +68,58 @@ impl Default for TextureDesc {
     }
 }
 
-impl TextureDesc {
-    pub fn default_2d() -> TextureDesc {
-        TextureDesc {
-            dimensions: TextureDimensions::Tex2D,
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Texture2DDesc {
+    /// Texture storage format.
+    pub format: Format,
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels, or array size of 1D texture arrays.
+    pub height: u32,
+    /// Number of samples for multisample textures.
+    /// 0 means that the texture will not be allocated with multisampling.
+    pub sample_count: u32,
+    /// Number of mipmap levels that should be allocated for this texture.
+    /// See also: `get_texture_mip_map_count`
+    pub mip_map_count: MipMaps,
+    ///
+    pub options: TextureOptions,
+}
+
+impl Texture2DDesc {
+    pub fn simple(format: Format, width: u32, height: u32) -> Texture2DDesc {
+        Texture2DDesc { format, width, height, sample_count: 0, mip_map_count: MipMaps::Count(1), options: TextureOptions::empty() }
+    }
+}
+
+impl Default for Texture2DDesc {
+    fn default() -> Texture2DDesc {
+        Texture2DDesc {
             format: Format::R8G8B8A8_UNORM,
             width: 0,
             height: 0,
-            depth: 1,
             sample_count: 1,
             mip_map_count: MipMaps::Count(1),
             options: TextureOptions::empty(),
         }
     }
 }
+
+impl From<Texture2DDesc> for TextureDesc {
+    fn from(other: Texture2DDesc) -> Self {
+        TextureDesc {
+            dimensions: TextureDimensions::Tex2D,
+            format: other.format,
+            width: other.width,
+            height: other.height,
+            depth: 1,
+            sample_count: other.sample_count,
+            mip_map_count: other.mip_map_count,
+            options: other.options,
+        }
+    }
+}
+
 
 /// Wrapper for OpenGL textures
 ///
@@ -392,36 +430,40 @@ fn get_texture_mip_map_count(width: u32, height: u32) -> u32 {
     1 + f32::floor(f32::log2(max(width, height) as f32)) as u32
 }
 
-#[derive(Clone,Debug)]
-pub struct RawTexture(Arc<TextureObject>);
+/// A texture whose precise type is unknown at compile time
+/// Inspired by glium
+#[derive(Clone,Debug,Deref,DerefMut)]
+pub struct TextureAny(Arc<TextureObject>);
 
-impl RawTexture
+impl TextureAny
 {
-    pub fn new(gctx: &Context, desc: &TextureDesc) -> RawTexture {
-        RawTexture(Arc::new(TextureObject::new(gctx, desc)))
+    pub fn new(gctx: &Context, desc: &TextureDesc) -> TextureAny {
+        TextureAny(Arc::new(TextureObject::new(gctx, desc)))
     }
 
-    pub fn with_pixels(gctx: &Context, desc: &TextureDesc, data: &[u8]) -> RawTexture {
+    pub fn with_pixels(gctx: &Context, desc: &TextureDesc, data: &[u8]) -> TextureAny {
         let mut texture = TextureObject::new(gctx, desc);
         texture.upload_region(0, (0,0,0), (desc.width,desc.height,desc.depth), data);
-        RawTexture(Arc::new(texture))
-    }
-
-}
-
-impl Deref for RawTexture
-{
-    type Target = Arc<TextureObject>;
-    fn deref(&self) -> &Arc<TextureObject> {
-        &self.0
+        TextureAny(Arc::new(texture))
     }
 }
 
-impl DerefMut for RawTexture
-{
-    fn deref_mut(&mut self) -> &mut Arc<TextureObject> {
-        &mut self.0
+/// A 1D texture
+#[derive(Clone,Debug,Deref,DerefMut)]
+pub struct Texture1D(TextureAny);
+
+/// A 2D texture
+#[derive(Clone,Debug,Deref,DerefMut)]
+pub struct Texture2D(TextureAny);
+impl Texture2D {
+    pub fn new(gctx: &Context, desc: &Texture2DDesc) -> Texture2D {
+        Texture2D(TextureAny::new(gctx, &desc.clone().into()))
+    }
+    pub fn with_pixels(gctx: &Context, desc: &Texture2DDesc, data: &[u8]) -> Texture2D {
+        Texture2D(TextureAny::with_pixels(gctx, &desc.clone().into(), data))
     }
 }
 
-// TODO RawTexture2d, RawTexture3d, Texture2d<T>, Texture3d<T>
+/// A 3D texture
+#[derive(Clone,Debug,Deref,DerefMut)]
+pub struct Texture3D(TextureAny);

@@ -10,6 +10,70 @@ use darling::FromField;
 use proc_macro::TokenStream;
 //use autograph::gfx::shader_interface::*;
 
+#[proc_macro_derive(BufferInterface)]
+pub fn buffer_interface_derive(input: TokenStream) -> TokenStream {
+    let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
+
+    let result = match ast.data {
+        syn::Data::Struct(ref s) => process_buffer_interface_struct(&ast, &s.fields),
+        _ => panic!("BufferInterface trait can only be automatically derived on structs."),
+    };
+
+    result.into()
+}
+
+
+fn process_buffer_interface_struct(ast: &syn::DeriveInput,
+                         fields: &syn::Fields) -> quote::Tokens
+{
+    let struct_name = &ast.ident;
+
+    let fields = match *fields {
+        syn::Fields::Named(ref fields_named) => { &fields_named.named },
+        syn::Fields::Unnamed(ref fields_unnamed) => { &fields_unnamed.unnamed },
+        syn::Fields::Unit => { panic!("BufferInterface trait cannot be derived on unit structs") }
+    };
+
+    let mut field_descs = Vec::new();
+
+    for (i,f) in fields.iter().enumerate() {
+        println!("{} => {:?}", i, f.ident);
+        let field_ty = &f.ty;
+        let field_name = f.ident.clone().unwrap_or(syn::Ident::from(format!("unnamed_{}",i)));
+        let field_offset = if let Some(ref name) = f.ident {
+            quote!(offset_of!(#struct_name,#name))
+        } else {
+            quote!(offset_of!(#struct_name,#i))
+        };
+        field_descs.push(quote!{
+            (#field_offset, <#field_ty as ::autograph::gfx::BufferInterface>::get_description().clone())
+         });
+    }
+
+    let num_fields = field_descs.len();
+
+    let private_module_name = syn::Ident::new(&format!("__buffer_interface_{}", struct_name), proc_macro2::Span::call_site());
+
+    quote! {
+        #[allow(non_snake_case)]
+        mod #private_module_name {
+            use super::#struct_name;
+
+            lazy_static!{
+                pub(super) static ref FIELDS: [(usize,::autograph::gfx::TypeDesc);#num_fields] = {[#(#field_descs),*]};
+                pub(super) static ref TYPE_DESC: ::autograph::gfx::TypeDesc = ::autograph::gfx::TypeDesc::Struct(FIELDS.to_vec());
+            }
+        }
+
+        unsafe impl ::autograph::gfx::BufferInterface for #struct_name {
+            fn get_description() -> &'static ::autograph::gfx::TypeDesc {
+                &*#private_module_name::TYPE_DESC
+            }
+        }
+    }
+}
+
+
 #[proc_macro_derive(VertexType, attributes(rename))]
 pub fn vertex_type_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
@@ -20,7 +84,6 @@ pub fn vertex_type_derive(input: TokenStream) -> TokenStream {
     };
 
     result.into()
-
 }
 
 fn process_vertex_struct(ast: &syn::DeriveInput,
@@ -84,7 +147,7 @@ fn process_vertex_struct(ast: &syn::DeriveInput,
     }
 }
 
-#[proc_macro_derive(ShaderInterface, attributes(named_uniform, texture_binding, vertex_buffer, index_buffer))]
+#[proc_macro_derive(ShaderInterface, attributes(named_uniform, texture_binding, vertex_buffer, index_buffer, uniform_buffer))]
 pub fn shader_interface_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
 
@@ -119,6 +182,16 @@ struct TextureBinding {
 #[derive(FromField)]
 #[darling(attributes(vertex_buffer))]
 struct VertexBuffer {
+    ident: Option<syn::Ident>,
+    ty: syn::Type,
+    vis: syn::Visibility,
+    #[darling(default)] rename: Option<String>,
+    #[darling(default)] index: Option<i32>
+}
+
+#[derive(FromField)]
+#[darling(attributes(uniform_buffer))]
+struct UniformBuffer {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
@@ -167,14 +240,15 @@ fn process_struct(ast: &syn::DeriveInput,
     let mut texture_bindings = Vec::new();
     let mut vertex_buffers = Vec::new();
     let mut render_targets = Vec::new();
+    let mut uniform_buffers = Vec::new();
     let mut index_buffer = None;
 
     match *fields {
         syn::Fields::Named(ref fields) => {
             for f in fields.named.iter() {
                 let field_name = f.ident.unwrap();
+                let mut seen_interface_attr = false;
                 for a in f.attrs.iter() {
-                    let mut seen_interface_attr = false;
                     let meta = a.interpret_meta();
                     let meta = if let Some(meta) = meta { meta } else { continue };
 
@@ -195,6 +269,12 @@ fn process_struct(ast: &syn::DeriveInput,
                             if seen_interface_attr { error_multiple_interface_attrs(); }
                             let vb = <VertexBuffer as FromField>::from_field(f).unwrap();
                             vertex_buffers.push(vb);
+                            seen_interface_attr = true;
+                        },
+                        "uniform_buffer" => {
+                            if seen_interface_attr { error_multiple_interface_attrs(); }
+                            let ub = <UniformBuffer as FromField>::from_field(f).unwrap();
+                            uniform_buffers.push(ub);
                             seen_interface_attr = true;
                         },
                         "index_buffer" => {
@@ -218,6 +298,9 @@ fn process_struct(ast: &syn::DeriveInput,
         _ => panic!("ShaderInterface trait cannot be derived on unit structs or tuple structs."),
     }
 
+    //
+    // named uniforms
+    //
     let named_uniform_items =
         named_uniforms.iter().map(|named_uniform| {
             let name = named_uniform.rename.as_ref().map_or(named_uniform.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
@@ -233,6 +316,9 @@ fn process_struct(ast: &syn::DeriveInput,
         }).collect::<Vec<_>>();
     let num_named_uniform_items = named_uniform_items.len();
 
+    //
+    // texture+sampler bindings
+    //
     let texture_binding_items =
         texture_bindings.iter().map(|texbind| {
             let name = texbind.rename.as_ref().map_or(texbind.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
@@ -248,6 +334,9 @@ fn process_struct(ast: &syn::DeriveInput,
         }).collect::<Vec<_>>();
     let num_texture_binding_items = texture_binding_items.len();
 
+    //
+    // vertex buffers
+    //
     let vertex_buffer_items =
         vertex_buffers.iter().map(|vb| {
             let name = vb.rename.as_ref().map_or(vb.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
@@ -264,6 +353,28 @@ fn process_struct(ast: &syn::DeriveInput,
         }).collect::<Vec<_>>();
     let num_vertex_buffer_items = vertex_buffer_items.len();
 
+    //
+    // uniform buffers
+    //
+    let uniform_buffer_items =
+        uniform_buffers.iter().map(|ub| {
+            let name = ub.rename.as_ref().map_or(ub.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+            let index_tokens = make_option_tokens(&ub.index);
+            let ty = &ub.ty;
+
+            quote! {
+                ::autograph::gfx::shader_interface::UniformBufferDesc {
+                    name: Some(stringify!(#name).into()),
+                    index: #index_tokens,
+                    tydesc: <#ty as ::autograph::gfx::BufferInterface>::get_description()
+                }
+            }
+        }).collect::<Vec<_>>();
+    let num_uniform_buffer_items = uniform_buffer_items.len();
+
+    //
+    // render targets
+    //
     let render_target_items =
         render_targets.iter().map(|rt| {
             let name = rt.rename.as_ref().map_or(rt.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
@@ -279,8 +390,6 @@ fn process_struct(ast: &syn::DeriveInput,
         }).collect::<Vec<_>>();
     let num_render_target_items = render_target_items.len();
 
-    let private_module_name = syn::Ident::new(&format!("__shader_interface_{}", struct_name), proc_macro2::Span::call_site());
-
     let index_buffer_item = if let Some(ib) = index_buffer  {
         let ty = &ib.ty;
         quote! {
@@ -291,6 +400,8 @@ fn process_struct(ast: &syn::DeriveInput,
     } else {
         quote!(None)
     };
+
+    let private_module_name = syn::Ident::new(&format!("__shader_interface_{}", struct_name), proc_macro2::Span::call_site());
 
     // generate impls
     quote!{
@@ -306,6 +417,7 @@ fn process_struct(ast: &syn::DeriveInput,
                 static ref NAMED_UNIFORMS: [NamedUniformDesc;#num_named_uniform_items] = [#(#named_uniform_items),*];
                 static ref TEXTURE_BINDINGS: [TextureBindingDesc;#num_texture_binding_items] = [#(#texture_binding_items),*];
                 static ref VERTEX_BUFFERS: [VertexBufferDesc;#num_vertex_buffer_items] = [#(#vertex_buffer_items),*];
+                static ref UNIFORM_BUFFERS: [UniformBufferDesc;#num_uniform_buffer_items] = [#(#uniform_buffer_items),*];
                 static ref RENDER_TARGETS: [RenderTargetDesc;#num_render_target_items] = [#(#render_target_items),*];
                 static ref INDEX_BUFFER: Option<IndexBufferDesc> = #index_buffer_item;
             }
@@ -325,6 +437,9 @@ fn process_struct(ast: &syn::DeriveInput,
                 }
                 fn get_texture_bindings(&self) -> &'static [TextureBindingDesc] {
                     &*TEXTURE_BINDINGS
+                }
+                fn get_uniform_buffers(&self) -> &'static [UniformBufferDesc] {
+                    &*UNIFORM_BUFFERS
                 }
                 //fn get_framebuffer(&self) ->
             }

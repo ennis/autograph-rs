@@ -4,7 +4,7 @@ use super::context::Context;
 use std::sync::Arc;
 use std::cmp::max;
 use super::format::Format;
-use super::texture::RawTexture;
+use super::texture::{TextureAny,Texture2D};
 use glutin::GlWindow;
 use std::ops::Deref;
 
@@ -28,24 +28,22 @@ impl RenderbufferObject {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(super) enum OwnedFramebufferAttachment {
+    Renderbuffer(Arc<RenderbufferObject>),
+    Texture(TextureAny),
+    TextureLayer(TextureAny, u32),
+    Default,
+    Empty,
+}
+
 #[derive(Debug)]
 pub struct FramebufferObject {
     pub(super) gctx: Context,
     pub(super) size: (u32, u32),
     pub(super) obj: GLuint,
-    pub(super) attachments: Vec<FramebufferAttachment>,
-    pub(super) depth_attachment: FramebufferAttachment,
-}
-
-
-// TODO: FramebufferAttachment trait?
-#[derive(Clone, Debug)]
-pub enum FramebufferAttachment {
-    Renderbuffer(Arc<RenderbufferObject>),
-    Texture(RawTexture),    // TODO Texture2dAny
-    TextureLayer(RawTexture, u32),  // TODO Texture2dAny
-    Default,
-    Empty,
+    pub(super) attachments: Vec<OwnedFramebufferAttachment>,
+    pub(super) depth_attachment: OwnedFramebufferAttachment,
 }
 
 impl FramebufferObject {
@@ -55,7 +53,7 @@ impl FramebufferObject {
             gctx: gctx.clone(),
             size: pixel_size,
             attachments: Vec::new(),
-            depth_attachment: FramebufferAttachment::Default,
+            depth_attachment: OwnedFramebufferAttachment::Default,
             obj: 0,
         }
     }
@@ -78,17 +76,10 @@ impl Drop for FramebufferObject {
 }
 
 
-#[derive(Clone, Debug)]
+/// An OpenGL framebuffer object.
+/// The framebuffer maintains a strong ref to attached textures and renderbuffers so it may outlive them.
+#[derive(Clone, Debug, Deref)]
 pub struct Framebuffer(Arc<FramebufferObject>);
-
-impl Deref for Framebuffer
-{
-    type Target = Arc<FramebufferObject>;
-    fn deref(&self) -> &Arc<FramebufferObject>
-    {
-        &self.0
-    }
-}
 
 impl Framebuffer {
     /// Returns the default framebuffer object associated to the given GlWindow
@@ -97,11 +88,71 @@ impl Framebuffer {
     }
 }
 
+
+
+#[derive(Clone, Debug)]
+pub enum FramebufferAttachment<'a> {
+    Renderbuffer(&'a Arc<RenderbufferObject>),
+    Texture(&'a TextureAny),
+    TextureLayer(&'a TextureAny, u32),
+    Default,
+    Empty,
+}
+
+impl<'a> FramebufferAttachment<'a> {
+    fn to_owned(self) -> OwnedFramebufferAttachment {
+        match self {
+            FramebufferAttachment::Renderbuffer(renderbuffer) => {OwnedFramebufferAttachment::Renderbuffer(renderbuffer.clone()) },
+            FramebufferAttachment::Texture(texture) => {OwnedFramebufferAttachment::Texture(texture.clone()) },
+            FramebufferAttachment::TextureLayer(texture, layer) => {OwnedFramebufferAttachment::TextureLayer(texture.clone(), layer) },
+            FramebufferAttachment::Default => { OwnedFramebufferAttachment::Default },
+            FramebufferAttachment::Empty => { OwnedFramebufferAttachment::Empty },
+        }
+    }
+}
+
+/// Trait implemented by things that can be bound as a framebuffer attachement
+/// (i.e. render targets)
+pub trait ToFramebufferAttachment<'a>
+{
+    fn to_framebuffer_attachement(self) -> FramebufferAttachment<'a>;
+}
+
+impl<'a> ToFramebufferAttachment<'a> for &'a Arc<RenderbufferObject>
+{
+    fn to_framebuffer_attachement(self) -> FramebufferAttachment<'a> {
+        FramebufferAttachment::Renderbuffer(self)
+    }
+}
+
+impl<'a> ToFramebufferAttachment<'a> for &'a Texture2D
+{
+    fn to_framebuffer_attachement(self) -> FramebufferAttachment<'a> {
+        FramebufferAttachment::Texture(self)
+    }
+}
+
+impl<'a> ToFramebufferAttachment<'a> for FramebufferAttachment<'a>
+{
+    fn to_framebuffer_attachement(self) -> FramebufferAttachment<'a> {
+        self
+    }
+}
+
 pub struct FramebufferBuilder {
     gctx: Context,
     size: (u32, u32),
-    attachments: Vec<FramebufferAttachment>,
-    depth_attachment: FramebufferAttachment,
+    attachments: Vec<OwnedFramebufferAttachment>,
+    depth_attachment: OwnedFramebufferAttachment,
+}
+
+/// Errors that might happen when attaching renderbuffers or textures, or creating the framebuffer
+#[derive(Debug, Fail)]
+pub enum FramebufferError {
+    #[fail(display = "attachment size mismatch")]
+    AttachmentSizeMismatch,
+    #[fail(display = "framebuffer validation failed")]
+    ValidationFailed,
 }
 
 impl FramebufferBuilder {
@@ -110,59 +161,56 @@ impl FramebufferBuilder {
             gctx: gctx.clone(),
             size: (0, 0),
             attachments: Vec::new(),
-            depth_attachment: FramebufferAttachment::Empty,
+            depth_attachment: OwnedFramebufferAttachment::Empty,
         }
     }
 
-    fn check_or_update_size(&mut self, size: (u32, u32)) -> bool {
-        if self.size == (0, 0) {
-            self.size = size;
-            true
+    fn check_or_update_size(&mut self, new: &OwnedFramebufferAttachment) -> Result<(),FramebufferError>
+    {
+        let size = match *new {
+            OwnedFramebufferAttachment::Renderbuffer(ref renderbuffer) => { Some(renderbuffer.size) },
+            OwnedFramebufferAttachment::Texture(ref texture) => { Some((texture.width(),texture.height())) },
+            OwnedFramebufferAttachment::TextureLayer(ref texture, _) => { unimplemented!() },
+            OwnedFramebufferAttachment::Default => { None },
+            OwnedFramebufferAttachment::Empty => { None },
+        };
+
+        if let Some(size) = size {
+            if self.size == (0, 0) {
+                self.size = size;
+                Ok(())
+            } else {
+                if self.size == size {
+                    Ok(())
+                } else {
+                    Err(FramebufferError::AttachmentSizeMismatch)
+                }
+            }
         } else {
-            self.size == size
+            Ok(())
         }
     }
 
-    pub fn attach(&mut self, slot: u32, attachment: FramebufferAttachment) {
+    /// ```rust
+    /// let tex = gfx::Texture2D::new(...);
+    /// fb.attach(&tex);
+    /// fb.attach(FramebufferAttachement::TextureLayer(&tex,0));
+    /// ```
+    pub fn attach<'a, A: ToFramebufferAttachment<'a>>(&mut self, slot: u32, attachment: A) -> Result<(),FramebufferError> {
         let len = self.attachments.len();
         self.attachments
-            .resize(max(slot as usize + 1, len), FramebufferAttachment::Empty);
-        self.attachments.insert(slot as usize, attachment);
+            .resize(max(slot as usize + 1, len), OwnedFramebufferAttachment::Empty);
+        let new = attachment.to_framebuffer_attachement().to_owned();
+        self.check_or_update_size(&new)?;
+        self.attachments.insert(slot as usize, new);
+        Ok(())
     }
 
-    pub fn attach_renderbuffer(mut self, slot: u32, renderbuffer: &Arc<RenderbufferObject>) -> Self {
-        assert!(self.check_or_update_size(renderbuffer.size));
-        self.attach(
-            slot,
-            FramebufferAttachment::Renderbuffer(renderbuffer.clone()),
-        );
-        self
-    }
-
-    pub fn attach_texture(mut self, slot: u32, texture: &RawTexture) -> Self {
-        assert!(self.check_or_update_size(
-            (texture.width(), texture.height())
-        ));
-        self.attach(slot, FramebufferAttachment::Texture(texture.clone()));
-        self
-    }
-
-    pub fn attach_depth_renderbuffer(mut self, renderbuffer: &Arc<RenderbufferObject>) -> Self {
-        assert!(self.check_or_update_size(renderbuffer.size));
-        self.depth_attachment = FramebufferAttachment::Renderbuffer(renderbuffer.clone());
-        self
-    }
-
-    pub fn attach_depth_texture(mut self, texture: &RawTexture) -> Self {
-        assert!(self.check_or_update_size(
-            (texture.width(), texture.height())
-        ));
-        self.depth_attachment = FramebufferAttachment::Texture(texture.clone());
-        self
-    }
-
-    pub fn attach_texture_layer(self, _slot: u32) -> Self {
-        unimplemented!()
+    pub fn attach_depth<'a, A: ToFramebufferAttachment<'a>>(&mut self, attachment: A) -> Result<(),FramebufferError> {
+        let new = attachment.to_framebuffer_attachement().to_owned();
+        self.check_or_update_size(&new)?;
+        self.depth_attachment = new;
+        Ok(())
     }
 
     pub fn build(self) -> Framebuffer {
@@ -174,7 +222,7 @@ impl FramebufferBuilder {
 
         for (index, attachment) in self.attachments.iter().enumerate() {
             match attachment {
-                &FramebufferAttachment::Texture(ref tex) => unsafe {
+                &OwnedFramebufferAttachment::Texture(ref tex) => unsafe {
                     gl::NamedFramebufferTexture(
                         obj,
                         gl::COLOR_ATTACHMENT0 + index as u32,
@@ -182,7 +230,7 @@ impl FramebufferBuilder {
                         0,
                     );
                 },
-                &FramebufferAttachment::Renderbuffer(ref renderbuffer) => unsafe {
+                &OwnedFramebufferAttachment::Renderbuffer(ref renderbuffer) => unsafe {
                     gl::NamedFramebufferRenderbuffer(
                         obj,
                         gl::COLOR_ATTACHMENT0 + index as u32,
@@ -190,7 +238,7 @@ impl FramebufferBuilder {
                         renderbuffer.obj,
                     );
                 },
-                &FramebufferAttachment::Empty => (),
+                &OwnedFramebufferAttachment::Empty => (),
                 _ => unimplemented!("Framebuffer attachment not implemented"),
             }
         }
@@ -220,10 +268,4 @@ impl FramebufferBuilder {
             size: self.size,
         }))
     }
-}
-
-/// Trait implemented by things that can be bound as a render target (a framebuffer attachement)
-pub trait RenderTarget
-{
-
 }

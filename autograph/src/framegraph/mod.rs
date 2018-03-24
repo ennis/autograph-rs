@@ -105,7 +105,7 @@ struct Edge {
 /// that there are no usage conflicts.
 pub enum AliasedResource {
     Buffer { buf: gfx::RawBuffer },
-    Texture { tex: gfx::RawTexture },
+    Texture { tex: gfx::TextureAny },
 }
 
 #[derive(Copy, Clone, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -166,7 +166,7 @@ impl FrameGraphAllocator {
                         AliasedResource::Texture { ref tex } => tex,
                         _ => panic!("expected a texture alloc, got something else")
                     };
-                    fbo_builder = fbo_builder.attach_texture(i as u32, tex);
+                    fbo_builder.attach(i as u32, gfx::FramebufferAttachment::Texture(tex));
                 }
             }
             if let Some(depth_attachement) = depth_attachement {
@@ -174,7 +174,7 @@ impl FrameGraphAllocator {
                     AliasedResource::Texture { ref tex } => tex,
                     _ => panic!("expected a texture alloc, got something else")
                 };
-                fbo_builder = fbo_builder.attach_depth_texture(tex);
+                fbo_builder.attach_depth(gfx::FramebufferAttachment::Texture(tex));
             }
             fbo_builder.build()
         }).clone()
@@ -473,7 +473,7 @@ impl<'node> FrameGraph<'node> {
                                     texdesc
                                 );
                                 allocator.allocations.push(AliasedResource::Texture {
-                                    tex: gfx::RawTexture::new(gctx, texdesc),
+                                    tex: gfx::TextureAny::new(gctx, texdesc),
                                 });
                                 resource
                                     .aliased_index

@@ -3,6 +3,7 @@ use super::buffer_data::BufferData;
 use super::state_cache::StateCache;
 use super::shader::UniformBinder;
 use super::pipeline::GraphicsPipeline;
+use super::texture::*;
 use failure::Error;
 
 #[derive(Copy,Clone,Debug,Eq,PartialEq)]
@@ -20,10 +21,14 @@ pub enum PrimitiveType {
 ///
 pub enum TypeDesc {
     Primitive(PrimitiveType),
+    /// Array type, may have special alignment constraints
     Array(Box<TypeDesc>,usize),
+    /// Vector type (ty,size), not all sizes are valid.
     Vector(PrimitiveType,u8),
+    /// Matrix type (ty,rows,cols), not all combinations of rows and cols are valid.
     Matrix(PrimitiveType,u8,u8),
-    Struct(Vec<TypeDesc>),
+    /// A structure type: (offset, typedesc)
+    Struct(Vec<(usize,TypeDesc)>),
     Unknown
 }
 
@@ -55,6 +60,15 @@ pub struct NamedUniformDesc
 {
     pub name: String,
     pub ty: &'static TypeDesc
+}
+
+/// An uniform buffer
+#[derive(Clone, Debug)]
+pub struct UniformBufferDesc
+{
+    pub name: Option<String>,
+    pub index: Option<i32>,
+    pub tydesc: &'static TypeDesc
 }
 
 /// An input buffer for vertex data
@@ -142,7 +156,7 @@ impl_index_element_type!(u32, R32_UINT);
 /// Trait implemented by types that are layout-compatible with an specific
 /// to GLSL/SPIR-V type.
 /// An implementation is provided for most primitive types and arrays of primitive types.
-/// Structs can derive it automatically with `#[derive(InterfaceType)]`
+/// Structs can derive it automatically with `#[derive(BufferInterface)]`
 pub unsafe trait BufferInterface
 {
     fn get_description() -> &'static TypeDesc;
@@ -167,6 +181,7 @@ impl_interface_type!([i32;4], TypeDesc::Vector(PrimitiveType::Int,4));
 impl_interface_type!([[f32;2];2], TypeDesc::Matrix(PrimitiveType::Float,2,2));
 impl_interface_type!([[f32;3];3], TypeDesc::Matrix(PrimitiveType::Float,3,3));
 impl_interface_type!([[f32;4];4], TypeDesc::Matrix(PrimitiveType::Float,4,4));
+
 
 
 /// Description of a vertex attribute.
@@ -220,6 +235,8 @@ pub trait VertexType: BufferData
 /// TODO replace it with a simple struct?
 pub trait ShaderInterfaceDesc: Sync + 'static
 {
+    /// Returns the list of uniform buffers (`#[uniform_buffer]`)
+    fn get_uniform_buffers(&self) -> &[UniformBufferDesc];
     /// Returns the list of named uniform items (`#[named_uniform]`)
     fn get_named_uniforms(&self) -> &[NamedUniformDesc];
     /// Returns the list of render target items (`#[render_target(...)]`)

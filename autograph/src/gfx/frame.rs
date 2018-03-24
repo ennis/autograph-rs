@@ -1,7 +1,7 @@
 use super::queue::{Queue, FrameResources};
 use super::buffer_data::BufferData;
 use super::sampler::SamplerDesc;
-use super::texture::RawTexture;
+use super::texture::TextureAny;
 use super::upload_buffer::UploadBuffer;
 use super::buffer::{BufferSlice,RawBuffer,RawBufferSlice};
 use super::framebuffer::{Framebuffer, FramebufferObject};
@@ -64,7 +64,7 @@ pub struct Frame<'q> {
     // Built-in upload buffer for convenience
     // Resources held onto by this frame
     pub(super) ref_buffers: RefCell<Vec<RawBuffer>>,
-    pub(super) ref_textures: RefCell<Vec<RawTexture>>,
+    pub(super) ref_textures: RefCell<Vec<TextureAny>>,
     pub(super) state_cache: RefCell<StateCache>,
 }
 

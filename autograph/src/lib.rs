@@ -34,7 +34,8 @@ extern crate url;
 extern crate notify;
 extern crate rspirv;
 extern crate shaderc;
-
+#[macro_use]
+extern crate derive_deref;
 #[macro_use]
 #[macro_reexport(offset_of)]
 extern crate memoffset;

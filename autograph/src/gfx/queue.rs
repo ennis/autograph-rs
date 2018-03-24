@@ -9,7 +9,7 @@ use super::texture::*;
 
 pub(super) struct FrameResources {
     pub(super) ref_buffers: Vec<RawBuffer>,
-    pub(super) ref_textures: Vec<RawTexture>,
+    pub(super) ref_textures: Vec<TextureAny>,
 }
 
 struct SubmittedFrame {

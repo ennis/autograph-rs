@@ -52,13 +52,14 @@ const UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
+#[derive(BufferInterface)]
 struct CameraParameters {
-    view_matrix: Matrix4<f32>,
-    proj_matrix: Matrix4<f32>,
-    viewproj_matrix: Matrix4<f32>,
-    inverse_proj_matrix: Matrix4<f32>,
-    prev_viewproj_matrix_velocity: Matrix4<f32>,
-    viewproj_matrix_velocity: Matrix4<f32>,
+    view_matrix: [[f32;4];4],
+    proj_matrix: [[f32;4];4],
+    viewproj_matrix: [[f32;4];4],
+    inverse_proj_matrix: [[f32;4];4],
+    prev_viewproj_matrix_velocity: [[f32;4];4],
+    viewproj_matrix_velocity: [[f32;4];4],
     temporal_aa_offset: [f32; 2],
 }
 
@@ -90,13 +91,13 @@ struct TestShaderInterface
     color: [f32; 4],
     #[texture_binding(index="0",rename="diffuse")]
     #[autobind(path="data/textures/background.png")]
-    texture: gfx::RawTexture,
+    texture: gfx::TextureAny,
     #[vertex_buffer(index="0")]
     vertices: gfx::BufferSlice<[MyVertexType]>,
     #[index_buffer]
     indices: gfx::BufferSlice<[u32]>,
     #[render_target(index="0")]
-    diffuse: gfx::RawTexture,
+    diffuse: gfx::TextureAny,
 }
 
 impl CameraParameters {
@@ -107,12 +108,12 @@ impl CameraParameters {
         let inverse_proj_matrix = cam.projection.inverse();
 
         CameraParameters {
-            view_matrix,
-            proj_matrix,
-            viewproj_matrix,
-            inverse_proj_matrix,
-            viewproj_matrix_velocity: viewproj_matrix,
-            prev_viewproj_matrix_velocity: viewproj_matrix,
+            view_matrix: view_matrix.as_ref().clone(),
+            proj_matrix: proj_matrix.as_ref().clone(),
+            viewproj_matrix: viewproj_matrix.as_ref().clone(),
+            inverse_proj_matrix: inverse_proj_matrix.as_ref().clone(),
+            viewproj_matrix_velocity: viewproj_matrix.as_ref().clone(),
+            prev_viewproj_matrix_velocity: viewproj_matrix.as_ref().clone(),
             temporal_aa_offset: [0.0; 2], // TODO
         }
     }
@@ -198,7 +199,7 @@ fn main() {
             options: gfx::TextureOptions::empty(),
         };
 
-        Ok(gfx::RawTexture::with_pixels(main_loop.context(), &texture_desc, &bytes))
+        Ok(gfx::TextureAny::with_pixels(main_loop.context(), &texture_desc, &bytes))
     })();
 
     // test pipeline

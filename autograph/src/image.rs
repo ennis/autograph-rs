@@ -12,7 +12,7 @@ pub enum TargetFormat {
 struct CachedImage {
     data: Vec<u8>,
     format: gfx::Format,
-    texture: RefCell<gfx::RawTexture>,
+    texture: RefCell<gfx::TextureAny>,
 }
 
 // TODO

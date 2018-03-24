@@ -1,6 +1,6 @@
 use gl;
 use gl::types::*;
-use gfx::RawTexture;
+use gfx::TextureAny;
 use gfx::Framebuffer;
 use gfx::Frame;
 use gfx::state_cache::StateCache;
@@ -25,21 +25,21 @@ pub trait DrawExt<'queue>
 {
     fn clear_texture(
         &self,
-        texture: &RawTexture,
+        texture: &TextureAny,
         mip_level: usize,
         clear_color: &[f32; 4],
     ) -> &Self;
 
     fn clear_texture_integer(
         &self,
-        texture: &RawTexture,
+        texture: &TextureAny,
         mip_level: usize,
         clear_color: &[i32; 4],
     ) -> &Self;
 
     fn clear_depth_texture(
         &self,
-        texture: &RawTexture,
+        texture: &TextureAny,
         mip_level: usize,
         clear_depth: f32,
     ) -> &Self;
@@ -59,7 +59,7 @@ pub trait DrawExt<'queue>
 
     /// Begins building a draw command.
     /// This function does not perform any type checking.
-    fn begin_draw<'frame>(&'frame self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'frame,'queue> where 'queue:'frame;
+    ///fn begin_draw<'frame>(&'frame self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'frame,'queue> where 'queue:'frame;
     /// V2 API
     fn draw<'frame, 'pipeline>(&'frame self, target: &Framebuffer, pipeline: &'pipeline GraphicsPipeline, cmd: DrawCmd) -> DrawCmdBuilder<'frame, 'queue, 'pipeline> where 'queue:'frame;
 }
@@ -69,7 +69,7 @@ impl<'queue> DrawExt<'queue> for Frame<'queue>
     //====================== COMMANDS =======================
     fn clear_texture(
         &self,
-        texture: &RawTexture,
+        texture: &TextureAny,
         mip_level: usize,
         clear_color: &[f32; 4],
     ) -> &Self
@@ -88,7 +88,7 @@ impl<'queue> DrawExt<'queue> for Frame<'queue>
 
     fn clear_texture_integer(
         &self,
-        texture: &RawTexture,
+        texture: &TextureAny,
         mip_level: usize,
         clear_color: &[i32; 4],
     ) -> &Self
@@ -107,7 +107,7 @@ impl<'queue> DrawExt<'queue> for Frame<'queue>
 
     fn clear_depth_texture(
         &self,
-        texture: &RawTexture,
+        texture: &TextureAny,
         mip_level: usize,
         clear_depth: f32,
     ) -> &Self
@@ -156,10 +156,10 @@ impl<'queue> DrawExt<'queue> for Frame<'queue>
 
     /// Begin building a draw command.
     /// This function does not perform any type checking.
-    fn begin_draw<'frame>(&'frame self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'frame,'queue> where 'queue:'frame
-    {
-        DrawCommandBuilder::new(self, target, pipeline)
-    }
+    ///fn begin_draw<'frame>(&'frame self, target: &Framebuffer, pipeline: &GraphicsPipeline) -> DrawCommandBuilder<'frame,'queue> where 'queue:'frame
+    ///{
+    ///    DrawCommandBuilder::new(self, target, pipeline)
+    ///}
 
     /// V2 API
     fn draw<'frame, 'pipeline>(&'frame self, target: &Framebuffer, pipeline: &'pipeline GraphicsPipeline, cmd: DrawCmd) -> DrawCmdBuilder<'frame, 'queue, 'pipeline> where 'queue:'frame
@@ -257,7 +257,7 @@ impl<'frame,'queue:'frame> DrawCommandBuilder<'frame,'queue>
         self
     }
 
-    pub fn with_image(mut self, slot: usize, tex: &RawTexture) -> Self {
+    pub fn with_image(mut self, slot: usize, tex: &TextureAny) -> Self {
         self.uniforms.images[slot] = tex.gl_object();
         self
     }
@@ -270,7 +270,7 @@ impl<'frame,'queue:'frame> DrawCommandBuilder<'frame,'queue>
         unimplemented!()
     }
 
-    pub fn with_texture(mut self, slot: usize, tex: &RawTexture, sampler: &SamplerDesc) -> Self {
+    pub fn with_texture(mut self, slot: usize, tex: &TextureAny, sampler: &SamplerDesc) -> Self {
         {
             let gctx = self.frame.queue().context();
             self.uniforms.textures[slot] = tex.gl_object();
@@ -407,7 +407,7 @@ impl<'frame,'queue:'frame,'binder> DrawCmdBuilder<'frame,'queue,'binder>
         self
     }
 
-    pub fn with_texture(mut self, slot: u32, tex: &RawTexture, sampler: &SamplerDesc) -> Self {
+    pub fn with_texture(mut self, slot: u32, tex: &TextureAny, sampler: &SamplerDesc) -> Self {
         {
             let gctx = self.frame.queue().context();
             unsafe {

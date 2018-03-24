@@ -13,7 +13,7 @@ use failure::Error;
 
 pub struct Renderer {
     pipeline: gfx::GraphicsPipeline,
-    texture: gfx::RawTexture,
+    texture: gfx::TextureAny,
 }
 
 static IMGUI_SHADER_PATH: &str = "data/shaders/imgui.glsl";
@@ -60,7 +60,7 @@ impl Renderer {
                 mip_map_count: gfx::MipMaps::Count(1),
                 sample_count: 1,
             };
-            let texture = gfx::RawTexture::with_pixels(gctx, &desc, handle.pixels);
+            let texture = gfx::TextureAny::with_pixels(gctx, &desc, handle.pixels);
             texture
         });
         imgui.set_texture_id(texture.gl_object() as usize);

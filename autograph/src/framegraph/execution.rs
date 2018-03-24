@@ -41,7 +41,7 @@ impl<'a> ExecutionContext<'a> {
         }
     }
 
-    pub fn texture_resource(&self, res: ResourceVersion) -> gfx::RawTexture
+    pub fn texture_resource(&self, res: ResourceVersion) -> gfx::TextureAny
     {
         let aliasedres = self.aliased_resource(res);
         if let &AliasedResource::Texture { ref tex } = aliasedres {
