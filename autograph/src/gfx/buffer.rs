@@ -73,9 +73,6 @@ unsafe fn create_buffer<T: BufferData + ?Sized>(
     obj
 }
 
-#[derive(Clone,Debug)]
-pub struct RawBuffer(Arc<RawBufferObject>);
-
 #[derive(Clone, Debug)]
 pub struct RawBufferSlice {
     pub owner: RawBuffer,
@@ -94,12 +91,12 @@ impl RawBufferSlice {
     }
 }
 
-
 #[derive(Debug)]
 pub struct BufferSlice<T: BufferData + ?Sized> {
     pub raw: RawBufferSlice,
     _phantom: PhantomData<*const T>,
 }
+
 
 // Explicit impl of Clone, workaround issue 26925 ?
 // https://github.com/rust-lang/rust/issues/26925
@@ -132,7 +129,6 @@ pub struct BufferMapping<T: BufferData + ?Sized> {
     pub len: usize,
     _phantom: PhantomData<*const T>,
 }
-
 
 impl RawBufferObject {
     pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> RawBufferObject {
@@ -182,6 +178,10 @@ impl RawBufferObject {
     }
 }
 
+
+#[derive(Clone,Debug,Deref)]
+pub struct RawBuffer(Arc<RawBufferObject>);
+
 impl RawBuffer
 {
     pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> RawBuffer {
@@ -211,12 +211,6 @@ impl RawBuffer
     }
 }
 
-impl Deref for RawBuffer {
-    type Target = RawBufferObject;
-    fn deref(&self) -> &RawBufferObject {
-        &self.0
-    }
-}
 
 #[derive(Clone,Debug)]
 pub struct Buffer<T: BufferData + ?Sized>(RawBuffer, PhantomData<*const T>);
@@ -271,28 +265,28 @@ impl<T: VertexType + ?Sized> Deref for VertexBufferSlice<T> {
 }*/
 
 /// Trait for a thing that provides vertex data
-pub trait VertexDataProvider {
+pub trait VertexDataSource {
     type ElementType: VertexType;
 }
 
-impl<T: VertexType> VertexDataProvider for Buffer<[T]> {
+impl<T: VertexType> VertexDataSource for Buffer<[T]> {
     type ElementType = T;
 }
 
-impl<T: VertexType> VertexDataProvider for BufferSlice<[T]> {
+impl<T: VertexType> VertexDataSource for BufferSlice<[T]> {
     type ElementType = T;
 }
 
 /// Trait for a thing that provides index data
-pub trait IndexDataProvider {
+pub trait IndexDataSource {
     type ElementType: IndexElementType;
 }
 
-impl<T: IndexElementType> IndexDataProvider for Buffer<[T]> {
+impl<T: IndexElementType> IndexDataSource for Buffer<[T]> {
     type ElementType = T;
 }
 
-impl<T: IndexElementType> IndexDataProvider for BufferSlice<[T]> {
+impl<T: IndexElementType> IndexDataSource for BufferSlice<[T]> {
     type ElementType = T;
 }
 

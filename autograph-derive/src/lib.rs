@@ -347,7 +347,7 @@ fn process_struct(ast: &syn::DeriveInput,
                 ::autograph::gfx::shader_interface::VertexBufferDesc {
                     name: Some(stringify!(#name).into()),
                     index: #index_tokens,
-                    layout: <<#ty as ::autograph::gfx::VertexDataProvider>::ElementType as ::autograph::gfx::VertexType>::get_layout()
+                    layout: <<#ty as ::autograph::gfx::VertexDataSource>::ElementType as ::autograph::gfx::VertexType>::get_layout()
                 }
             }
         }).collect::<Vec<_>>();
@@ -394,7 +394,7 @@ fn process_struct(ast: &syn::DeriveInput,
         let ty = &ib.ty;
         quote! {
             Some(IndexBufferDesc {
-                format: <<#ty as ::autograph::gfx::IndexDataProvider>::ElementType as ::autograph::gfx::IndexElementType>::FORMAT
+                format: <<#ty as ::autograph::gfx::IndexDataSource>::ElementType as ::autograph::gfx::IndexElementType>::FORMAT
             })
         }
     } else {
