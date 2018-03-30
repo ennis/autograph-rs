@@ -38,6 +38,22 @@ pub const LINEAR_WRAP_SAMPLER: SamplerDesc = SamplerDesc {
     min_filter: TextureMinFilter::Linear,
 };
 
+pub const NEAREST_CLAMP_SAMPLER: SamplerDesc = SamplerDesc {
+    addr_u: TextureAddressMode::Clamp,
+    addr_v: TextureAddressMode::Clamp,
+    addr_w: TextureAddressMode::Clamp,
+    mag_filter: TextureMagFilter::Nearest,
+    min_filter: TextureMinFilter::Nearest,
+};
+
+pub const LINEAR_CLAMP_SAMPLER: SamplerDesc = SamplerDesc {
+    addr_u: TextureAddressMode::Clamp,
+    addr_v: TextureAddressMode::Clamp,
+    addr_w: TextureAddressMode::Clamp,
+    mag_filter: TextureMagFilter::Linear,
+    min_filter: TextureMinFilter::Linear,
+};
+
 impl Default for SamplerDesc {
     fn default() -> SamplerDesc {
         SamplerDesc {

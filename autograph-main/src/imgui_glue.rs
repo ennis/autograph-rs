@@ -1,7 +1,7 @@
 use imgui;
 use imgui_sys;
 use autograph::gfx;
-use autograph::cache::{Cache, CacheTrait};
+use autograph::cache::Cache;
 use autograph::gl;
 use autograph::gl::types::*;
 use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
@@ -41,7 +41,7 @@ impl Renderer {
     pub fn new(
         imgui: &mut imgui::ImGui,
         gctx: &gfx::Context,
-        cache: &Arc<Cache>,
+        cache: &Cache,
     ) -> Renderer {
         let pipeline = cache
             .add_and_watch(IMGUI_SHADER_PATH.to_owned(), |path, reload_reason| {
@@ -174,7 +174,7 @@ pub struct MouseState {
 
 pub fn init(
     context: &gfx::Context,
-    cache: &Arc<Cache>,
+    cache: &Cache,
     replacement_font: Option<&str>,
 ) -> (imgui::ImGui, Renderer, MouseState) {
     // setup ImGui

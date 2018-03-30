@@ -11,6 +11,7 @@ extern crate lazy_static;
 extern crate bitflags;
 extern crate nanovg as nvg;
 extern crate gl;
+extern crate autograph;
 
 use std::time::Instant;
 use std::f32::consts::PI;

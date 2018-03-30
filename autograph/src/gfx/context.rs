@@ -6,6 +6,7 @@ use std::os::raw::c_void;
 use std::str;
 use std::slice;
 use super::sampler::{Sampler, SamplerDesc};
+use cache::Cache;
 use std::collections::HashMap;
 
 extern "system" fn debug_callback(
@@ -32,6 +33,8 @@ pub struct ContextConfig {
 pub struct ContextObject {
     cfg: ContextConfig,
     sampler_cache: Mutex<HashMap<SamplerDesc, Arc<Sampler>>>,
+    /// cache for objects used internally by gfx (pipelines, etc.)
+    cache: Cache,
 }
 
 impl ContextObject {
@@ -52,6 +55,7 @@ impl ContextObject {
         Arc::new(ContextObject {
             cfg: *cfg,
             sampler_cache: Mutex::new(HashMap::new()),
+            cache: Cache::new()
         })
     }
 
@@ -62,6 +66,10 @@ impl ContextObject {
             .entry(*desc)
             .or_insert_with(|| Arc::new(Sampler::new(desc)))
             .clone()
+    }
+
+    pub fn cache(&self) -> &Cache {
+        &self.cache
     }
 }
 

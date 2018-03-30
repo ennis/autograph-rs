@@ -11,7 +11,7 @@ use std::cell::RefCell;
 // Scaffolding for the application
 pub struct MainLoop<'a> {
     window: &'a glutin::GlWindow,
-    pub cache: Arc<Cache>,
+    pub cache: Cache,
     pub context: gfx::Context,
     pub queue: RefCell<gfx::Queue>,
 }
@@ -27,7 +27,7 @@ impl<'a> MainLoop<'a> {
         &self.context
     }
 
-    pub fn cache(&self) -> &Arc<Cache> {
+    pub fn cache(&self) -> &Cache {
         &self.cache
     }
 

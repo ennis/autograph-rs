@@ -61,3 +61,4 @@ pub mod mesh;
 pub mod camera;
 pub mod image;
 pub mod lazy;
+pub mod rect_transform;

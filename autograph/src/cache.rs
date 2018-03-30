@@ -9,17 +9,15 @@ use std::time::Duration;
 
 #[derive(Debug)]
 pub struct CacheCell<T: ?Sized> {
-    cache: Weak<Cache>,
     id: String,
     inner: T,
 }
 
 impl<T> CacheCell<T> {
-    pub fn new(cache: Weak<Cache>, id: String, inner: T) -> CacheCell<T> {
-        CacheCell { cache, id, inner }
+    pub fn new(id: String, inner: T) -> CacheCell<T> {
+        CacheCell { id, inner }
     }
 }
-
 
 pub struct Cache {
     cached_objects: RefCell<HashMap<String, Box<CacheCell<Any>>>>,
@@ -33,17 +31,24 @@ impl ::std::fmt::Debug for Cache {
     }
 }
 
+pub enum ReloadReason {
+    Initial,
+    FileCreated,
+    FileModified,
+    FileRemoved,
+}
+
 impl Cache {
-    pub fn new() -> Arc<Cache> {
+    pub fn new() -> Cache {
         // setup notification channel
         let (tx, rx) = channel();
         let watcher = notify::watcher(tx, Duration::from_secs(1)).unwrap();
 
-        Arc::new(Cache {
+        Cache {
             cached_objects: RefCell::new(HashMap::new()),
             fs_events: rx,
             fs_watcher: RefCell::new(watcher),
-        })
+        }
     }
 
     pub fn process_filesystem_events(&self) {
@@ -52,54 +57,16 @@ impl Cache {
             debug!("watch event: {:?}", ev);
         }
     }
-}
 
-pub enum ReloadReason {
-    Initial,
-    FileCreated,
-    FileModified,
-    FileRemoved,
-}
-
-pub trait CacheTrait {
-    fn add<T>(&self, path: String, obj: T) -> T
-    where
-        T: Any + Clone;
-
-    fn get_or<T, F>(&self, path: &str, f: F) -> Option<T>
-    where
-        T: Any + Clone,
-        F: FnOnce() -> T;
-
-    fn get<T>(&self, path: &str) -> Option<T>
-    where
-        T: Any + Clone;
-
-    fn add_and_watch<T, F>(&self, path: String, f: F) -> Option<T>
-    where
-        T: Any + Clone,
-        F: Fn(&str, ReloadReason) -> Option<T>;
-}
-
-
-/// Proposition: the cache handles the file watching
-/// add_and_watch(url, Fn(url, change) -> T) -> Cached<T>
-///
-/// Proposition: how about returning a value instead of an Arc?
-/// Sometimes it's more convenient
-/// The user can still wrap it into an Arc
-/// Hot-reload: just query the cache again for an updated value
-impl CacheTrait for Arc<Cache> {
     /// replaces existing elements (does not invalidate previous versions,
     /// as they are allocated with Arc)
     /// returns a copy of the element
-    fn add<T>(&self, path: String, obj: T) -> T
+    pub fn add<T>(&self, path: String, obj: T) -> T
     where
         T: Any + Clone,
     {
         let mut hash = self.cached_objects.borrow_mut();
         let newobj = Box::new(CacheCell::new(
-            Arc::downgrade(self),
             path.to_owned(),
             obj.clone(),
         ));
@@ -107,7 +74,7 @@ impl CacheTrait for Arc<Cache> {
         obj
     }
 
-    fn add_and_watch<T, F>(&self, path: String, f: F) -> Option<T>
+    pub fn add_and_watch<T, F>(&self, path: String, f: F) -> Option<T>
     where
         T: Any + Clone,
         F: Fn(&str, ReloadReason) -> Option<T>,
@@ -120,7 +87,7 @@ impl CacheTrait for Arc<Cache> {
         result
     }
 
-    fn get_or<T, F>(&self, path: &str, f: F) -> Option<T>
+    pub fn get_or<T, F>(&self, path: &str, f: F) -> Option<T>
     where
         T: Any + Clone,
         F: FnOnce() -> T,
@@ -130,7 +97,6 @@ impl CacheTrait for Arc<Cache> {
         // downcast it to the concrete type and return it
         let obj = hash.entry(path.to_owned()).or_insert_with(|| {
             Box::new(CacheCell::new(
-                Arc::downgrade(self),
                 path.to_owned(),
                 f().clone(),
             ))
@@ -139,7 +105,7 @@ impl CacheTrait for Arc<Cache> {
         obj.inner.downcast_ref::<T>().map(|v| v.clone())
     }
 
-    fn get<T>(&self, path: &str) -> Option<T>
+    pub fn get<T>(&self, path: &str) -> Option<T>
     where
         T: Any + Clone,
     {

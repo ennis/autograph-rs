@@ -462,6 +462,9 @@ impl Texture2D {
     pub fn with_pixels(gctx: &Context, desc: &Texture2DDesc, data: &[u8]) -> Texture2D {
         Texture2D(TextureAny::with_pixels(gctx, &desc.clone().into(), data))
     }
+    pub fn size(&self) -> (u32,u32) {
+        (self.width(), self.height())
+    }
 }
 
 /// A 3D texture

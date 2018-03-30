@@ -7,22 +7,22 @@ use nalgebra::*;
 use itertools::multizip;
 use gfx;
 use std::sync::Arc;
-use cache::{Cache, CacheTrait};
+use cache::{Cache};
 use std::slice;
 use std::path::Path;
 use std::ffi::{CStr, CString};
 use failure::Error;
 
-struct AssimpSceneImporter<'a> {
+struct AssimpSceneImporter<'a,'cache> {
     path: &'a Path,
     ids: &'a mut IdTable,
-    cache: Arc<Cache>,
+    cache: &'cache Cache,
     gctx: gfx::Context,
     scene_objects: &'a SceneObjects,
 }
 
-unsafe fn import_mesh<'a>(
-    importer: &AssimpSceneImporter<'a>,
+unsafe fn import_mesh<'a,'cache>(
+    importer: &AssimpSceneImporter<'a,'cache>,
     scene: *const AiScene,
     index: usize,
 ) -> Arc<SceneMesh> {
@@ -76,8 +76,8 @@ unsafe fn import_mesh<'a>(
 }
 
 // go full unsafe
-unsafe fn import_node<'a>(
-    importer: &mut AssimpSceneImporter<'a>,
+unsafe fn import_node<'a,'cache>(
+    importer: &mut AssimpSceneImporter<'a,'cache>,
     scene: *const AiScene,
     node: *const AiNode,
     parent_id: Option<ID>,
@@ -153,14 +153,14 @@ unsafe fn import_node<'a>(
     id
 }
 
-pub fn load_scene_file(
-    path: &Path,
+pub fn load_scene_file<P: AsRef<Path>>(
+    path: P,
     ids: &mut IdTable,
     gctx: &gfx::Context,
-    cache: &Arc<Cache>,
+    cache: &Cache,
     scene_objects: &mut SceneObjects,
 ) -> Result<ID, Error> {
-    let c_path = CString::new(path.to_str().unwrap()).unwrap();
+    let c_path = CString::new(path.as_ref().to_str().unwrap()).unwrap();
     debug!("Import scene {:?}", c_path);
     //let postproc_flags = AIPROCESS_OPTIMIZE_MESHES | AIPROCESS_OPTIMIZE_GRAPH |
     //   AIPROCESS_TRIANGULATE | AIPROCESS_JOIN_IDENTICAL_VERTICES |
@@ -177,8 +177,8 @@ pub fn load_scene_file(
 
         let root_id = {
             let mut scene_importer_state = AssimpSceneImporter {
-                path,
-                cache: cache.clone(),
+                path: path.as_ref(),
+                cache,
                 gctx: gctx.clone(),
                 scene_objects,
                 ids,
