@@ -12,6 +12,8 @@ extern crate bitflags;
 extern crate nanovg as nvg;
 extern crate gl;
 extern crate autograph;
+extern crate petgraph;
+extern crate cassowary;
 
 use std::time::Instant;
 use std::f32::consts::PI;
@@ -23,6 +25,7 @@ mod test_ui;
 const INIT_WINDOW_SIZE: (u32, u32) = (1024, 720);
 
 fn main() {
+    pretty_env_logger::init().unwrap();
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new()
         .with_title("Glutin NanoVG")
@@ -175,49 +178,52 @@ fn main() {
                 },
                 Default::default(),
             );
+
+            // Draw some strings!
+
+            frame.text(
+                iosevka_font,
+                (50.0, 50.0),
+                "Hello world",
+                nvg::TextOptions {
+                    color: nvg::Color::new(1.0, 1.0, 1.0, 1.0),
+                    size: 24.0,
+                    letter_spacing: (elapsed.sin() * 0.5 + 0.5) * 30.0,
+                    ..Default::default()
+                },
+            );
+
+            frame.text_box(
+                iosevka_font,
+                (50.0, 74.0),
+                "Multi-\nline",
+                nvg::TextOptions {
+                    color: nvg::Color::new(1.0, 0.6, 1.0, 1.0),
+                    size: 24.0,
+                    ..Default::default()
+                },
+            );
+
+            frame.text_box(
+                iosevka_font,
+                (800.0, 50.0),
+                "This text is automatically wrapped.\nResize the window and try it out!",
+                nvg::TextOptions {
+                    color: nvg::Color::new(0.6, 1.0, 1.0, 1.0),
+                    size: 24.0,
+                    align: nvg::Alignment::new().right().baseline(),
+                    line_height: 1.2,
+                    line_max_width: gl_window.get_inner_size().unwrap_or(INIT_WINDOW_SIZE).0 as f32 -
+                        800.0,
+                    ..Default::default()
+                },
+            );
         });
 
-        // Draw some strings!
 
-        context.text(
-            iosevka_font,
-            (50.0, 50.0),
-            "Hello world",
-            nvg::TextOptions {
-                color: nvg::Color::new(1.0, 1.0, 1.0, 1.0),
-                size: 24.0,
-                letter_spacing: (elapsed.sin() * 0.5 + 0.5) * 30.0,
-                ..Default::default()
-            },
-        );
-
-        context.text_box(
-            iosevka_font,
-            (50.0, 74.0),
-            "Multi-\nline",
-            nvg::TextOptions {
-                color: nvg::Color::new(1.0, 0.6, 1.0, 1.0),
-                size: 24.0,
-                ..Default::default()
-            },
-        );
-
-        context.text_box(
-            iosevka_font,
-            (800.0, 50.0),
-            "This text is automatically wrapped.\nResize the window and try it out!",
-            nvg::TextOptions {
-                color: nvg::Color::new(0.6, 1.0, 1.0, 1.0),
-                size: 24.0,
-                align: nvg::Alignment::new().right().baseline(),
-                line_height: 1.2,
-                line_max_width: gl_window.get_inner_size().unwrap_or(INIT_WINDOW_SIZE).0 as f32 -
-                    800.0,
-                ..Default::default()
-            },
-        );
 
         test_ui::make_ui(&mut ui, &mut data);
+
 
         gl_window.swap_buffers().unwrap();
     }

@@ -1,5 +1,6 @@
 use nalgebra as na;
 
+#[derive(Copy,Clone)]
 pub struct RectTransform
 {
     /// rect corners relative to anchors
@@ -71,7 +72,7 @@ pub enum VerticalAnchor
 impl RectTransform
 {
     /// parent_size: parent size in pixels for pixel anchors
-    pub fn calculate_in_parent(&self, parent_transform: &na::Matrix3<f32>, parent_size: &na::Vector2<f32>) -> CalculatedRectTransform {
+   /* pub fn calculate_in_parent0(&self, parent_transform: &na::Matrix3<f32>, parent_size: &na::Vector2<f32>) -> CalculatedRectTransform {
         let par_w = parent_size.x;
         let par_h = parent_size.y;
         let par_aspect = par_w / par_h;
@@ -93,14 +94,58 @@ impl RectTransform
             self.rotation.to_homogeneous() *
             na::Matrix3::new_translation(&-pivot.coords);
         // result in texture space (0,1)x(0,1)
-        let final_transform =
-            na::Matrix3::new_nonuniform_scaling(&na::Vector2::new(1.0/par_aspect,1.0)) *
+        let final_transform = parent_transform *
+                na::Matrix3::new_nonuniform_scaling(&na::Vector2::new(1.0/par_aspect,1.0)) *
                 scale_rot *
                 anchor_transform;
 
         CalculatedRectTransform {
             transform: final_transform,
             size: *parent_size   // TODO
+        }
+    }*/
+
+    // Q: source and target spaces?
+    // pixel space: [w,h] -> [w_parent,h_parent]
+    // uniform texture space [0;1]^2 -> [0;1]^2
+
+    pub fn calculate_in_parent(&self, parent_transform: &na::Matrix3<f32>, parent_size: &na::Vector2<f32>) -> CalculatedRectTransform {
+        use self::na::{Vector2,Matrix3};
+
+        let par_w = parent_size.x;
+        let par_h = parent_size.y;
+        let par_aspect = par_w / par_h;
+
+        let left = f32::round(self.offset_a.x);
+        let right = f32::round(self.offset_b.x);
+        let top = f32::round(self.offset_b.y);
+        let bottom = f32::round(self.offset_a.y);
+        let anchor_bottom = par_h * self.anchor_a.y;
+        let anchor_top = par_h * self.anchor_b.y;
+        let anchor_left = par_w * self.anchor_a.x;
+        let anchor_right = par_w * self.anchor_b.x;
+
+        // rect corners
+        let rect_bottom = anchor_bottom + bottom;
+        let rect_top = anchor_top + top; // it can be negative
+        let rect_left = anchor_left + left;
+        let rect_right = anchor_right + right;
+
+        let size = Vector2::new(f32::round(rect_right - rect_left), f32::round(rect_top - rect_bottom));
+        let pos = Vector2::new(f32::round(rect_left), f32::round(rect_bottom));
+        let pivot = self.pivot.component_mul(&size);
+
+        let final_transform = parent_transform *    // apply parent transformation
+            Matrix3::new_nonuniform_scaling(&Vector2::new(1.0/par_w,1.0/par_h)) *    // convert to texture coordinates
+            Matrix3::new_translation(&(pos+pivot)) *    // undo center on pivot, translate to final position in parent
+            Matrix3::new_nonuniform_scaling(&self.scale) *  // apply scaling
+            self.rotation.to_homogeneous() *    // apply rotation
+            Matrix3::new_translation(&-pivot) *  // center on pivot
+            Matrix3::new_nonuniform_scaling(&size);    // texture coords to local pixel coordinates
+
+        CalculatedRectTransform {
+            transform: final_transform,
+            size
         }
     }
 
