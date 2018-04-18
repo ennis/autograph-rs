@@ -11,7 +11,7 @@ use gfx::shader;
 use gfx::shader_interface;
 use gfx::shader::DefaultUniformBinder;
 
-mod interface;
+//mod interface;
 mod preprocessor;
 
 bitflags! {
@@ -376,6 +376,7 @@ impl shader::GraphicsShaderPipeline for SpirvGraphicsShaderPipeline
     }
 
     fn is_compatible_with(&self, interface: &shader_interface::ShaderInterfaceDesc) -> bool {
+        //interface::verify_spirv_interface(self, interface)
         unimplemented!()
     }
 

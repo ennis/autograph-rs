@@ -33,6 +33,7 @@ extern crate num_traits;
 extern crate url;
 extern crate notify;
 extern crate rspirv;
+extern crate spirv_headers;
 extern crate shaderc;
 #[macro_use]
 extern crate derive_deref;

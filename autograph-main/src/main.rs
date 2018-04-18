@@ -1,5 +1,5 @@
 #![feature(plugin, custom_attribute)]
-#![feature(const_fn, drop_types_in_const)]
+#![feature(const_fn)]
 
 #[macro_use]
 extern crate autograph;

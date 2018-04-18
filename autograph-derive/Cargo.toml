@@ -6,8 +6,8 @@ authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 [dependencies]
 lazy_static = "0.2.8"
 log = "*"
-quote = "0.4"
-syn = "0.12"
+quote = "*"
+syn = "*"
 darling = "*"
 proc-macro2 = "*"
 

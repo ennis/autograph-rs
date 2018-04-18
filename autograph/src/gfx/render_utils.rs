@@ -57,7 +57,7 @@ impl<'queue> DrawUtilsExt<'queue> for Frame<'queue>
         let gctx = self.queue().context();
         let pipeline = gctx.cache().get_or(PIPELINE_KEY, || {
             gfx::GraphicsPipelineBuilder::new()
-                .with_glsl_file("data/shaders/gfx/blitTexture.glsl")
+                .with_glsl_file_via_spirv("data/shaders/gfx/blitTexture.glsl")
                 .expect(LOAD_ERR)
                 .with_rasterizer_state(&gfx::RasterizerState {
                     fill_mode: gl::FILL,

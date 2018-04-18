@@ -5,6 +5,7 @@ use super::context::Context;
 use gfx;
 use gfx::state_cache::StateCache;
 use gfx::shader::{GraphicsShaderPipeline, UniformBinder};
+use gfx::shader_interface::{ShaderInterface, InterfaceBinder};
 use std::sync::Arc;
 use std::ops::Deref;
 use std::path::Path;
@@ -51,8 +52,6 @@ pub(super) mod inner {
             }
         }
     }
-
-
 }
 
 /// trait GraphicsPipeline: Clone
@@ -61,16 +60,8 @@ pub(super) mod inner {
 /// struct TypedGraphicsPipeline<T>: UntypedGraphicsPipeline
 ///
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug,Deref,DerefMut)]
 pub struct GraphicsPipeline(Arc<inner::GraphicsPipeline>);
-
-impl Deref for GraphicsPipeline
-{
-    type Target = Arc<inner::GraphicsPipeline>;
-    fn deref(&self) -> &Arc<inner::GraphicsPipeline> {
-        &self.0
-    }
-}
 
 impl GraphicsPipeline
 {
@@ -80,6 +71,7 @@ impl GraphicsPipeline
         self.shader_pipeline.bind()
     }
 }
+
 
 /// A graphics pipeline with an attached interface type
 //pub struct TypedGraphicsPipeline<T: ShaderInterface>(Arc<inner::GraphicsPipeline>);
@@ -194,6 +186,22 @@ impl GraphicsPipelineBuilder {
             primitive_topology: self.primitive_topology,
             gctx: gctx.clone(),
         })))
+    }
+}
+
+
+/// A type representing a collection of shaders with an associated interface type
+/// The interface is checked against the provided pipeline on creation.
+pub struct TypedGraphicsPipeline<T: ShaderInterface>
+{
+    binder: Box<InterfaceBinder<T>>,
+    pipeline: GraphicsPipeline,
+}
+
+impl<T: ShaderInterface> TypedGraphicsPipeline<T>
+{
+    pub fn new(untyped_pipeline: GraphicsPipeline) {
+
     }
 }
 

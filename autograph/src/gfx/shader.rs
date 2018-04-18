@@ -1,4 +1,4 @@
-use super::shader_interface::{ShaderInterfaceDesc, VertexLayout, TypeDesc};
+use super::shader_interface::{ShaderInterfaceDesc, VertexLayout, TypeDesc, ShaderInterface, InterfaceBinder};
 use failure::Error;
 use gl;
 use gl::types::*;
