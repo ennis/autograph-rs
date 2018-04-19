@@ -147,7 +147,7 @@ fn process_vertex_struct(ast: &syn::DeriveInput,
     }
 }
 
-#[proc_macro_derive(ShaderInterface, attributes(named_uniform, texture_binding, vertex_buffer, index_buffer, uniform_buffer))]
+#[proc_macro_derive(ShaderInterface, attributes(uniform_constant, texture_binding, vertex_buffer, index_buffer, uniform_buffer))]
 pub fn shader_interface_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
 
@@ -160,8 +160,8 @@ pub fn shader_interface_derive(input: TokenStream) -> TokenStream {
 }
 
 #[derive(FromField)]
-#[darling(attributes(named_uniform))]
-struct NamedUniform {
+#[darling(attributes(uniform_constant))]
+struct UniformConstant {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
@@ -236,7 +236,7 @@ fn process_struct(ast: &syn::DeriveInput,
 {
     let struct_name = &ast.ident;
 
-    let mut named_uniforms = Vec::new();
+    let mut uniform_constants = Vec::new();
     let mut texture_bindings = Vec::new();
     let mut vertex_buffers = Vec::new();
     let mut render_targets = Vec::new();
@@ -253,10 +253,10 @@ fn process_struct(ast: &syn::DeriveInput,
                     let meta = if let Some(meta) = meta { meta } else { continue };
 
                     match meta.name().as_ref() {
-                        "named_uniform" => {
+                        "uniform_constant" => {
                             if seen_interface_attr { error_multiple_interface_attrs(); }
-                            let named_uniform = <NamedUniform as FromField>::from_field(f).unwrap();
-                            named_uniforms.push(named_uniform);
+                            let uniform_constant = <UniformConstant as FromField>::from_field(f).unwrap();
+                            uniform_constants.push(named_uniform);
                             seen_interface_attr = true;
                         },
                         "texture_binding" => {
@@ -301,20 +301,22 @@ fn process_struct(ast: &syn::DeriveInput,
     //
     // named uniforms
     //
-    let named_uniform_items =
-        named_uniforms.iter().map(|named_uniform| {
-            let name = named_uniform.rename.as_ref().map_or(named_uniform.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
-            let ty = &named_uniform.ty;
+    let uniform_constant_items =
+        uniform_constants.iter().map(|u| {
+            let name = u.rename.as_ref().map_or(u.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+            let index_tokens = make_option_tokens(&u.index);
+            let ty = &u.ty;
 
             //let index_tokens = make_option_tokens(texbind.index);
             quote! {
-                NamedUniformDesc {
+                UniformConstantDesc {
                     name: stringify!(#name).into(),
+                    index: #index_tokens,
                     ty: <#ty as BufferInterface>::get_description()
                 }
             }
         }).collect::<Vec<_>>();
-    let num_named_uniform_items = named_uniform_items.len();
+    let num_uniform_constant_items = uniform_constant_items.len();
 
     //
     // texture+sampler bindings
@@ -414,7 +416,7 @@ fn process_struct(ast: &syn::DeriveInput,
             pub(super) struct Binder;
 
             lazy_static!{
-                static ref NAMED_UNIFORMS: [NamedUniformDesc;#num_named_uniform_items] = [#(#named_uniform_items),*];
+                static ref UNIFORM_CONSTANTS: [UniformConstantDesc;#num_uniform_constant_items] = [#(#uniform_constant_items),*];
                 static ref TEXTURE_BINDINGS: [TextureBindingDesc;#num_texture_binding_items] = [#(#texture_binding_items),*];
                 static ref VERTEX_BUFFERS: [VertexBufferDesc;#num_vertex_buffer_items] = [#(#vertex_buffer_items),*];
                 static ref UNIFORM_BUFFERS: [UniformBufferDesc;#num_uniform_buffer_items] = [#(#uniform_buffer_items),*];
@@ -423,8 +425,8 @@ fn process_struct(ast: &syn::DeriveInput,
             }
 
             impl ShaderInterfaceDesc for Desc {
-                fn get_named_uniforms(&self) -> &'static [NamedUniformDesc] {
-                    &*NAMED_UNIFORMS
+                fn get_uniform_constants(&self) -> &'static [UniformConstantDesc] {
+                    &*UNIFORM_CONSTANTS
                 }
                 fn get_render_targets(&self) -> &'static [RenderTargetDesc] {
                      &*RENDER_TARGETS

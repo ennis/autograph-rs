@@ -11,8 +11,9 @@ use gfx::shader;
 use gfx::shader_interface;
 use gfx::shader::DefaultUniformBinder;
 
-//mod interface;
+mod interface;
 mod preprocessor;
+mod spirv_parse;
 
 bitflags! {
     #[derive(Default)]

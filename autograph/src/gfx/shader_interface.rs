@@ -56,9 +56,10 @@ pub struct RenderTargetDesc
 }
 
 #[derive(Clone, Debug)]
-pub struct NamedUniformDesc
+pub struct UniformConstantDesc
 {
-    pub name: String,
+    pub name: Option<String>,
+    pub index: Option<i32>,
     pub ty: &'static TypeDesc
 }
 
@@ -237,8 +238,8 @@ pub trait ShaderInterfaceDesc: Sync + 'static
 {
     /// Returns the list of uniform buffers (`#[uniform_buffer]`)
     fn get_uniform_buffers(&self) -> &[UniformBufferDesc];
-    /// Returns the list of named uniform items (`#[named_uniform]`)
-    fn get_named_uniforms(&self) -> &[NamedUniformDesc];
+    /// Returns the list of named uniform items (`#[uniform_constant]`)
+    fn get_uniform_constants(&self) -> &[UniformConstantDesc];
     /// Returns the list of render target items (`#[render_target(...)]`)
     fn get_render_targets(&self) -> &[RenderTargetDesc];
     /// Returns the list of vertex buffer items (`#[vertex_buffer(index=...)]`)
