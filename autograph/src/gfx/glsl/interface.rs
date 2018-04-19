@@ -2,6 +2,7 @@ use super::shader_interface::*;
 use super::SpirvGraphicsShaderPipeline;
 use super::spirv_parse::*;
 use std::cmp::max;
+use failure::Error;
 //use rspirv::binary::ParseAction;
 //use rspirv::grammar::reflect::*;
 //use rspirv::mr::{Module,ModuleHeader,Instruction,Operand};
@@ -29,6 +30,13 @@ fn align_offset(ptr: usize, align: usize) -> usize {
     } else {
         align - offset
     }
+}
+
+fn round_up(value: usize, multiple: usize) -> usize {
+    if multiple == 0 { return value }
+    let remainder = value % multiple;
+    if remainder == 0 { return value }
+    value + multiple - remainder
 }
 
 
@@ -72,57 +80,77 @@ impl Std140LayoutBuilder
                 let base_align = max(16, col_align);
                 let stride = col_size + align_offset(col_size, col_align);
                 // total array size = num columns * stride, rounded up to the next multiple of the base alignment
-
+                let array_size = round_up(ty.column_count * stride, base_align);
             },
-            Instruction::TypeImage { result_id, .. } if result_id == id => true,
-            Instruction::TypeSampler { result_id, .. } if result_id == id => true,
-            Instruction::TypeSampledImage { result_id, .. } if result_id == id => true,
-            Instruction::TypeArray { result_id, .. } if result_id == id => true,
-            Instruction::TypeRuntimeArray { result_id, .. } if result_id == id => true,
-            Instruction::TypeStruct { result_id, .. } if result_id == id => true,
-            Instruction::TypeOpaque { result_id, .. } if result_id == id => true,
-            Instruction::TypePointer { result_id, .. } if result_id == id => true,
+            Instruction::TypeImage(_) => panic!("unsupported type"),
+            Instruction::TypeSampler(_) => panic!("unsupported type"),
+            Instruction::TypeSampledImage(_) => panic!("unsupported type"),
+            Instruction::TypeArray(ty)  => {
+                panic!("unsupported type")
+            },
+            Instruction::TypeRuntimeArray(_) => panic!("unsupported type"),
+            Instruction::TypeStruct(_) => {
+                panic!("unsupported type")
+            },
+            Instruction::TypeOpaque(_) => panic!("unsupported type"),
+            Instruction::TypePointer(_) => panic!("unsupported type"),
         }
     }
 
-    fn add_member(&mut self, module: &ModuleWrapper, inst: &Instruction) -> u32 {
-        let current_offset = self.next_offset;
-
-        let (off, size) = match *inst {
-            Instruction::TypeBool(ty) => {
-                (align(4), 4)
-            },
-            Instruction::TypeInt(ty) => {
-                assert!(ty.width == 32);
-                (align(4), 4)
-            },
-            Instruction::TypeFloat(ty) => {
-                assert!(ty.width == 32);
-                (align(4), 4)
-            }
-            Instruction::TypeVector(ty)  => {
-                let basety =
-            },
-            Instruction::TypeMatrix { result_id, .. } if result_id == id => true,
-            Instruction::TypeImage { result_id, .. } if result_id == id => true,
-            Instruction::TypeSampler { result_id, .. } if result_id == id => true,
-            Instruction::TypeSampledImage { result_id, .. } if result_id == id => true,
-            Instruction::TypeArray { result_id, .. } if result_id == id => true,
-            Instruction::TypeRuntimeArray { result_id, .. } if result_id == id => true,
-            Instruction::TypeStruct { result_id, .. } if result_id == id => true,
-            Instruction::TypeOpaque { result_id, .. } if result_id == id => true,
-            Instruction::TypePointer { result_id, .. } if result_id == id => true,
-        }
-        0
+    fn add_member(&mut self, module: &ModuleWrapper, ty_inst: &Instruction) -> usize
+    {
+        let (align, size) = self.get_align_and_size(module, ty_inst);
+        let current_offset = self.align(align);
+        self.next_offset += size;
+        current_offset
     }
 }
+
+#[derive(Fail,Debug)]
+pub enum InterfaceError {
+    #[fail(display = "struct member mismatch between {} (host) and {} (device)", host_ty, device_ty)]
+    MemberMismatch {
+        // the underlying cause of the mismatch: type error, or another member mismatch
+        #[cause] cause: Box<InterfaceError>,
+
+        device_ty: String,
+        device_member_index: u32,
+        device_member_name: Option<String>,
+
+        host_ty: String,
+        host_member_index: u32,
+        host_member_name: Option<String>,
+    },
+    //#[fail(display = "mismatching member offsets", host_ty, device_ty)]
+    MemberOffsetMismatch {
+        device_ty: String,
+        device_member_index: u32,
+        device_member_name: Option<String>,
+        device_offset: usize,
+
+        host_ty: String,
+        host_member_index: u32,
+        host_member_name: Option<String>,
+        host_offset: usize
+    },
+    #[fail(display = "host and device types are incompatible: {} (host) and {} (device)", host_ty, device_ty)]
+    PrimitiveTypeMismatch {
+        device_ty: String,
+        host_ty: String
+    }
+}
+
+// interface mismatch between structX and structX_host
+// -> caused by: interface mismatch in Y
+// -> caused by: interface mismatch in Z
+// -> caused by: mismatching member offsets in W
 
 impl ModuleWrapper
 {
     fn find_decoration(&self, id: u32, deco: spirv::Decoration) -> Option<&Instruction> {
         self.0.instructions.iter().find(|&inst|
             match *inst {
-                Instruction::Decorate { target_id, decoration } if target_id == id && decoration == deco => true,
+                Instruction::Decorate(IDecorate { target_id, decoration }) if target_id == id && decoration == deco => true,
                 _ => false
             })
     }
@@ -130,20 +158,20 @@ impl ModuleWrapper
     fn find_type(&self, id: u32) -> Option<&Instruction> {
         self.0.instructions.iter().find(|&inst|
             match *inst {
-                Instruction::TypeVoid { result_id } if result_id == id => true,
-                Instruction::TypeBool { result_id, .. } if result_id == id => true,
-                Instruction::TypeInt { result_id, .. } if result_id == id => true,
-                Instruction::TypeFloat { result_id, .. } if result_id == id => true,
-                Instruction::TypeVector { result_id, .. } if result_id == id => true,
-                Instruction::TypeMatrix { result_id, .. } if result_id == id => true,
-                Instruction::TypeImage { result_id, .. } if result_id == id => true,
-                Instruction::TypeSampler { result_id, .. } if result_id == id => true,
-                Instruction::TypeSampledImage { result_id, .. } if result_id == id => true,
-                Instruction::TypeArray { result_id, .. } if result_id == id => true,
-                Instruction::TypeRuntimeArray { result_id, .. } if result_id == id => true,
-                Instruction::TypeStruct { result_id, .. } if result_id == id => true,
-                Instruction::TypeOpaque { result_id, .. } if result_id == id => true,
-                Instruction::TypePointer { result_id, .. } if result_id == id => true,
+                Instruction::TypeVoid(ITypeVoid { result_id }) if result_id == id => true,
+                Instruction::TypeBool(ITypeBool { result_id }) if result_id == id => true,
+                Instruction::TypeInt(ITypeInt { result_id, .. }) if result_id == id => true,
+                Instruction::TypeFloat(ITypeFloat { result_id, .. }) if result_id == id => true,
+                Instruction::TypeVector(ITypeVector { result_id, .. }) if result_id == id => true,
+                Instruction::TypeMatrix(ITypeMatrix { result_id, .. }) if result_id == id => true,
+                Instruction::TypeImage(ITypeImage { result_id, .. }) if result_id == id => true,
+                Instruction::TypeSampler(ITypeSampler { result_id }) if result_id == id => true,
+                Instruction::TypeSampledImage(ITypeSampledImage { result_id, .. }) if result_id == id => true,
+                Instruction::TypeArray(ITypeArray { result_id, .. }) if result_id == id => true,
+                Instruction::TypeRuntimeArray(ITypeRuntimeArray { result_id, .. }) if result_id == id => true,
+                Instruction::TypeStruct(ITypeStruct { result_id, .. }) if result_id == id => true,
+                Instruction::TypeOpaque(ITypeOpaque { result_id, .. }) if result_id == id => true,
+                Instruction::TypePointer(ITypePointer { result_id, .. }) if result_id == id => true,
                 _ => false
             })
     }
@@ -153,36 +181,60 @@ impl ModuleWrapper
         self.find_decoration(id, spirv::Decoration::Location).map(|inst| unwrap_operand!(inst, 0, Operand::LiteralInt32))
     }
 
-    fn compare_types(&self, ty_inst: &Instruction, ty_ref: &TypeDesc) -> bool
+
+    /// Check that the type described by the spirv instruction
+    /// is layout-compatible with the given host type description
+    fn compare_types(&self, ty_inst: &Instruction, host_ty: &TypeDesc) -> Result<(),InterfaceError>
     {
         match *ty_inst {
             Instruction::TypePointer(ptr) => false, // no pointers in interface, for now
             Instruction::TypeFloat(ty) => {
-                ty.width == 32 && ty_ref == &TypeDesc::Primitive(PrimitiveType::Float)
+                if !(ty.width == 32 && host_ty == &TypeDesc::Primitive(PrimitiveType::Float)) {
+                    Err(InterfaceError::PrimitiveTypeMismatch {
+                        device_ty: format!("{:?}", ty),
+                        host_ty: format!("{:?}", host_ty),
+                    })
+                } else {
+                    Ok(())
+                }
             },
             Instruction::TypeInt(ty) => {
-                ty.width == 32 && ty_ref == &TypeDesc::Primitive(if ty.signedness == 1 { PrimitiveType::Int } else { PrimitiveType::UnsignedInt })
+                if !(ty.width == 32 && host_ty == &TypeDesc::Primitive(if ty.signedness == 1 { PrimitiveType::Int } else { PrimitiveType::UnsignedInt })) {
+                    Err(InterfaceError::PrimitiveTypeMismatch {
+                        device_ty: format!("{:?}", ty),
+                        host_ty: format!("{:?}", host_ty),
+                    })
+                } else {
+                    Ok(())
+                }
             },
             Instruction::TypeVector(ty) => {
-                if let TypeDesc::Vector(comp_ty_ref, comp_count_ref) = ty_ref {
+                if let TypeDesc::Vector(host_comp_ty, host_comp_count) = ty_host {
                     let comp_ty = self.find_type(ty.component_id).unwrap();
                     let comp_count = ty.count;
                     assert!(ty.count <= 4);
-                    comp_count == comp_count_ref && self.compare_types(comp_ty, &TypeDesc::Primitive(comp_ty_ref))
+                    if !(comp_count == host_comp_count && self.compare_types(comp_ty, &TypeDesc::Primitive(host_comp_ty))) {
+                        Err(InterfaceError::PrimitiveTypeMismatch {
+                            device_ty: format!("{:?}", ty),
+                            host_ty: format!("{:?}", host_ty),
+                        })
+                    } else {
+                        Ok(())
+                    }
                 } else {
                     false
                 }
             },
             Instruction::TypeMatrix(ty) => {
-                if let TypeDesc::Matrix(comp_ty_ref, row_count_ref, col_count_ref) = ty_ref {
+                if let TypeDesc::Matrix(host_comp_ty, host_row_count, host_col_count) = host_ty {
                     let column_ty = self.find_type(ty.column_type_id).unwrap();
                     let col_count = ty.column_count;
                     if let Instruction::TypeVector(column_ty) = column_ty {
                         let comp_ty = self.find_type(column_ty.component_id).unwrap();
                         let row_count = column_ty.count;
-                        row_count == row_count_ref &&
-                            col_count == col_count_ref &&
-                            self.compare_types(comp_ty, &TypeDesc::Primitive(comp_ty_ref))
+                        row_count == host_row_count &&
+                            col_count == host_col_count &&
+                            self.compare_types(comp_ty, &TypeDesc::Primitive(host_comp_ty))
                     } else {
                         panic!("malformed SPIR-V bytecode")
                     }
@@ -192,14 +244,42 @@ impl ModuleWrapper
                 }
             },
             Instruction::TypeStruct(ty) => {
-                if let TypeDesc::Struct(ref members) = ty_ref {
-                    //
-                    true
+                if let TypeDesc::Struct(ref host_members) = host_ty {
+                    // build layout
+                    let mut std140_layout = Std140LayoutBuilder::new();
+                    let mut layout_mismatch = false;
+                    let mut device_member_index = 0;
+                    let mut host_member_index = 0;
+                    for member_ty in ty.member_types {
+                        let member_ty = self.find_type(member_ty).unwrap();
+                        // get next member in reference struct
+                        let &(host_member_offset, host_member_ty) =
+                            if let Some(v) = member_iter.next() {
+                                v
+                            } else {
+                                // ran out of members, this is a
+                                layout_mismatch = true;
+                                break
+                            };
+                        if !self.compare_types(member_ty, host_member_ty) {
+
+                        }
+
+                        let member_offset = std140_layout.add_member(self, member_ty);
+                        //if member_offset != host_member_
+
+                        // check type and offset of member
+                        //if !( self.compare_types(member_ty, host_member_ty);
+
+                        device_member_index += 1;
+                        host_member_index += 1;
+                    }
                 } else {
                     false
                 }
             }
         }
+        unimplemented!()
     }
 }
 
