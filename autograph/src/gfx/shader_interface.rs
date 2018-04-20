@@ -51,7 +51,7 @@ pub const TYPE_MAT4: TypeDesc = TypeDesc::Matrix(PrimitiveType::Float, 4, 4);
 pub struct RenderTargetDesc
 {
     pub name: Option<String>,
-    pub index: Option<i32>,
+    pub index: Option<u32>,
     pub format: Option<Format>
 }
 
@@ -59,7 +59,7 @@ pub struct RenderTargetDesc
 pub struct UniformConstantDesc
 {
     pub name: Option<String>,
-    pub index: Option<i32>,
+    pub index: Option<u32>,
     pub ty: &'static TypeDesc
 }
 
@@ -68,7 +68,7 @@ pub struct UniformConstantDesc
 pub struct UniformBufferDesc
 {
     pub name: Option<String>,
-    pub index: Option<i32>,
+    pub index: Option<u32>,
     pub tydesc: &'static TypeDesc
 }
 
@@ -77,7 +77,7 @@ pub struct UniformBufferDesc
 pub struct VertexBufferDesc
 {
     pub name: Option<String>,
-    pub index: Option<i32>,
+    pub index: Option<u32>,
     pub layout: &'static VertexLayout
 }
 
@@ -109,7 +109,7 @@ pub struct TextureBindingDesc
     pub name: Option<String>,
     /// index (texture uint) of the texture binding in shader, can be None.
     /// name and index should not be both None
-    pub index: Option<i32>,
+    pub index: Option<u32>,
     /// Basic data type of the texture
     pub data_type: TextureDataType
 }

@@ -10,8 +10,8 @@ layout(std140,binding=0) uniform Uniforms {
     mat3 transform;
 };
 
-layout(location=0) uniform float AAAA;
-layout(location=1) uniform mat3 BBBB;
+uniform float AAAA;
+uniform mat3 BBBB;
 
 #ifdef _VERTEX_
 

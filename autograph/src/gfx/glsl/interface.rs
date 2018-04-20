@@ -1,6 +1,7 @@
 use super::shader_interface::*;
 use super::SpirvGraphicsShaderPipeline;
 use super::spirv_parse::*;
+use std::collections::{HashMap, hash_map::Entry};
 use std::cmp::max;
 use failure::Error;
 //use rspirv::binary::ParseAction;
@@ -33,9 +34,9 @@ fn align_offset(ptr: usize, align: usize) -> usize {
 }
 
 fn round_up(value: usize, multiple: usize) -> usize {
-    if multiple == 0 { return value }
+    if multiple == 0 { return value; }
     let remainder = value % multiple;
-    if remainder == 0 { return value }
+    if remainder == 0 { return value; }
     value + multiple - remainder
 }
 
@@ -54,11 +55,11 @@ impl Std140LayoutBuilder
         match *inst {
             Instruction::TypeBool(ty) => {
                 (4, 4)
-            },
+            }
             Instruction::TypeInt(ty) => {
                 assert!(ty.width == 32);
                 (4, 4)
-            },
+            }
             Instruction::TypeFloat(ty) => {
                 assert!(ty.width == 32);
                 (4, 4)
@@ -67,12 +68,12 @@ impl Std140LayoutBuilder
                 let compty = module.find_type(ty.component_id).unwrap();
                 let (_, n) = self.get_align_and_size(module, compty);
                 match ty.count {
-                    2 => (2*n, 2*n),
-                    3 => (4*n, 3*n),
-                    4 => (4*n, 4*n),
+                    2 => (2 * n, 2 * n),
+                    3 => (4 * n, 3 * n),
+                    4 => (4 * n, 4 * n),
                     _ => panic!("unsupported vector size")
                 }
-            },
+            }
             Instruction::TypeMatrix(ty) => {
                 let column_ty = module.find_type(ty.column_type_id).unwrap();
                 let (col_align, col_size) = self.get_align_and_size(module, column_ty);
@@ -81,17 +82,17 @@ impl Std140LayoutBuilder
                 let stride = col_size + align_offset(col_size, col_align);
                 // total array size = num columns * stride, rounded up to the next multiple of the base alignment
                 let array_size = round_up(ty.column_count * stride, base_align);
-            },
+            }
             Instruction::TypeImage(_) => panic!("unsupported type"),
             Instruction::TypeSampler(_) => panic!("unsupported type"),
             Instruction::TypeSampledImage(_) => panic!("unsupported type"),
-            Instruction::TypeArray(ty)  => {
+            Instruction::TypeArray(ty) => {
                 panic!("unsupported type")
-            },
+            }
             Instruction::TypeRuntimeArray(_) => panic!("unsupported type"),
             Instruction::TypeStruct(_) => {
                 panic!("unsupported type")
-            },
+            }
             Instruction::TypeOpaque(_) => panic!("unsupported type"),
             Instruction::TypePointer(_) => panic!("unsupported type"),
         }
@@ -106,38 +107,12 @@ impl Std140LayoutBuilder
     }
 }
 
-#[derive(Fail,Debug)]
-pub enum InterfaceError {
-    #[fail(display = "struct member mismatch between {} (host) and {} (device)", host_ty, device_ty)]
-    MemberMismatch {
-        // the underlying cause of the mismatch: type error, or another member mismatch
-        #[cause] cause: Box<InterfaceError>,
-
-        device_ty: String,
-        device_member_index: u32,
-        device_member_name: Option<String>,
-
-        host_ty: String,
-        host_member_index: u32,
-        host_member_name: Option<String>,
-    },
-    //#[fail(display = "mismatching member offsets", host_ty, device_ty)]
-    MemberOffsetMismatch {
-        device_ty: String,
-        device_member_index: u32,
-        device_member_name: Option<String>,
-        device_offset: usize,
-
-        host_ty: String,
-        host_member_index: u32,
-        host_member_name: Option<String>,
-        host_offset: usize
-    },
-    #[fail(display = "host and device types are incompatible: {} (host) and {} (device)", host_ty, device_ty)]
-    PrimitiveTypeMismatch {
-        device_ty: String,
-        host_ty: String
-    }
+#[derive(Fail, Debug)]
+#[fail(display = "interface mismatch: {}", info)]
+pub struct InterfaceError {
+    // the underlying cause of the mismatch: type error, or another member mismatch
+    #[cause] cause: Option<Box<InterfaceError>>,
+    info: String,
 }
 
 // interface mismatch between structX and structX_host
@@ -152,6 +127,14 @@ impl ModuleWrapper
             match *inst {
                 Instruction::Decorate(IDecorate { target_id, decoration }) if target_id == id && decoration == deco => true,
                 _ => false
+            })
+    }
+
+    fn find_name(&self, id: u32) -> Option<&str> {
+        self.0.instructions.iter().find_map(|&inst|
+            match *inst {
+                Instruction::Name(IName { target_id, ref name }) if target_id == id => Some(name),
+                _ => None
             })
     }
 
@@ -181,48 +164,50 @@ impl ModuleWrapper
         self.find_decoration(id, spirv::Decoration::Location).map(|inst| unwrap_operand!(inst, 0, Operand::LiteralInt32))
     }
 
-
     /// Check that the type described by the spirv instruction
     /// is layout-compatible with the given host type description
-    fn compare_types(&self, ty_inst: &Instruction, host_ty: &TypeDesc) -> Result<(),InterfaceError>
+    fn compare_types(&self, ty_inst: &Instruction, host_ty: &TypeDesc) -> Result<(), InterfaceError>
     {
+        fn type_mismatch_err(device_ty: &Instruction, host_ty: &TypeDesc) -> InterfaceError {
+            InterfaceError {
+                cause: None,
+                info: format!("type mismatch: {:?} (device) and {:?} (host)", device_ty, host_ty),
+            }
+        }
+
         match *ty_inst {
-            Instruction::TypePointer(ptr) => false, // no pointers in interface, for now
+            //Instruction::TypePointer(ptr) => { panic!()}, // no pointers in interface, for now
             Instruction::TypeFloat(ty) => {
                 if !(ty.width == 32 && host_ty == &TypeDesc::Primitive(PrimitiveType::Float)) {
-                    Err(InterfaceError::PrimitiveTypeMismatch {
-                        device_ty: format!("{:?}", ty),
-                        host_ty: format!("{:?}", host_ty),
-                    })
+                    Err(type_mismatch_err(ty_inst, host_ty))
                 } else {
                     Ok(())
                 }
             },
             Instruction::TypeInt(ty) => {
                 if !(ty.width == 32 && host_ty == &TypeDesc::Primitive(if ty.signedness == 1 { PrimitiveType::Int } else { PrimitiveType::UnsignedInt })) {
-                    Err(InterfaceError::PrimitiveTypeMismatch {
-                        device_ty: format!("{:?}", ty),
-                        host_ty: format!("{:?}", host_ty),
-                    })
+                    Err(type_mismatch_err(ty_inst, host_ty))
                 } else {
                     Ok(())
                 }
             },
             Instruction::TypeVector(ty) => {
-                if let TypeDesc::Vector(host_comp_ty, host_comp_count) = ty_host {
+                if let TypeDesc::Vector(host_comp_ty, host_comp_count) = host_ty {
                     let comp_ty = self.find_type(ty.component_id).unwrap();
                     let comp_count = ty.count;
                     assert!(ty.count <= 4);
-                    if !(comp_count == host_comp_count && self.compare_types(comp_ty, &TypeDesc::Primitive(host_comp_ty))) {
-                        Err(InterfaceError::PrimitiveTypeMismatch {
-                            device_ty: format!("{:?}", ty),
-                            host_ty: format!("{:?}", host_ty),
-                        })
-                    } else {
-                        Ok(())
+                    self.compare_types(comp_ty, &TypeDesc::Primitive(host_comp_ty)).map_err(|e| {
+                        type_mismatch_err(ty_inst, host_ty)
+                    })?;
+                    if comp_count != host_comp_count {
+                        return Err(InterfaceError {
+                            cause: None,
+                            info: format!("vector size mismatch: {} (device) and {} (host)", comp_count, host_comp_count),
+                        });
                     }
+                    Ok(())
                 } else {
-                    false
+                    Err(type_mismatch_err(ty_inst, host_ty))
                 }
             },
             Instruction::TypeMatrix(ty) => {
@@ -232,22 +217,24 @@ impl ModuleWrapper
                     if let Instruction::TypeVector(column_ty) = column_ty {
                         let comp_ty = self.find_type(column_ty.component_id).unwrap();
                         let row_count = column_ty.count;
-                        row_count == host_row_count &&
-                            col_count == host_col_count &&
-                            self.compare_types(comp_ty, &TypeDesc::Primitive(host_comp_ty))
+                        self.compare_types(comp_ty, &TypeDesc::Primitive(host_comp_ty)).map_err(|e| {
+                            type_mismatch_err(ty_inst, host_ty)
+                        })?;
+                        if !(row_count == host_row_count && col_count == host_col_count) {
+                            return Err(type_mismatch_err(ty_inst, host_ty));
+                        }
+                        Ok(())
                     } else {
                         panic!("malformed SPIR-V bytecode")
                     }
-
                 } else {
-                    false
+                    Err(type_mismatch_err(ty_inst, host_ty))
                 }
             },
             Instruction::TypeStruct(ty) => {
                 if let TypeDesc::Struct(ref host_members) = host_ty {
                     // build layout
                     let mut std140_layout = Std140LayoutBuilder::new();
-                    let mut layout_mismatch = false;
                     let mut device_member_index = 0;
                     let mut host_member_index = 0;
                     for member_ty in ty.member_types {
@@ -257,29 +244,43 @@ impl ModuleWrapper
                             if let Some(v) = member_iter.next() {
                                 v
                             } else {
-                                // ran out of members, this is a
-                                layout_mismatch = true;
-                                break
+                                return Err(InterfaceError {
+                                    cause: None,
+                                    info: format!("struct layout mismatch: {:?} (device) and {:?} (host)", ty_inst, host_ty),
+                                });
                             };
-                        if !self.compare_types(member_ty, host_member_ty) {
 
-                        }
+                        self.compare_types(member_ty, host_member_ty).map_err(|e| {
+                            Err(InterfaceError {
+                                cause: Some(Box::new(e)),
+                                info: format!("member type mismatch: device: member #{}({}) | host: member #{}({})",
+                                              device_member_index, "<unnamed>",
+                                              host_member_index, "<unnamed>"),
+                            })
+                        })?;
 
                         let member_offset = std140_layout.add_member(self, member_ty);
-                        //if member_offset != host_member_
-
-                        // check type and offset of member
-                        //if !( self.compare_types(member_ty, host_member_ty);
+                        if member_offset != host_member_offset {
+                            return Err(InterfaceError {
+                                cause: None,
+                                info: format!("member offset mismatch: device: member index #{}({}), offset {} | host: member index #{}({}), offset: {}",
+                                              device_member_index, "<unnamed>",
+                                              member_offset,
+                                              host_member_index, "<unnamed>",
+                                              host_member_offset)
+                            });
+                        }
 
                         device_member_index += 1;
                         host_member_index += 1;
                     }
+                    Ok(())
                 } else {
-                    false
+                    Err(type_mismatch_err(ty_inst, host_ty))
                 }
-            }
+            },
+            _ => { panic!("unsupported type") }
         }
-        unimplemented!()
     }
 }
 
@@ -289,42 +290,110 @@ struct SpirvGraphicsPipelineModules
     fs: ModuleWrapper,
     gs: Option<ModuleWrapper>,
     tcs: Option<ModuleWrapper>,
-    tes: Option<ModuleWrapper>
+    tes: Option<ModuleWrapper>,
 }
-
 
 enum VerifyResult
 {
-    Skip,
-    Match,
-    Mismatch { reason: String }
+    NotFound,
+    AlreadyMatched { loc: u32 },
+    Match { loc: u32, bad_rematch: bool },
+    Mismatch { loc: u32, err: InterfaceError, bad_rematch: bool },
 }
 
+macro_rules! try_verify {
+    ($r:expr) => {
+        match $r {
+            VerifyResult::AlreadyMatched { .. } => { return false },
+            VerifyResult::Mismatch { .. } => { return false },
+            VerifyResult::Match { bad_rematch, .. } if bad_rematch => { return false },
+            // Not found or correct match, continue (to detect potential bad rematches)
+            _ => {}
+        }};
+}
 
 impl SpirvGraphicsPipelineModules
 {
-    fn verify_named_uniform(&self, u: &UniformConstantDesc) {
+    /// Look for the specified uniform constant in the shader modules
+    /// and verify that the types on both sides (shader and host) match.
+    /// If the host code specifies a location then the shader and host constants
+    /// are matched by location (and the names are ignored), otherwise
+    /// they are matched by name.
+    ///
+    /// This function stops searching as soon as a matching uniform is found in
+    /// any shader. It does not detect potential different definitions of the
+    /// same variable in different modules, which is a linker error.
+    fn verify_named_uniform<'a>(&self, u: &'a UniformConstantDesc, matched_locations: &mut HashMap<u32, &'a UniformConstantDesc>) -> Result<(),InterfaceError> {
+        let verify = |module: &ModuleWrapper| -> VerifyResult {
+            for inst in module.0.instructions.iter() {
+                // filter out anything that is not a variable
+                if let Instruction::Variable(var) = inst {
+                    // must have uniform storage class
+                    if var.storage_class != spirv::StorageClass::Uniform { continue }
+                    // get underlying location and check that it matches, otherwise skip
+                    let loc = module.find_location_decoration(var.result_id);
+                    let loc = if let Some(loc) = loc { loc } else { panic!("uniform constant with no location in SPIR-V") };
+                    if let Some(host_loc) = u.index {
+                        if loc != host_loc { continue }
+                    } else {
+                        // host code did not specify a location, try to match by name
+                        // This is very brittle, as SPIR-V allows two uniforms with the same name, but different locations
+                        let shader_name = module.find_name(var.result_id);
+                        if let (Some(shader_name), Some(ref host_name)) = (shader_name, u.name) {
+                            if shader_name != host_name {
+                                continue
+                            }
+                        } else {
+                            // cannot match, skip
+                            continue
+                        }
+                    }
 
-        let verify = |module: &ModuleWrapper, inst: Instruction| -> VerifyResult {
-            // filter out anything that is not a variable
-            if inst.class.op != spirv::Op::Variable { return VerifyResult::Skip }
-            // must have storage class uniform
-            if inst.operands[0] != spirv::StorageClass::Uniform { return VerifyResult::Skip }
-            let id = u.result_id;
-            // check that type is a pointer
-            let ptr_ty_inst = module.find_type(u.result_type).expect("malformed SPIR-V");
-            assert!(ptr_ty_inst.class.op == spirv::Op::TypePointer, "malformed SPIR-V");
-            let uniform_ty_inst = unwrap_operand!(ptr_ty_inst, 1, Operand::IdRef);
+                    // we have a match, check if this location is already bound
+                    let previous_match = matched_locations.get(&loc);
 
-            // if an explicit location is provided, check that it matches
-            let loc = module.find_location_decoration(id);
-            //
-
-
-
-            VerifyResult::Skip
+                    // must be a pointer (SPIR-V is malformed otherwise)
+                    let ptr_ty = if let Some(Instruction::TypePointer(ref ptr_ty)) = module.find_type(var.result_type_id) { ptr_ty } else { panic!("malformed SPIR-V") };
+                    // get underlying type
+                    let uniform_ty_inst = module.find_type(ptr_ty.type_id).expect("malformed SPIR-V");
+                    if let Err(e) = module.compare_types(uniform_ty_inst, u.ty) {
+                        // ooops, this is a rematch of the same location, but it failed this time: possible linking error or ambiguous match by name?
+                        let bad_rematch = if let Some((previous_match_was_successful, _)) = previous_match { true } else { false };
+                        return VerifyResult::Mismatch { loc, err: e, bad_rematch }
+                    } else {
+                        let bad_rematch = if let Some((previous_match_was_successful, _)) = previous_match { false } else { true };
+                        return VerifyResult::Match { loc, bad_rematch }
+                    }
+                }
+            }
+            return VerifyResult::NotFound
         };
 
+
+        let mut found = false;
+        let check_result = |r| match r {
+            VerifyResult::AlreadyMatched { loc } => {
+                Err(InterfaceError { cause: None, info: format!("binding location {} was already matched", loc) } )
+            },
+            VerifyResult::Mismatch { loc, err, bad_rematch } if bad_rematch == false => {
+                Err(InterfaceError { cause: None, info: format!("interface mismatch for binding location {}", loc) } )
+            },
+            VerifyResult::Mismatch { loc, err, bad_rematch } if bad_rematch == true => {
+                Err(InterfaceError { cause: None, info: format!("interface mismatch for binding location {} (was previously matched correctly: linking error?)", loc) } )
+            },
+            VerifyResult::Match { .. } => { found = true; Ok(()) },
+            // Not found or correct match, continue (to detect potential bad rematches)
+            VerifyResult::NotFound => Ok(())
+        };
+
+        check_result(verify(&self.vs))?;
+        check_result(verify(&self.fs))?;
+        if let Some(ref gs) = self.gs { check_result(verify(gs))? };
+        if let Some(ref tcs) = self.tcs { check_result(verify(tcs))? };
+        if let Some(ref tes) = self.tes { check_result(verify(tes))? };
+
+        // should only be a warning, though
+        if found { Ok(()) } else { Err(InterfaceError { cause: None, info: "uniform constant not found in shader".to_owned() } ) }
     }
 }
 
