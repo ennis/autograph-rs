@@ -1,4 +1,3 @@
-use autograph::rect_transform::*;
 use cassowary::strength::{MEDIUM, REQUIRED, STRONG, WEAK};
 use cassowary::WeightedRelation::*;
 use cassowary::{Solver, Variable};
@@ -73,17 +72,22 @@ pub struct Item {
     pref_height: Option<f32>,
     /// item bounds as cassowary variables
     bounds: ItemBounds,
-    /// Custom state
-    state: Box<RefCell<Any>>,
+    //state: Box<RefCell<Any>>,
 }
 
 pub struct Ui {
-    draw_items: Vec<DrawItem>,
+    //draw_items: Vec<DrawItem>,
     items: HashMap<ItemID, Item>,
     id_stack: Vec<ItemID>,
     root: ItemID,
+    root_bounds: ItemBounds,
     graph: DiGraphMap<ItemID, ()>,
     solver: Solver,
+}
+
+pub struct UiContainer<'ui> {
+    ui: &'ui mut Ui,
+    bounds: ItemBounds,
 }
 
 /// A layouter automatically adds constraints to the solver
@@ -101,7 +105,7 @@ pub trait Layouter {
     fn deferred_layout(&mut self, ui: &Ui, item: &Item);
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 struct Padding {
     left: f32,
     right: f32,
@@ -141,8 +145,8 @@ impl Layouter for VboxLayouter {
         child: &Item,
         child_index: u32,
     ) {
-        let pref_width = child.pref_width.borrow().clone();
-        let pref_height = child.pref_height.borrow().clone();
+        let pref_width = child.pref_width;
+        let pref_height = child.pref_height;
         let bounds = child.bounds;
         let parent_bounds = item.bounds;
 
@@ -202,14 +206,31 @@ impl Ui {
         let root: ItemID = 0;
         let mut graph = DiGraphMap::new();
         graph.add_node(root);
+        let root_bounds = ItemBounds::default();
+        let mut solver = Solver::new();
+        solver.add_edit_variable(root_bounds.left, STRONG).unwrap();
+        solver.add_edit_variable(root_bounds.right, STRONG).unwrap();
+        solver.add_edit_variable(root_bounds.top, STRONG).unwrap();
+        solver.add_edit_variable(root_bounds.bottom, STRONG).unwrap();
         Ui {
-            draw_items: Vec::new(),
+            //draw_items: Vec::new(),
             items: HashMap::new(),
             id_stack: vec![root],
             root,
             graph,
-            solver: Solver::new(),
+            root_bounds,
+            solver
         }
+    }
+
+    pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F)
+    {
+        let root_bounds = self.root_bounds;
+        let mut root_container = UiContainer {
+            ui: self,
+            bounds: root_bounds,
+        };
+        f(&mut root_container);
     }
 
     fn chain_hash<H: Hash>(&self, s: &H) -> ItemID {
@@ -238,7 +259,7 @@ impl Ui {
         // should probably be push_item or something like that
         self.graph.add_node(id);
         self.graph.add_edge(parent_id, id, ());
-        debug!("ID stack -> {:?}", self.id_stack);
+       // debug!("ID stack -> {:?}", self.id_stack);
         id
     }
 
@@ -246,31 +267,8 @@ impl Ui {
         self.id_stack.pop();
     }
 
-    pub fn vbox<S: Into<String>, F: FnOnce(&mut Self)>(&mut self, id: S, f: F) -> ItemResult {
-        // convert ID to string for later storage
-        let id_str = id.into();
-        // get numeric ID
-        let id = self.push_id(&id_str);
-        // state
-        struct VBoxState {}
-        // if item not present, create it
-        self.items.entry(id).or_insert_with(|| Item {
-            pref_width: RefCell::new(None),
-            pref_height: RefCell::new(None),
-            bounds: Default::default(),
-            state: Box::new(RefCell::new(VBoxState)),
-        });
-        // insert children
-        f(self);
-        let result = ItemResult {
-            clicked: false,
-            hover: false,
-        };
-        self.pop_id();
-        result
-    }
 
-    pub fn button<S: Into<String>>(&mut self, label: S) -> ItemResult {
+    /*pub fn button<S: Into<String>>(&mut self, label: S) -> ItemResult {
         let label_str = label.into();
         let id = self.push_id(&label_str);
         struct ButtonState {}
@@ -289,9 +287,9 @@ impl Ui {
         };
         self.pop_id();
         result
-    }
+    }*/
 
-    pub fn text<S: Into<String>>(&mut self, label: S) -> ItemResult {
+    /*pub fn text<S: Into<String>>(&mut self, label: S) -> ItemResult {
         let label_str = label.into();
         let id = self.push_id(&label_str);
         // create an item
@@ -308,13 +306,60 @@ impl Ui {
         };
         self.pop_id();
         result
-    }
+    }*/
 
-    pub fn layout_and_render<'a>(&mut self, window_size: (u32, u32), frame: nvg::Frame<'a>) {
-        /* for n in self.graph.neighbors(self.root) {
-            // the iteration borrows self, cannot call any other mut function here
-        }*/
-    }
+    pub fn layout_and_render<'a>(&mut self, window_size: (u32, u32), frame: &nvg::Frame<'a>)
+    {
+        self.solver.suggest_value(self.root_bounds.left, 0.0).unwrap();
+        self.solver.suggest_value(self.root_bounds.right, window_size.0 as f64).unwrap();
+        self.solver.suggest_value(self.root_bounds.top, 0.0).unwrap();
+        self.solver.suggest_value(self.root_bounds.bottom, window_size.1 as f64).unwrap();
 
-    // TODO custom layout constraints
+        let changes = self.solver.fetch_changes();
+        debug!("layout changes: {:?}", changes);
+    }
+}
+
+impl<'a> UiContainer<'a>
+{
+    pub fn vbox<S: Into<String>, F: FnOnce(&mut UiContainer)>(&mut self, id: S, f: F) -> ItemResult {
+        // convert ID to string for later storage
+        let id_str = id.into();
+        // get numeric ID
+        let id = self.ui.push_id(&id_str);
+
+        // if item not present, create it
+
+        let bounds = {
+            let item = self.ui.items.entry(id).or_insert_with(|| Item {
+                pref_width: None,
+                pref_height: None,
+                bounds: Default::default(),
+                //state: Box::new(RefCell::new(VBoxState {})),
+            });
+            // cannot borrow solver here, as self.ui is already mutably borrowed
+
+            VBoxLayouter::new().layout(item);
+        };
+
+        // in-band layout? => too complicated
+        //
+
+        // add layout constraints
+        //
+        //VBoxLayouter::new().layout()
+        // insert children
+
+        {
+            let mut child_container = UiContainer { ui: self.ui, bounds };
+            f(&mut child_container);
+        }
+
+        let result = ItemResult {
+            clicked: false,
+            hover: false,
+        };
+        self.ui.pop_id();
+        result
+    }
 }

@@ -9,7 +9,6 @@ extern crate failure;
 extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
-extern crate autograph;
 extern crate cassowary;
 extern crate gl;
 extern crate nanovg as nvg;
@@ -227,9 +226,11 @@ fn main() {
                     ..Default::default()
                 },
             );
+
+            test_ui::make_ui(&mut ui, &mut data);
+            ui.layout_and_render((width as u32, height as u32), &frame);
         });
 
-        test_ui::make_ui(&mut ui, &mut data);
 
         gl_window.swap_buffers().unwrap();
     }
