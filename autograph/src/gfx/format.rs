@@ -2,7 +2,6 @@
 use gl;
 use gl::types::*;
 
-
 /// Storage formats of GPU data (texture, vertices, etc).
 /// These are actually Vulkan formats.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -239,8 +238,8 @@ impl FormatInfo {
     }
 
     pub fn byte_size(&self) -> usize {
-        (self.component_bits[0] + self.component_bits[1] + self.component_bits[2] +
-            self.component_bits[3]) as usize / 8
+        (self.component_bits[0] + self.component_bits[1] + self.component_bits[2]
+            + self.component_bits[3]) as usize / 8
     }
 }
 

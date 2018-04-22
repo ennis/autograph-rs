@@ -1,13 +1,13 @@
 #![feature(plugin, custom_attribute)]
-#![feature(const_fn, drop_types_in_const)]
+#![feature(const_fn)]
 
 #[macro_use]
 extern crate autograph;
-extern crate time;
-extern crate pretty_env_logger;
+extern crate alga;
 extern crate glutin;
 extern crate nalgebra;
-extern crate alga;
+extern crate pretty_env_logger;
+extern crate time;
 #[macro_use]
 extern crate failure;
 #[macro_use]
@@ -27,47 +27,45 @@ extern crate nfd;
 mod imgui_glue;
 mod main_loop;
 
-use std::path::Path;
-use std::fs::File;
-use std::io::Read;
-use std::sync::Arc;
-use glutin::GlContext;
+use autograph::cache::Cache;
+use autograph::camera::*;
+use autograph::framegraph::{FrameGraph, FrameGraphAllocator};
 use autograph::gfx;
 use autograph::gl;
 use autograph::gl::types::*;
 use autograph::id_table::{IdTable, ID};
-use autograph::scene_object::{SceneMesh, SceneObject, SceneObjects};
-use autograph::scene_loader;
-use autograph::cache::Cache;
-use autograph::camera::*;
 use autograph::rect_transform::*;
-use autograph::framegraph::{FrameGraph, FrameGraphAllocator};
+use autograph::scene_loader;
+use autograph::scene_object::{SceneMesh, SceneObject, SceneObjects};
+use glutin::GlContext;
 use nalgebra::*;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
+use std::sync::Arc;
 
-use autograph::gfx::DrawUtilsExt;
 use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
+use autograph::gfx::DrawUtilsExt;
 
-use main_loop::MainLoop;
 use image::GenericImage;
+use main_loop::MainLoop;
 
 const UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
-#[derive(BufferInterface)]
+#[derive(Copy, Clone, Debug, BufferInterface)]
 struct CameraParameters {
-    view_matrix: [[f32;4];4],
-    proj_matrix: [[f32;4];4],
-    viewproj_matrix: [[f32;4];4],
-    inverse_proj_matrix: [[f32;4];4],
-    prev_viewproj_matrix_velocity: [[f32;4];4],
-    viewproj_matrix_velocity: [[f32;4];4],
+    view_matrix: [[f32; 4]; 4],
+    proj_matrix: [[f32; 4]; 4],
+    viewproj_matrix: [[f32; 4]; 4],
+    inverse_proj_matrix: [[f32; 4]; 4],
+    prev_viewproj_matrix_velocity: [[f32; 4]; 4],
+    viewproj_matrix_velocity: [[f32; 4]; 4],
     temporal_aa_offset: [f32; 2],
 }
 
 #[repr(C)]
-#[derive(Copy,Clone,Debug)]
-#[derive(VertexType)]
+#[derive(Copy, Clone, Debug, VertexType)]
 struct MyVertexType {
     position: [f32; 3],
     normal: [f32; 3],
@@ -75,22 +73,20 @@ struct MyVertexType {
     texcoord: [f32; 2],
 }
 
-
 #[derive(ShaderInterface)]
-struct TestShaderInterface
-{
-    #[named_uniform(rename="transform")]
+struct TestShaderInterface {
+    #[named_uniform(rename = "transform")]
     matrix: [f32; 4],
     #[named_uniform]
     color: [f32; 4],
-    #[texture_binding(index="0",rename="diffuse")]
-    #[autobind(path="data/textures/background.png")]
+    #[texture_binding(index = "0", rename = "diffuse")]
+    #[autobind(path = "data/textures/background.png")]
     texture: gfx::TextureAny,
-    #[vertex_buffer(index="0")]
+    #[vertex_buffer(index = "0")]
     vertices: gfx::BufferSlice<[MyVertexType]>,
     #[index_buffer]
     indices: gfx::BufferSlice<[u32]>,
-    #[render_target(index="0")]
+    #[render_target(index = "0")]
     diffuse: gfx::TextureAny,
 }
 
@@ -113,8 +109,7 @@ impl CameraParameters {
     }
 }
 
-fn dump_shader_interface<T: gfx::ShaderInterface>()
-{
+fn dump_shader_interface<T: gfx::ShaderInterface>() {
     let interface_desc = <T as gfx::ShaderInterface>::get_description();
     let named_uniforms = interface_desc.get_named_uniforms();
     let render_targets = interface_desc.get_render_targets();
@@ -122,7 +117,10 @@ fn dump_shader_interface<T: gfx::ShaderInterface>()
     let index_buffer = interface_desc.get_index_buffer();
     let texture_bindings = interface_desc.get_texture_bindings();
 
-    debug!("vertex layout = {:#?}", <MyVertexType as gfx::VertexType>::get_layout());
+    debug!(
+        "vertex layout = {:#?}",
+        <MyVertexType as gfx::VertexType>::get_layout()
+    );
     debug!("texture bindings: {:#?}", texture_bindings);
     debug!("named uniforms: {:#?}", named_uniforms);
     debug!("render targets: {:#?}", render_targets);
@@ -136,73 +134,73 @@ fn pick_one_file() -> Option<String> {
     });
 
     match result {
-        nfd::Response::Okay(file_path) => { Some(file_path) },
+        nfd::Response::Okay(file_path) => Some(file_path),
         nfd::Response::OkayMultiple(files) => None,
         nfd::Response::Cancel => None,
     }
 }
 
 //
-fn load_tex2d<P: AsRef<Path>>(ctx: &gfx::Context, path: P) -> Result<gfx::Texture2D,failure::Error>
-{
+fn load_tex2d<P: AsRef<Path>>(
+    ctx: &gfx::Context,
+    path: P,
+) -> Result<gfx::Texture2D, failure::Error> {
     let img = image::open(path)?;
-    let (width,height) = img.dimensions();
+    let (width, height) = img.dimensions();
     let format = match img.color() {
         image::ColorType::RGB(8) => gfx::Format::R8G8B8_SRGB,
         image::ColorType::RGBA(8) => gfx::Format::R8G8B8A8_SRGB,
-        _ => return Err(format_err!("Unsupported ColorType"))
+        _ => return Err(format_err!("Unsupported ColorType")),
     };
     let bytes: &[u8] = match img {
         image::DynamicImage::ImageLuma8(_) => return Err(format_err!("Unsupported ColorType")),
         image::DynamicImage::ImageLumaA8(_) => return Err(format_err!("Unsupported ColorType")),
         image::DynamicImage::ImageRgb8(ref rgb) => &*rgb,
-        image::DynamicImage::ImageRgba8(ref rgba) => &*rgba
+        image::DynamicImage::ImageRgba8(ref rgba) => &*rgba,
     };
 
-    Ok(gfx::Texture2D::with_pixels(ctx, &gfx::Texture2DDesc::simple(format, width, height), &bytes))
+    Ok(gfx::Texture2D::with_pixels(
+        ctx,
+        &gfx::Texture2DDesc::simple(format, width, height),
+        &bytes,
+    ))
 }
 
-struct Scene
-{
+struct Scene {
     ids: IdTable,
     objects: SceneObjects,
     root_obj: ID,
 }
 
-impl Scene
-{
-    fn load<P: AsRef<Path>>(gctx: &gfx::Context, cache: &Cache, scene_file: P) -> Result<Scene,failure::Error> {
+impl Scene {
+    fn load<P: AsRef<Path>>(
+        gctx: &gfx::Context,
+        cache: &Cache,
+        scene_file: P,
+    ) -> Result<Scene, failure::Error> {
         let mut ids = IdTable::new();
         let mut objects = SceneObjects::new();
-        let root_obj = scene_loader::load_scene_file(
-            scene_file,
-            &mut ids,
-            gctx,
-            cache,
-            &mut objects,
-        )?;
+        let root_obj =
+            scene_loader::load_scene_file(scene_file, &mut ids, gctx, cache, &mut objects)?;
 
-
-        Ok(Scene{
+        Ok(Scene {
             ids,
             objects,
-            root_obj
+            root_obj,
         })
     }
 }
 
-struct FrameInfo<'f>
-{
+struct FrameInfo<'f> {
     frame: &'f gfx::Frame<'f>,
     framebuffer: &'f gfx::Framebuffer,
     dt: f64,
     frame_index: u64,
-    aspect_ratio: f32
+    aspect_ratio: f32,
 }
 
-struct State<'c>
-{
-    tex_offset: [f32;2],
+struct State<'c> {
+    tex_offset: [f32; 2],
     tex_rotation: f32,
     tex_scale: f32,
     tex_file: String,
@@ -216,24 +214,23 @@ struct State<'c>
     interpolation_mode: i32,
 }
 
-impl<'c> State<'c>
-{
+impl<'c> State<'c> {
     fn new(context: &gfx::Context, cache: &'c Cache) -> State<'c> {
         dump_shader_interface::<TestShaderInterface>();
 
         State {
-            tex_offset: [0.0f32;2],
+            tex_offset: [0.0f32; 2],
             tex_rotation: 0.0,
             tex_scale: 1.0,
             tex_file: "data/img/missing_512.png".into(),
             texture: None,
             context: context.clone(),
-            bgcolor: [0f32;4],
+            bgcolor: [0f32; 4],
             cache,
             scene_file: "data/scenes/truc.obj".into(),
             scene: None,
             camera_control: CameraControl::default(),
-            interpolation_mode: 0
+            interpolation_mode: 0,
         }
     }
 
@@ -248,9 +245,15 @@ impl<'c> State<'c>
     fn setup_camera(&mut self, frame_info: &FrameInfo) {
         if let Some(ref scene) = self.scene {
             // center camera on root object
-            let root_bounds = scene.objects.get(scene.root_obj).unwrap().borrow().world_bounds;
-            self.camera_control.set_aspect_ratio(frame_info.aspect_ratio);
-            let fovy = std::f32::consts::PI/4.0f32;
+            let root_bounds = scene
+                .objects
+                .get(scene.root_obj)
+                .unwrap()
+                .borrow()
+                .world_bounds;
+            self.camera_control
+                .set_aspect_ratio(frame_info.aspect_ratio);
+            let fovy = std::f32::consts::PI / 4.0f32;
             self.camera_control.center_on_aabb(root_bounds, fovy);
         }
     }
@@ -267,17 +270,25 @@ impl<'c> State<'c>
             _ => &gfx::LINEAR_CLAMP_SAMPLER,
         };
         if let Some(ref tex) = self.texture {
-            frame.blit_texture(framebuffer, tex,
-                               sampler,
-                               &RectTransform::new(
-                                   HorizontalAnchor::Left { offset: self.tex_offset[0], size: tex.width() },
-                                   VerticalAnchor::Top { offset: self.tex_offset[1], size: tex.height() })
-                                   .with_scale(self.tex_scale)
-                                   .with_rotation(self.tex_rotation));
+            frame.blit_texture(
+                framebuffer,
+                tex,
+                sampler,
+                &RectTransform::new(
+                    HorizontalAnchor::Left {
+                        offset: self.tex_offset[0],
+                        size: tex.width(),
+                    },
+                    VerticalAnchor::Top {
+                        offset: self.tex_offset[1],
+                        size: tex.height(),
+                    },
+                ).with_scale(self.tex_scale)
+                    .with_rotation(self.tex_rotation),
+            );
         }
 
         let camera = self.camera_control.camera();
-
     }
 
     fn render_ui<'ui>(&mut self, ui: &imgui::Ui<'ui>, frame_info: &FrameInfo) {
@@ -303,14 +314,31 @@ impl<'c> State<'c>
                 ui.same_line(0.0f32);
                 ui.text_disabled(&imgui::ImString::new(self.scene_file.as_ref()));
 
-                ui.slider_float2(im_str!("Texture offset"), &mut self.tex_offset, -100.0, 100.0).build();
-                ui.slider_float(im_str!("Rotation"), &mut self.tex_rotation, -3.14, 3.14).build();
-                ui.slider_float(im_str!("Scale"), &mut self.tex_scale, 0.1, 30.0).build();
+                ui.slider_float2(
+                    im_str!("Texture offset"),
+                    &mut self.tex_offset,
+                    -100.0,
+                    100.0,
+                ).build();
+                ui.slider_float(im_str!("Rotation"), &mut self.tex_rotation, -3.14, 3.14)
+                    .build();
+                ui.slider_float(im_str!("Scale"), &mut self.tex_scale, 0.1, 30.0)
+                    .build();
                 ui.separator();
                 let mouse_pos = ui.imgui().mouse_pos();
-                ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos.0, mouse_pos.1));
-                ui.color_picker(im_str!("Background color"), &mut self.bgcolor).build();
-                ui.combo(im_str!("Interpolation mode"), &mut self.interpolation_mode, &[im_str!("Nearest"), im_str!("Linear")], 2);
+                ui.text(im_str!(
+                    "Mouse Position: ({:.1},{:.1})",
+                    mouse_pos.0,
+                    mouse_pos.1
+                ));
+                ui.color_picker(im_str!("Background color"), &mut self.bgcolor)
+                    .build();
+                ui.combo(
+                    im_str!("Interpolation mode"),
+                    &mut self.interpolation_mode,
+                    &[im_str!("Nearest"), im_str!("Linear")],
+                    2,
+                );
             });
 
         ui.main_menu_bar(|| {
@@ -321,10 +349,6 @@ impl<'c> State<'c>
         });
     }
 }
-
-
-
-
 
 //==================================================================================================
 //==================================================================================================
@@ -382,9 +406,9 @@ fn main() {
                 match event {
                     glutin::Event::WindowEvent { event, .. } => match event {
                         glutin::WindowEvent::Closed => running = false,
-                        _ => ()
+                        _ => (),
                     },
-                    _ => ()
+                    _ => (),
                 }
             });
 
@@ -394,8 +418,8 @@ fn main() {
             }
 
             // get framebuffer dimensions and aspect ratio
-            let (width,height) = framebuffer.size();
-            let (fwidth,fheight) = (width as f32, height as f32);
+            let (width, height) = framebuffer.size();
+            let (fwidth, fheight) = (width as f32, height as f32);
             let aspect_ratio = fwidth / fheight;
             let frame_info = FrameInfo {
                 frame,
@@ -413,10 +437,10 @@ fn main() {
             let ui = imgui.frame(
                 window.get_inner_size().unwrap(),
                 window.get_inner_size().unwrap(),
-                dt);
+                dt,
+            );
 
             state.render_ui(&ui, &frame_info);
-
 
             unsafe {
                 gl::Disable(gl::FRAMEBUFFER_SRGB);
@@ -424,5 +448,6 @@ fn main() {
 
             imgui_renderer.render(frame, framebuffer, ui);
             running
-        });
+        },
+    );
 }

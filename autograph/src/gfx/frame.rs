@@ -1,17 +1,17 @@
-use super::queue::{Queue, FrameResources};
+use super::bind::{Scissors, Uniforms, VertexInput};
+use super::buffer::{BufferSlice, RawBuffer, RawBufferSlice};
 use super::buffer_data::BufferData;
+use super::fence::FenceValue;
+use super::framebuffer::{Framebuffer, FramebufferObject};
+use super::pipeline::GraphicsPipeline;
+use super::queue::{FrameResources, Queue};
 use super::sampler::SamplerDesc;
+use super::state_cache::StateCache;
 use super::texture::TextureAny;
 use super::upload_buffer::UploadBuffer;
-use super::buffer::{BufferSlice,RawBuffer,RawBufferSlice};
-use super::framebuffer::{Framebuffer, FramebufferObject};
-use super::bind::{VertexInput, Uniforms, Scissors};
-use super::pipeline::GraphicsPipeline;
-use super::fence::FenceValue;
-use super::state_cache::StateCache;
 
-use std::marker::PhantomData;
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::mem;
 
 use gl;
@@ -20,8 +20,8 @@ use gl::types::*;
 /// A slice of a buffer that cannot be used outside the frame it has been allocated in.
 /// This is statically prevented by the lifetime bound.
 pub struct TransientBufferSlice<'a, T>
-    where
-        T: BufferData + ?Sized,
+where
+    T: BufferData + ?Sized,
 {
     // don't make this public: the user should not be able to extend the lifetime of slice
     slice: BufferSlice<T>,
@@ -40,7 +40,9 @@ pub unsafe trait ToRawBufferSlice {
     unsafe fn to_raw_slice(&self) -> RawBufferSlice;
 }
 
-unsafe impl<'a,T> ToRawBufferSlice for TransientBufferSlice<'a,T> where T: BufferData + ?Sized
+unsafe impl<'a, T> ToRawBufferSlice for TransientBufferSlice<'a, T>
+where
+    T: BufferData + ?Sized,
 {
     type Target = T;
     unsafe fn to_raw_slice(&self) -> RawBufferSlice {
@@ -48,7 +50,9 @@ unsafe impl<'a,T> ToRawBufferSlice for TransientBufferSlice<'a,T> where T: Buffe
     }
 }
 
-unsafe impl<T> ToRawBufferSlice for BufferSlice<T> where T: BufferData + ?Sized
+unsafe impl<T> ToRawBufferSlice for BufferSlice<T>
+where
+    T: BufferData + ?Sized,
 {
     type Target = T;
     unsafe fn to_raw_slice(&self) -> RawBufferSlice {
@@ -68,18 +72,16 @@ pub struct Frame<'q> {
     pub(super) state_cache: RefCell<StateCache>,
 }
 
-
 impl<'q> Frame<'q> {
     /// Creates a new frame, mut-borrows the queue
     /// Since we can't build multiple command streams in parallel in OpenGL
-    pub fn new<'a>(queue: &'a mut Queue) -> Frame<'a>
-    {
+    pub fn new<'a>(queue: &'a mut Queue) -> Frame<'a> {
         Frame {
             queue,
             //upload_buffer: UploadBuffer::new(queue.context(), DEFAULT_UPLOAD_BUFFER_SIZE),
             ref_textures: RefCell::new(Vec::new()),
             ref_buffers: RefCell::new(Vec::new()),
-            state_cache: RefCell::new(StateCache::new())
+            state_cache: RefCell::new(StateCache::new()),
         }
     }
 
@@ -88,17 +90,24 @@ impl<'q> Frame<'q> {
     /// TODO specify target usage
     /// The lifetime of the returned resource is bound to the lifetime of self:
     /// this allows to statically limit the usage of the buffer to the current frame only.
-    pub fn upload_into<'a, T: BufferData + ?Sized>(&'a self, upload_buffer: &'a UploadBuffer, data: &T) -> TransientBufferSlice<'a, T>
-    {
+    pub fn upload_into<'a, T: BufferData + ?Sized>(
+        &'a self,
+        upload_buffer: &'a UploadBuffer,
+        data: &T,
+    ) -> TransientBufferSlice<'a, T> {
         TransientBufferSlice {
             slice: unsafe {
                 // TODO infer alignment from usage
-                upload_buffer.upload(data, 256, self.queue.next_frame_fence_value(), self.queue.last_completed_frame())
+                upload_buffer.upload(
+                    data,
+                    256,
+                    self.queue.next_frame_fence_value(),
+                    self.queue.last_completed_frame(),
+                )
             },
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
-
 
     /// Allocates and uploads data to the default upload buffer of the queue.
     /// Effectively calls `upload_into` with `self.queue().default_upload_buffer()`
@@ -131,4 +140,3 @@ impl<'q> Frame<'q> {
         });
     }
 }
-

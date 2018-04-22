@@ -1,35 +1,35 @@
-use super::format::Format;
 use super::buffer_data::BufferData;
-use super::state_cache::StateCache;
-use super::shader::UniformBinder;
+use super::format::Format;
 use super::pipeline::GraphicsPipeline;
+use super::shader::UniformBinder;
+use super::state_cache::StateCache;
 use super::texture::*;
 use failure::Error;
 
-#[derive(Copy,Clone,Debug,Eq,PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PrimitiveType {
     Int,
     UnsignedInt,
-    Half,   //?
+    Half, //?
     Float,
     Double,
 }
 
-#[derive(Clone,Debug,Eq,PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 /// GLSL/SPIR-V types used to interface with shader programs.
 /// i.e. the types used to describe a buffer interface.
 ///
 pub enum TypeDesc {
     Primitive(PrimitiveType),
     /// Array type, may have special alignment constraints
-    Array(Box<TypeDesc>,usize),
+    Array(Box<TypeDesc>, usize),
     /// Vector type (ty,size), not all sizes are valid.
-    Vector(PrimitiveType,u8),
+    Vector(PrimitiveType, u8),
     /// Matrix type (ty,rows,cols), not all combinations of rows and cols are valid.
-    Matrix(PrimitiveType,u8,u8),
+    Matrix(PrimitiveType, u8, u8),
     /// A structure type: (offset, typedesc)
-    Struct(Vec<(usize,TypeDesc)>),
-    Unknown
+    Struct(Vec<(usize, TypeDesc)>),
+    Unknown,
 }
 
 pub const TYPE_FLOAT: TypeDesc = TypeDesc::Primitive(PrimitiveType::Float);
@@ -48,69 +48,63 @@ pub const TYPE_MAT4: TypeDesc = TypeDesc::Matrix(PrimitiveType::Float, 4, 4);
 
 /// Describes a render target binding (a framebuffer attachement, in GL parlance)
 #[derive(Clone, Debug)]
-pub struct RenderTargetDesc
-{
+pub struct RenderTargetDesc {
     pub name: Option<String>,
-    pub index: Option<i32>,
-    pub format: Option<Format>
+    pub index: Option<u32>,
+    pub format: Option<Format>,
 }
 
 #[derive(Clone, Debug)]
-pub struct NamedUniformDesc
-{
-    pub name: String,
-    pub ty: &'static TypeDesc
+pub struct UniformConstantDesc {
+    pub name: Option<String>,
+    pub index: Option<u32>,
+    pub ty: &'static TypeDesc,
 }
 
 /// An uniform buffer
 #[derive(Clone, Debug)]
-pub struct UniformBufferDesc
-{
+pub struct UniformBufferDesc {
     pub name: Option<String>,
-    pub index: Option<i32>,
-    pub tydesc: &'static TypeDesc
+    pub index: Option<u32>,
+    pub tydesc: &'static TypeDesc,
 }
 
 /// An input buffer for vertex data
 #[derive(Clone, Debug)]
-pub struct VertexBufferDesc
-{
+pub struct VertexBufferDesc {
     pub name: Option<String>,
-    pub index: Option<i32>,
-    pub layout: &'static VertexLayout
+    pub index: Option<u32>,
+    pub layout: &'static VertexLayout,
 }
 
 /// An input buffer for indices
 #[derive(Clone, Debug)]
-pub struct IndexBufferDesc
-{
-    pub format: Format
+pub struct IndexBufferDesc {
+    pub format: Format,
 }
 
 /// Texture basic data type (NOT storage format)
 #[derive(Copy, Clone, Debug)]
-pub enum TextureDataType
-{
-    Float,  // and also depth
+pub enum TextureDataType {
+    Float, // and also depth
     Integer,
     UnsignedInteger,
-    Unknown
+    Unknown,
 }
 
 /// Represents a texture binding expected by a shader.
 /// The shader should not specify a particular storage format but rather the component type
 /// of the texture elements (either float, integer, or unsigned)
-#[derive(Clone,Debug)]
-pub struct TextureBindingDesc
-{
+#[derive(Clone, Debug)]
+pub struct TextureBindingDesc {
     /// name of the texture binding in shader, can be None.
     /// name and index should not be both None
     pub name: Option<String>,
     /// index (texture uint) of the texture binding in shader, can be None.
     /// name and index should not be both None
-    pub index: Option<i32>,
+    pub index: Option<u32>,
     /// Basic data type of the texture
-    pub data_type: TextureDataType
+    pub data_type: TextureDataType,
 }
 
 /// Trait implemented by types that can serve as a vertex attribute.
@@ -131,13 +125,24 @@ macro_rules! impl_vertex_attrib_type {
 }
 
 impl_vertex_attrib_type!(f32, TypeDesc::Primitive(PrimitiveType::Float), R32_SFLOAT);
-impl_vertex_attrib_type!([f32;2], TypeDesc::Vector(PrimitiveType::Float,2), R32G32_SFLOAT);
-impl_vertex_attrib_type!([f32;3], TypeDesc::Vector(PrimitiveType::Float,3), R32G32B32_SFLOAT);
-impl_vertex_attrib_type!([f32;4], TypeDesc::Vector(PrimitiveType::Float,4), R32G32B32A32_SFLOAT);
+impl_vertex_attrib_type!(
+    [f32; 2],
+    TypeDesc::Vector(PrimitiveType::Float, 2),
+    R32G32_SFLOAT
+);
+impl_vertex_attrib_type!(
+    [f32; 3],
+    TypeDesc::Vector(PrimitiveType::Float, 3),
+    R32G32B32_SFLOAT
+);
+impl_vertex_attrib_type!(
+    [f32; 4],
+    TypeDesc::Vector(PrimitiveType::Float, 4),
+    R32G32B32A32_SFLOAT
+);
 
 /// Trait implemented by types that can serve as indices.
-pub unsafe trait IndexElementType: BufferData
-{
+pub unsafe trait IndexElementType: BufferData {
     /// Returns the corresponding data format (the layout of the data in memory).
     const FORMAT: Format;
 }
@@ -157,37 +162,36 @@ impl_index_element_type!(u32, R32_UINT);
 /// to GLSL/SPIR-V type.
 /// An implementation is provided for most primitive types and arrays of primitive types.
 /// Structs can derive it automatically with `#[derive(BufferInterface)]`
-pub unsafe trait BufferInterface
-{
+pub unsafe trait BufferInterface {
     fn get_description() -> &'static TypeDesc;
 }
 
 macro_rules! impl_interface_type {
     ($t:ty, $tydesc:expr) => {
         unsafe impl BufferInterface for $t {
-            fn get_description() -> &'static TypeDesc { static DESC: TypeDesc = $tydesc; &DESC }
+            fn get_description() -> &'static TypeDesc {
+                static DESC: TypeDesc = $tydesc;
+                &DESC
+            }
         }
     };
 }
 
 impl_interface_type!(f32, TypeDesc::Primitive(PrimitiveType::Float));
-impl_interface_type!([f32;2], TypeDesc::Vector(PrimitiveType::Float,2));
-impl_interface_type!([f32;3], TypeDesc::Vector(PrimitiveType::Float,3));
-impl_interface_type!([f32;4], TypeDesc::Vector(PrimitiveType::Float,4));
+impl_interface_type!([f32; 2], TypeDesc::Vector(PrimitiveType::Float, 2));
+impl_interface_type!([f32; 3], TypeDesc::Vector(PrimitiveType::Float, 3));
+impl_interface_type!([f32; 4], TypeDesc::Vector(PrimitiveType::Float, 4));
 impl_interface_type!(i32, TypeDesc::Primitive(PrimitiveType::Int));
-impl_interface_type!([i32;2], TypeDesc::Vector(PrimitiveType::Int,2));
-impl_interface_type!([i32;3], TypeDesc::Vector(PrimitiveType::Int,3));
-impl_interface_type!([i32;4], TypeDesc::Vector(PrimitiveType::Int,4));
-impl_interface_type!([[f32;2];2], TypeDesc::Matrix(PrimitiveType::Float,2,2));
-impl_interface_type!([[f32;3];3], TypeDesc::Matrix(PrimitiveType::Float,3,3));
-impl_interface_type!([[f32;4];4], TypeDesc::Matrix(PrimitiveType::Float,4,4));
-
-
+impl_interface_type!([i32; 2], TypeDesc::Vector(PrimitiveType::Int, 2));
+impl_interface_type!([i32; 3], TypeDesc::Vector(PrimitiveType::Int, 3));
+impl_interface_type!([i32; 4], TypeDesc::Vector(PrimitiveType::Int, 4));
+impl_interface_type!([[f32; 2]; 2], TypeDesc::Matrix(PrimitiveType::Float, 2, 2));
+impl_interface_type!([[f32; 3]; 3], TypeDesc::Matrix(PrimitiveType::Float, 3, 3));
+impl_interface_type!([[f32; 4]; 4], TypeDesc::Matrix(PrimitiveType::Float, 4, 4));
 
 /// Description of a vertex attribute.
-#[derive(Clone,Debug)]
-pub struct VertexAttributeDesc
-{
+#[derive(Clone, Debug)]
+pub struct VertexAttributeDesc {
     /// Attribute name.
     pub name: Option<String>,
     /// Location.
@@ -197,15 +201,14 @@ pub struct VertexAttributeDesc
     /// Storage format of the vertex attribute.
     pub format: Format,
     /// Relative offset.
-    pub offset: u8
+    pub offset: u8,
 }
 
 /// The layout of vertex data in a vertex buffer.
 #[derive(Clone, Debug)]
-pub struct VertexLayout
-{
+pub struct VertexLayout {
     pub attributes: &'static [VertexAttributeDesc],
-    pub stride: usize
+    pub stride: usize,
 }
 
 ///
@@ -222,8 +225,7 @@ pub struct VertexLayout
 ///     texcoords: Vec2,
 /// }
 /// ```
-pub trait VertexType: BufferData
-{
+pub trait VertexType: BufferData {
     fn get_layout() -> &'static VertexLayout;
 }
 
@@ -233,12 +235,11 @@ pub trait VertexType: BufferData
 /// It is meant to be derived automatically with `#[derive(ShaderInterface)]`, but you can implement it by hand.
 ///
 /// TODO replace it with a simple struct?
-pub trait ShaderInterfaceDesc: Sync + 'static
-{
+pub trait ShaderInterfaceDesc: Sync + 'static {
     /// Returns the list of uniform buffers (`#[uniform_buffer]`)
     fn get_uniform_buffers(&self) -> &[UniformBufferDesc];
-    /// Returns the list of named uniform items (`#[named_uniform]`)
-    fn get_named_uniforms(&self) -> &[NamedUniformDesc];
+    /// Returns the list of named uniform items (`#[uniform_constant]`)
+    fn get_uniform_constants(&self) -> &[UniformConstantDesc];
     /// Returns the list of render target items (`#[render_target(...)]`)
     fn get_render_targets(&self) -> &[RenderTargetDesc];
     /// Returns the list of vertex buffer items (`#[vertex_buffer(index=...)]`)
@@ -249,8 +250,7 @@ pub trait ShaderInterfaceDesc: Sync + 'static
     fn get_texture_bindings(&self) -> &[TextureBindingDesc];
 }
 
-pub trait InterfaceBinder<T: ShaderInterface>
-{
+pub trait InterfaceBinder<T: ShaderInterface> {
     /// Binds the contents of the shader interface to the OpenGL pipeline, without any validation.
     /// Validation is intended to be done when creating the graphics/compute pipeline.
     unsafe fn bind_unchecked(&self, interface: &T, uniform_binder: &UniformBinder);
@@ -275,12 +275,15 @@ pub trait InterfaceBinder<T: ShaderInterface>
 ///     specularMap: FloatTexture
 /// }
 /// ```
-pub trait ShaderInterface
-{
+pub trait ShaderInterface {
     fn get_description() -> &'static ShaderInterfaceDesc;
     /// Creates an _interface binder_ object that will handle binding interfaces of this specific
     /// type to the OpenGL pipeline.
-    fn create_interface_binder(pipeline: &GraphicsPipeline) -> Result<Box<InterfaceBinder<Self>>, Error> where Self: Sized;
+    fn create_interface_binder(
+        pipeline: &GraphicsPipeline,
+    ) -> Result<Box<InterfaceBinder<Self>>, Error>
+    where
+        Self: Sized;
 }
 
 //

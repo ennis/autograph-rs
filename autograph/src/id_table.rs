@@ -1,5 +1,5 @@
-use std::vec::Vec;
 use std::collections::HashMap;
+use std::vec::Vec;
 
 #[derive(Copy, Clone, Hash, Debug, Default, PartialEq, Eq)]
 pub struct ID {
@@ -60,4 +60,3 @@ impl IdTable {
         map.retain(|&id, _| self.is_valid(id))
     }
 }
-

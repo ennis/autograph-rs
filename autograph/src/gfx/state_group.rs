@@ -1,5 +1,5 @@
-use gl::types::*;
 use gl;
+use gl::types::*;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct BlendState {

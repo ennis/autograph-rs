@@ -1,17 +1,17 @@
-use autograph::cache::Cache;
 use autograph::gfx;
+use autograph::cache::Cache;
 use autograph::gl;
 use autograph::gl::types::*;
 use glutin;
 use glutin::GlContext;
-use std::cell::RefCell;
-use std::sync::Arc;
 use time;
+use std::sync::Arc;
+use std::cell::RefCell;
 
 // Scaffolding for the application
 pub struct MainLoop<'a> {
     window: &'a glutin::GlWindow,
-    pub cache: Cache,
+    pub cache: Arc<Cache>,
     pub context: gfx::Context,
     pub queue: RefCell<gfx::Queue>,
 }
@@ -27,7 +27,7 @@ impl<'a> MainLoop<'a> {
         &self.context
     }
 
-    pub fn cache(&self) -> &Cache {
+    pub fn cache(&self) -> &Arc<Cache> {
         &self.cache
     }
 
@@ -71,7 +71,10 @@ impl<'a> MainLoop<'a> {
         // imgui stuff
         while running {
             // get default framebuffer from GL window
-            let default_framebuffer = gfx::Framebuffer::from_gl_window(&self.context, &self.window);
+            let default_framebuffer = gfx::Framebuffer::from_gl_window(
+                &self.context,
+                &self.window,
+            );
             // create the frame
             let mut queue = self.queue.borrow_mut();
             let mut frame = gfx::Frame::new(&mut queue);

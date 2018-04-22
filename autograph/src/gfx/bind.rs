@@ -1,9 +1,9 @@
-use gl;
-use gl::types::*;
-use super::pipeline::GraphicsPipeline;
-use super::shader::GraphicsShaderPipeline;
 use super::buffer_data::BufferData;
 use super::framebuffer::Framebuffer;
+use super::pipeline::GraphicsPipeline;
+use super::shader::GraphicsShaderPipeline;
+use gl;
+use gl::types::*;
 
 const MAX_TEXTURE_UNITS: usize = 16;
 const MAX_IMAGE_UNITS: usize = 8;
@@ -32,7 +32,7 @@ pub(super) struct VertexInput {
     pub(super) index_buffer: GLuint,
     pub(super) index_buffer_offset: usize,
     pub(super) index_buffer_size: usize,
-    pub(super) index_buffer_type: GLenum
+    pub(super) index_buffer_type: GLenum,
 }
 
 // TODO is this useless?
@@ -192,4 +192,3 @@ pub(super) unsafe fn bind_target(framebuffer: &Framebuffer, viewport: &[(f32, f3
     gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, framebuffer.obj);
     gl::ViewportArrayv(0, 8, viewport.as_ptr() as *const GLfloat);
 }
-

@@ -1,5 +1,5 @@
-use super::fence::{Fence, FenceValue};
 use super::context::{Context, ContextConfig};
+use super::fence::{Fence, FenceValue};
 use super::upload_buffer::UploadBuffer;
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -14,7 +14,7 @@ pub(super) struct FrameResources {
 
 struct SubmittedFrame {
     sync: FenceValue,
-    resources: FrameResources
+    resources: FrameResources,
 }
 
 /// Represents a succession of frames
@@ -23,10 +23,10 @@ pub struct Queue {
     pub(super) fence: RefCell<Fence>,
     // submitted but not completed frames, hold refs to resources
     submitted_frames: RefCell<VecDeque<SubmittedFrame>>,
-    default_upload_buffer: UploadBuffer
+    default_upload_buffer: UploadBuffer,
 }
 
-pub const DEFAULT_UPLOAD_BUFFER_SIZE: usize = 3*1024*1024;
+pub const DEFAULT_UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
 impl Queue {
     /// Creates a new queue
@@ -35,7 +35,7 @@ impl Queue {
             gctx: ctx.clone(),
             fence: RefCell::new(Fence::new(&ctx.clone(), FenceValue(-1))),
             submitted_frames: RefCell::new(VecDeque::new()),
-            default_upload_buffer: UploadBuffer::new(ctx, DEFAULT_UPLOAD_BUFFER_SIZE)
+            default_upload_buffer: UploadBuffer::new(ctx, DEFAULT_UPLOAD_BUFFER_SIZE),
         }
     }
 
@@ -71,7 +71,7 @@ impl Queue {
         // add the new one
         submitted_frames.push_back(SubmittedFrame {
             sync: fence.next_value(),
-            resources
+            resources,
         });
         //debug!("Number of live submitted frames: {}", submitted_frames.len());
         // put a sync point in the command stream and bump the frame index

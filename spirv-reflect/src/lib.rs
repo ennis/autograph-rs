@@ -1,20 +1,18 @@
 #![feature(box_syntax, box_patterns)]
 
-extern crate spirv_headers as spirv;
 extern crate num_traits;
+extern crate spirv_headers as spirv;
 
 mod parse;
 mod types;
 
 use std::collections::HashMap;
 
-
 //
 // Store instructions, etc.
 // 'describe' functions returns information in a more compact form for processing (flattens types, resolves names, etc.)
 #[derive(Debug)]
-pub struct Reflect
-{
+pub struct Reflect {
     parsed: parse::Spirv,
     pub struct_types: HashMap<u32, types::Struct>,
     pub entry_points: HashMap<u32, types::EntryPoint>,
@@ -22,10 +20,8 @@ pub struct Reflect
     pub primitive_types: HashMap<u32, types::Type>,
 }
 
-impl Reflect
-{
-    pub fn from_bytes(blob: &[u8]) -> Result<Reflect, parse::ParseError>
-    {
+impl Reflect {
+    pub fn from_bytes(blob: &[u8]) -> Result<Reflect, parse::ParseError> {
         let mut struct_types = HashMap::new();
         let mut entry_points = HashMap::new();
         let mut variables = HashMap::new();
@@ -40,28 +36,26 @@ impl Reflect
             entry_points,
             variables,
             primitive_types,
-            parsed
+            parsed,
         })
     }
 
-    pub fn describe_type(&self, ty: u32) -> types::Type
-    {
+    pub fn describe_type(&self, ty: u32) -> types::Type {
         types::type_from_id(&self.parsed, ty)
     }
 
     // does the variable has a builtin declaration, or if the type is struct,
     // does it have members decorated with builtin
     pub fn is_builtin_variable(&self, v: &types::Variable) -> bool {
-        v.deco.builtin.is_some() ||
-            {
-                let tydesc = self.describe_type(v.ty);
-                if let &types::Type::Struct(struct_id) = &tydesc {
-                    types::parse_struct(&self.parsed, struct_id).has_builtin_members()
-                } else if let &types::Type::Pointer(box types::Type::Struct(struct_id)) = &tydesc {
-                    types::parse_struct(&self.parsed, struct_id).has_builtin_members()
-                } else {
-                    false
-                }
+        v.deco.builtin.is_some() || {
+            let tydesc = self.describe_type(v.ty);
+            if let &types::Type::Struct(struct_id) = &tydesc {
+                types::parse_struct(&self.parsed, struct_id).has_builtin_members()
+            } else if let &types::Type::Pointer(box types::Type::Struct(struct_id)) = &tydesc {
+                types::parse_struct(&self.parsed, struct_id).has_builtin_members()
+            } else {
+                false
             }
+        }
     }
 }

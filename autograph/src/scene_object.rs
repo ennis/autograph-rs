@@ -1,11 +1,11 @@
-use nalgebra::Affine3;
-use id_table::ID;
-use std::sync::Arc;
 use aabb::AABB;
-use std::collections::HashMap;
-use std::collections::hash_map;
-use std::cell::RefCell;
+use id_table::ID;
 use mesh::{Mesh, Vertex3};
+use nalgebra::Affine3;
+use std::cell::RefCell;
+use std::collections::hash_map;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct SceneMesh {
@@ -120,7 +120,6 @@ impl SceneObjects {
             self.calculate_bounds_rec(r);
         }
     }
-
 
     /// Commit the changes made to the scene graph since the last call
     /// They are processed in the order in which they are submitted

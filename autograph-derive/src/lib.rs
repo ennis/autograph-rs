@@ -1,10 +1,13 @@
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 
 extern crate proc_macro;
 extern crate proc_macro2;
-#[macro_use] extern crate darling;  // this is a _good crate_
-#[macro_use] extern crate syn;
-#[macro_use] extern crate quote;
+#[macro_use]
+extern crate darling; // this is a _good crate_
+#[macro_use]
+extern crate syn;
+#[macro_use]
+extern crate quote;
 
 use darling::FromField;
 use proc_macro::TokenStream;
@@ -22,37 +25,39 @@ pub fn buffer_interface_derive(input: TokenStream) -> TokenStream {
     result.into()
 }
 
-
-fn process_buffer_interface_struct(ast: &syn::DeriveInput,
-                         fields: &syn::Fields) -> quote::Tokens
-{
+fn process_buffer_interface_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
     let struct_name = &ast.ident;
 
     let fields = match *fields {
-        syn::Fields::Named(ref fields_named) => { &fields_named.named },
-        syn::Fields::Unnamed(ref fields_unnamed) => { &fields_unnamed.unnamed },
-        syn::Fields::Unit => { panic!("BufferInterface trait cannot be derived on unit structs") }
+        syn::Fields::Named(ref fields_named) => &fields_named.named,
+        syn::Fields::Unnamed(ref fields_unnamed) => &fields_unnamed.unnamed,
+        syn::Fields::Unit => panic!("BufferInterface trait cannot be derived on unit structs"),
     };
 
     let mut field_descs = Vec::new();
 
-    for (i,f) in fields.iter().enumerate() {
+    for (i, f) in fields.iter().enumerate() {
         println!("{} => {:?}", i, f.ident);
         let field_ty = &f.ty;
-        let field_name = f.ident.clone().unwrap_or(syn::Ident::from(format!("unnamed_{}",i)));
+        let field_name = f.ident
+            .clone()
+            .unwrap_or(syn::Ident::from(format!("unnamed_{}", i)));
         let field_offset = if let Some(ref name) = f.ident {
             quote!(offset_of!(#struct_name,#name))
         } else {
             quote!(offset_of!(#struct_name,#i))
         };
         field_descs.push(quote!{
-            (#field_offset, <#field_ty as ::autograph::gfx::BufferInterface>::get_description().clone())
-         });
+           (#field_offset, <#field_ty as ::autograph::gfx::BufferInterface>::get_description().clone())
+        });
     }
 
     let num_fields = field_descs.len();
 
-    let private_module_name = syn::Ident::new(&format!("__buffer_interface_{}", struct_name), proc_macro2::Span::call_site());
+    let private_module_name = syn::Ident::new(
+        &format!("__buffer_interface_{}", struct_name),
+        proc_macro2::Span::call_site(),
+    );
 
     quote! {
         #[allow(non_snake_case)]
@@ -73,7 +78,6 @@ fn process_buffer_interface_struct(ast: &syn::DeriveInput,
     }
 }
 
-
 #[proc_macro_derive(VertexType, attributes(rename))]
 pub fn vertex_type_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
@@ -86,24 +90,24 @@ pub fn vertex_type_derive(input: TokenStream) -> TokenStream {
     result.into()
 }
 
-fn process_vertex_struct(ast: &syn::DeriveInput,
-                        fields: &syn::Fields) -> quote::Tokens
-{
+fn process_vertex_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
     let struct_name = &ast.ident;
 
     let fields = match *fields {
-        syn::Fields::Named(ref fields_named) => { &fields_named.named },
-        syn::Fields::Unnamed(ref fields_unnamed) => { &fields_unnamed.unnamed },
-        syn::Fields::Unit => { panic!("VertexType trait cannot be derived on unit structs") }
+        syn::Fields::Named(ref fields_named) => &fields_named.named,
+        syn::Fields::Unnamed(ref fields_unnamed) => &fields_unnamed.unnamed,
+        syn::Fields::Unit => panic!("VertexType trait cannot be derived on unit structs"),
     };
 
     let mut attrib_descs = Vec::new();
     let mut attrib_sizes = Vec::new();
 
-    for (i,f) in fields.iter().enumerate() {
+    for (i, f) in fields.iter().enumerate() {
         println!("{} => {:?}", i, f.ident);
         let field_ty = &f.ty;
-        let field_name = f.ident.clone().unwrap_or(syn::Ident::from(format!("unnamed_{}",i)));
+        let field_name = f.ident
+            .clone()
+            .unwrap_or(syn::Ident::from(format!("unnamed_{}", i)));
         let field_offset = if let Some(ref name) = f.ident {
             quote!(offset_of!(#struct_name,#name))
         } else {
@@ -121,7 +125,10 @@ fn process_vertex_struct(ast: &syn::DeriveInput,
 
     let num_attribs = attrib_descs.len();
 
-    let private_module_name = syn::Ident::new(&format!("__vertex_type_{}", struct_name), proc_macro2::Span::call_site());
+    let private_module_name = syn::Ident::new(
+        &format!("__vertex_type_{}", struct_name),
+        proc_macro2::Span::call_site(),
+    );
 
     quote! {
         #[allow(non_snake_case)]
@@ -147,7 +154,10 @@ fn process_vertex_struct(ast: &syn::DeriveInput,
     }
 }
 
-#[proc_macro_derive(ShaderInterface, attributes(named_uniform, texture_binding, vertex_buffer, index_buffer, uniform_buffer))]
+#[proc_macro_derive(
+    ShaderInterface,
+    attributes(uniform_constant, texture_binding, vertex_buffer, index_buffer, uniform_buffer)
+)]
 pub fn shader_interface_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
 
@@ -160,13 +170,15 @@ pub fn shader_interface_derive(input: TokenStream) -> TokenStream {
 }
 
 #[derive(FromField)]
-#[darling(attributes(named_uniform))]
-struct NamedUniform {
+#[darling(attributes(uniform_constant))]
+struct UniformConstant {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
-    #[darling(default)] rename: Option<String>,
-    #[darling(default)] index: Option<i32>
+    #[darling(default)]
+    rename: Option<String>,
+    #[darling(default)]
+    index: Option<u32>,
 }
 
 #[derive(FromField)]
@@ -175,8 +187,10 @@ struct TextureBinding {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
-    #[darling(default)] rename: Option<String>,
-    #[darling(default)] index: Option<i32>
+    #[darling(default)]
+    rename: Option<String>,
+    #[darling(default)]
+    index: Option<u32>,
 }
 
 #[derive(FromField)]
@@ -185,8 +199,10 @@ struct VertexBuffer {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
-    #[darling(default)] rename: Option<String>,
-    #[darling(default)] index: Option<i32>
+    #[darling(default)]
+    rename: Option<String>,
+    #[darling(default)]
+    index: Option<u32>,
 }
 
 #[derive(FromField)]
@@ -195,8 +211,10 @@ struct UniformBuffer {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
-    #[darling(default)] rename: Option<String>,
-    #[darling(default)] index: Option<i32>
+    #[darling(default)]
+    rename: Option<String>,
+    #[darling(default)]
+    index: Option<u32>,
 }
 
 #[derive(FromField)]
@@ -205,7 +223,8 @@ struct IndexBuffer {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
-    #[darling(default)] rename: Option<String>,
+    #[darling(default)]
+    rename: Option<String>,
 }
 
 #[derive(FromField)]
@@ -214,12 +233,13 @@ struct RenderTarget {
     ident: Option<syn::Ident>,
     ty: syn::Type,
     vis: syn::Visibility,
-    #[darling(default)] rename: Option<String>,
-    #[darling(default)] index: Option<i32>
+    #[darling(default)]
+    rename: Option<String>,
+    #[darling(default)]
+    index: Option<u32>,
 }
 
-fn error_multiple_interface_attrs()
-{
+fn error_multiple_interface_attrs() {
     panic!("Multiple interface attributes on field.");
 }
 
@@ -231,12 +251,10 @@ fn make_option_tokens<T: quote::ToTokens>(v: &Option<T>) -> quote::Tokens {
     }
 }
 
-fn process_struct(ast: &syn::DeriveInput,
-                  fields: &syn::Fields) -> quote::Tokens
-{
+fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
     let struct_name = &ast.ident;
 
-    let mut named_uniforms = Vec::new();
+    let mut uniform_constants = Vec::new();
     let mut texture_bindings = Vec::new();
     let mut vertex_buffers = Vec::new();
     let mut render_targets = Vec::new();
@@ -250,78 +268,108 @@ fn process_struct(ast: &syn::DeriveInput,
                 let mut seen_interface_attr = false;
                 for a in f.attrs.iter() {
                     let meta = a.interpret_meta();
-                    let meta = if let Some(meta) = meta { meta } else { continue };
+                    let meta = if let Some(meta) = meta {
+                        meta
+                    } else {
+                        continue;
+                    };
 
                     match meta.name().as_ref() {
-                        "named_uniform" => {
-                            if seen_interface_attr { error_multiple_interface_attrs(); }
-                            let named_uniform = <NamedUniform as FromField>::from_field(f).unwrap();
-                            named_uniforms.push(named_uniform);
+                        "uniform_constant" => {
+                            if seen_interface_attr {
+                                error_multiple_interface_attrs();
+                            }
+                            let uniform_constant =
+                                <UniformConstant as FromField>::from_field(f).unwrap();
+                            uniform_constants.push(uniform_constant);
                             seen_interface_attr = true;
-                        },
+                        }
                         "texture_binding" => {
-                            if seen_interface_attr { error_multiple_interface_attrs(); }
-                            let texture_binding = <TextureBinding as FromField>::from_field(f).unwrap();
+                            if seen_interface_attr {
+                                error_multiple_interface_attrs();
+                            }
+                            let texture_binding =
+                                <TextureBinding as FromField>::from_field(f).unwrap();
                             texture_bindings.push(texture_binding);
                             seen_interface_attr = true;
-                        },
+                        }
                         "vertex_buffer" => {
-                            if seen_interface_attr { error_multiple_interface_attrs(); }
+                            if seen_interface_attr {
+                                error_multiple_interface_attrs();
+                            }
                             let vb = <VertexBuffer as FromField>::from_field(f).unwrap();
                             vertex_buffers.push(vb);
                             seen_interface_attr = true;
-                        },
+                        }
                         "uniform_buffer" => {
-                            if seen_interface_attr { error_multiple_interface_attrs(); }
+                            if seen_interface_attr {
+                                error_multiple_interface_attrs();
+                            }
                             let ub = <UniformBuffer as FromField>::from_field(f).unwrap();
                             uniform_buffers.push(ub);
                             seen_interface_attr = true;
-                        },
+                        }
                         "index_buffer" => {
-                            if seen_interface_attr { error_multiple_interface_attrs(); }
-                            if index_buffer.is_some() { panic!("Only one index buffer can be specified.") }
+                            if seen_interface_attr {
+                                error_multiple_interface_attrs();
+                            }
+                            if index_buffer.is_some() {
+                                panic!("Only one index buffer can be specified.")
+                            }
                             let ib = <IndexBuffer as FromField>::from_field(f).unwrap();
                             index_buffer = Some(ib);
                             seen_interface_attr = true;
-                        },
+                        }
                         "render_target" => {
-                            if seen_interface_attr { error_multiple_interface_attrs(); }
+                            if seen_interface_attr {
+                                error_multiple_interface_attrs();
+                            }
                             let rt = <RenderTarget as FromField>::from_field(f).unwrap();
                             render_targets.push(rt);
                             seen_interface_attr = true;
-                        },
+                        }
                         _ => {}
                     }
                 }
             }
-        },
+        }
         _ => panic!("ShaderInterface trait cannot be derived on unit structs or tuple structs."),
     }
 
     //
     // named uniforms
     //
-    let named_uniform_items =
-        named_uniforms.iter().map(|named_uniform| {
-            let name = named_uniform.rename.as_ref().map_or(named_uniform.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
-            let ty = &named_uniform.ty;
+    let uniform_constant_items = uniform_constants
+        .iter()
+        .map(|u| {
+            let name = u.rename
+                .as_ref()
+                .map_or(u.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+            let index_tokens = make_option_tokens(&u.index);
+            let ty = &u.ty;
 
             //let index_tokens = make_option_tokens(texbind.index);
             quote! {
-                NamedUniformDesc {
-                    name: stringify!(#name).into(),
+                UniformConstantDesc {
+                    name: Some(stringify!(#name).into()),
+                    index: #index_tokens,
                     ty: <#ty as BufferInterface>::get_description()
                 }
             }
-        }).collect::<Vec<_>>();
-    let num_named_uniform_items = named_uniform_items.len();
+        })
+        .collect::<Vec<_>>();
+    let num_uniform_constant_items = uniform_constant_items.len();
 
     //
     // texture+sampler bindings
     //
-    let texture_binding_items =
-        texture_bindings.iter().map(|texbind| {
-            let name = texbind.rename.as_ref().map_or(texbind.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+    let texture_binding_items = texture_bindings
+        .iter()
+        .map(|texbind| {
+            let name = texbind
+                .rename
+                .as_ref()
+                .map_or(texbind.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&texbind.index);
 
             quote! {
@@ -331,15 +379,19 @@ fn process_struct(ast: &syn::DeriveInput,
                     data_type: TextureDataType::Unknown
                 }
             }
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
     let num_texture_binding_items = texture_binding_items.len();
 
     //
     // vertex buffers
     //
-    let vertex_buffer_items =
-        vertex_buffers.iter().map(|vb| {
-            let name = vb.rename.as_ref().map_or(vb.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+    let vertex_buffer_items = vertex_buffers
+        .iter()
+        .map(|vb| {
+            let name = vb.rename
+                .as_ref()
+                .map_or(vb.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&vb.index);
             let ty = &vb.ty;
 
@@ -350,15 +402,19 @@ fn process_struct(ast: &syn::DeriveInput,
                     layout: <<#ty as ::autograph::gfx::VertexDataSource>::ElementType as ::autograph::gfx::VertexType>::get_layout()
                 }
             }
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
     let num_vertex_buffer_items = vertex_buffer_items.len();
 
     //
     // uniform buffers
     //
-    let uniform_buffer_items =
-        uniform_buffers.iter().map(|ub| {
-            let name = ub.rename.as_ref().map_or(ub.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+    let uniform_buffer_items = uniform_buffers
+        .iter()
+        .map(|ub| {
+            let name = ub.rename
+                .as_ref()
+                .map_or(ub.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&ub.index);
             let ty = &ub.ty;
 
@@ -369,15 +425,19 @@ fn process_struct(ast: &syn::DeriveInput,
                     tydesc: <#ty as ::autograph::gfx::BufferInterface>::get_description()
                 }
             }
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
     let num_uniform_buffer_items = uniform_buffer_items.len();
 
     //
     // render targets
     //
-    let render_target_items =
-        render_targets.iter().map(|rt| {
-            let name = rt.rename.as_ref().map_or(rt.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+    let render_target_items = render_targets
+        .iter()
+        .map(|rt| {
+            let name = rt.rename
+                .as_ref()
+                .map_or(rt.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&rt.index);
             let ty = &rt.ty;
             quote! {
@@ -387,10 +447,11 @@ fn process_struct(ast: &syn::DeriveInput,
                     format: None
                 }
             }
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
     let num_render_target_items = render_target_items.len();
 
-    let index_buffer_item = if let Some(ib) = index_buffer  {
+    let index_buffer_item = if let Some(ib) = index_buffer {
         let ty = &ib.ty;
         quote! {
             Some(IndexBufferDesc {
@@ -401,7 +462,10 @@ fn process_struct(ast: &syn::DeriveInput,
         quote!(None)
     };
 
-    let private_module_name = syn::Ident::new(&format!("__shader_interface_{}", struct_name), proc_macro2::Span::call_site());
+    let private_module_name = syn::Ident::new(
+        &format!("__shader_interface_{}", struct_name),
+        proc_macro2::Span::call_site(),
+    );
 
     // generate impls
     quote!{
@@ -414,7 +478,7 @@ fn process_struct(ast: &syn::DeriveInput,
             pub(super) struct Binder;
 
             lazy_static!{
-                static ref NAMED_UNIFORMS: [NamedUniformDesc;#num_named_uniform_items] = [#(#named_uniform_items),*];
+                static ref UNIFORM_CONSTANTS: [UniformConstantDesc;#num_uniform_constant_items] = [#(#uniform_constant_items),*];
                 static ref TEXTURE_BINDINGS: [TextureBindingDesc;#num_texture_binding_items] = [#(#texture_binding_items),*];
                 static ref VERTEX_BUFFERS: [VertexBufferDesc;#num_vertex_buffer_items] = [#(#vertex_buffer_items),*];
                 static ref UNIFORM_BUFFERS: [UniformBufferDesc;#num_uniform_buffer_items] = [#(#uniform_buffer_items),*];
@@ -423,8 +487,8 @@ fn process_struct(ast: &syn::DeriveInput,
             }
 
             impl ShaderInterfaceDesc for Desc {
-                fn get_named_uniforms(&self) -> &'static [NamedUniformDesc] {
-                    &*NAMED_UNIFORMS
+                fn get_uniform_constants(&self) -> &'static [UniformConstantDesc] {
+                    &*UNIFORM_CONSTANTS
                 }
                 fn get_render_targets(&self) -> &'static [RenderTargetDesc] {
                      &*RENDER_TARGETS
@@ -465,7 +529,6 @@ fn process_struct(ast: &syn::DeriveInput,
         }
     }
 }
-
 
 /*fn parse_named_uniform(field: &syn::Field, meta: &syn::Meta) {
     let field_name = field.ident.unwrap();

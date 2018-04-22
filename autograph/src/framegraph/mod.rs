@@ -1,9 +1,9 @@
 //! Frame graphs
 //! TODO document
 //!
-use petgraph::*;
-use petgraph::graph::*;
 use gfx;
+use petgraph::graph::*;
+use petgraph::*;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
@@ -49,17 +49,20 @@ struct UnversionedResource {
     aliased_index: Cell<Option<AliasedResourceIndex>>,
 }
 
-#[derive(Copy,Clone,Hash,Debug,Eq,PartialEq,Ord,PartialOrd)]
+#[derive(Copy, Clone, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct UnversionedResourceIndex(u32);
 // TODO we don't need this
 impl UnversionedResourceIndex {
-    pub fn new(x: usize) -> Self { UnversionedResourceIndex(x as u32) }
-    pub fn index(&self) -> usize { self.0 as usize }
+    pub fn new(x: usize) -> Self {
+        UnversionedResourceIndex(x as u32)
+    }
+    pub fn index(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 /// Render pass callbacks
-pub trait RenderPassCallbacks
-{
+pub trait RenderPassCallbacks {
     fn execute(&self, frame: &gfx::Frame, ectx: &ExecutionContext);
 }
 
@@ -111,38 +114,46 @@ pub enum AliasedResource {
 #[derive(Copy, Clone, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AliasedResourceIndex(u32);
 impl AliasedResourceIndex {
-    pub fn new(x: usize) -> Self { AliasedResourceIndex(x as u32) }
-    pub fn index(&self) -> usize { self.0 as usize }
+    pub fn new(x: usize) -> Self {
+        AliasedResourceIndex(x as u32)
+    }
+    pub fn index(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 const FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS: usize = 8;
 
 /// Key used to lookup an existing framebuffer in the cache
-#[derive(Copy,Clone,Hash,Debug,Eq,PartialEq)]
+#[derive(Copy, Clone, Hash, Debug, Eq, PartialEq)]
 struct FramebufferCacheKey {
-    color_attachements: [Option<AliasedResourceIndex>; FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS], // TODO non-arbitrary limit
-    depth_attachement: Option<AliasedResourceIndex>
+    color_attachements:
+        [Option<AliasedResourceIndex>; FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS], // TODO non-arbitrary limit
+    depth_attachement: Option<AliasedResourceIndex>,
 }
 
 /// Holds Allocs for a frame graph
 pub struct FrameGraphAllocator {
     allocations: Vec<AliasedResource>,
-    fbcache: RefCell<HashMap<FramebufferCacheKey, gfx::Framebuffer>>
+    fbcache: RefCell<HashMap<FramebufferCacheKey, gfx::Framebuffer>>,
 }
-
 
 impl FrameGraphAllocator {
     pub fn new() -> FrameGraphAllocator {
         FrameGraphAllocator {
             allocations: Vec::new(),
-            fbcache: RefCell::new(HashMap::new())
+            fbcache: RefCell::new(HashMap::new()),
         }
     }
 
     // Get a framebuffer for the given texture allocs (first looks into the cache to see if there is one)
     // TODO: don't pass alloc indices: directly pass Arc<Textures>
-    fn get_cached_framebuffer(&self, context: &gfx::Context, color_attachements: &[Option<AliasedResourceIndex>], depth_attachement: Option<AliasedResourceIndex>) -> gfx::Framebuffer
-    {
+    fn get_cached_framebuffer(
+        &self,
+        context: &gfx::Context,
+        color_attachements: &[Option<AliasedResourceIndex>],
+        depth_attachement: Option<AliasedResourceIndex>,
+    ) -> gfx::Framebuffer {
         // build key
         assert!(color_attachements.len() <= FRAMEBUFFER_CACHE_KEY_NUM_COLOR_ATTACHEMENTS);
         let key = FramebufferCacheKey {
@@ -153,73 +164,80 @@ impl FrameGraphAllocator {
                 }
                 array
             },
-            depth_attachement
+            depth_attachement,
         };
 
         let mut fbcache = self.fbcache.borrow_mut();
-        fbcache.entry(key).or_insert_with(|| {
-            let mut fbo_builder = gfx::FramebufferBuilder::new(context);
-            for (i,color_att) in color_attachements.iter().enumerate() {
-                // get texture alloc
-                if let &Some(color_att) = color_att {
-                    let tex = match self.allocations[color_att.index()] {
-                        AliasedResource::Texture { ref tex } => tex,
-                        _ => panic!("expected a texture alloc, got something else")
-                    };
-                    fbo_builder.attach(i as u32, gfx::FramebufferAttachment::Texture(tex));
+        fbcache
+            .entry(key)
+            .or_insert_with(|| {
+                let mut fbo_builder = gfx::FramebufferBuilder::new(context);
+                for (i, color_att) in color_attachements.iter().enumerate() {
+                    // get texture alloc
+                    if let &Some(color_att) = color_att {
+                        let tex = match self.allocations[color_att.index()] {
+                            AliasedResource::Texture { ref tex } => tex,
+                            _ => panic!("expected a texture alloc, got something else"),
+                        };
+                        fbo_builder.attach(i as u32, gfx::FramebufferAttachment::Texture(tex));
+                    }
                 }
-            }
-            if let Some(depth_attachement) = depth_attachement {
-                let tex = match self.allocations[depth_attachement.index()] {
-                    AliasedResource::Texture { ref tex } => tex,
-                    _ => panic!("expected a texture alloc, got something else")
-                };
-                fbo_builder.attach_depth(gfx::FramebufferAttachment::Texture(tex));
-            }
-            fbo_builder.build()
-        }).clone()
+                if let Some(depth_attachement) = depth_attachement {
+                    let tex = match self.allocations[depth_attachement.index()] {
+                        AliasedResource::Texture { ref tex } => tex,
+                        _ => panic!("expected a texture alloc, got something else"),
+                    };
+                    fbo_builder.attach_depth(gfx::FramebufferAttachment::Texture(tex));
+                }
+                fbo_builder.build()
+            })
+            .clone()
     }
 }
 
-
 /// Pass builder
-pub struct RenderPassBuilder<'fg>
-{
+pub struct RenderPassBuilder<'fg> {
     pass: RenderPass,
     framegraph: &'fg mut FrameGraph<'fg>,
 }
 
-impl<'fg> RenderPassBuilder<'fg>
-{
-    pub fn read(&mut self, res: ResourceVersion, usage: ResourceUsage)
-    {
+impl<'fg> RenderPassBuilder<'fg> {
+    pub fn read(&mut self, res: ResourceVersion, usage: ResourceUsage) {
         self.framegraph.link_input(self.pass, res, usage)
     }
 
-    pub fn write(&mut self, res: ResourceVersion, usage: ResourceUsage) -> ResourceVersion
-    {
+    pub fn write(&mut self, res: ResourceVersion, usage: ResourceUsage) -> ResourceVersion {
         let res_v2 = self.framegraph.clone_resource(res);
         self.framegraph.link_input(self.pass, res, usage);
         self.framegraph.link_output(self.pass, res_v2, usage);
         res_v2
     }
 
-    pub fn create_texture<S: Into<String>>(&mut self, name: S, desc: &gfx::TextureDesc, usage: ResourceUsage) -> ResourceVersion
-    {
-        let res = self.framegraph.create_resource(name.into(), ResourceInfo::Texture { desc: *desc });
+    pub fn create_texture<S: Into<String>>(
+        &mut self,
+        name: S,
+        desc: &gfx::TextureDesc,
+        usage: ResourceUsage,
+    ) -> ResourceVersion {
+        let res = self.framegraph
+            .create_resource(name.into(), ResourceInfo::Texture { desc: *desc });
         self.framegraph.link_output(self.pass, res, usage);
         res
     }
 
-    pub fn create_buffer<S: Into<String>>(&mut self, name: S, byte_size: usize, usage: ResourceUsage) -> ResourceVersion
-    {
-        let res = self.framegraph.create_resource(name.into(), ResourceInfo::Buffer { byte_size });
+    pub fn create_buffer<S: Into<String>>(
+        &mut self,
+        name: S,
+        byte_size: usize,
+        usage: ResourceUsage,
+    ) -> ResourceVersion {
+        let res = self.framegraph
+            .create_resource(name.into(), ResourceInfo::Buffer { byte_size });
         self.framegraph.link_output(self.pass, res, usage);
         res
     }
 
-    pub fn build(self) -> RenderPass
-    {
+    pub fn build(self) -> RenderPass {
         self.pass
     }
 }
@@ -232,23 +250,20 @@ pub struct FrameGraph<'node> {
     graph: Graph<Node<'node>, Edge, Directed>,
 }
 
-#[derive(Copy,Clone,Debug)]
-pub enum Error
-{
-    ConcurrentWriteHazard,  // TODO more info
+#[derive(Copy, Clone, Debug)]
+pub enum Error {
+    ConcurrentWriteHazard, // TODO more info
 }
 
-impl ::std::error::Error for Error
-{
+impl ::std::error::Error for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::ConcurrentWriteHazard => "concurrent write hazard detected"
+            Error::ConcurrentWriteHazard => "concurrent write hazard detected",
         }
     }
 }
 
-impl ::std::fmt::Display for Error
-{
+impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             Error::ConcurrentWriteHazard => {
@@ -274,20 +289,31 @@ impl<'node> FrameGraph<'node> {
         name: String,
         callbacks: Box<RenderPassCallbacks + 'node>,
     ) -> RenderPass {
-        RenderPass(self.graph.add_node(Node::RenderPass { name: name.into(), callbacks }))
+        RenderPass(self.graph.add_node(Node::RenderPass {
+            name: name.into(),
+            callbacks,
+        }))
     }
 
     /// Create a renderpassbuilder.
-    fn create_render_pass<'fg: 'node, S: Into<String>, C: RenderPassCallbacks + 'fg>(&'fg mut self, name: S, callbacks: C) -> RenderPassBuilder<'fg> {
+    fn create_render_pass<'fg: 'node, S: Into<String>, C: RenderPassCallbacks + 'fg>(
+        &'fg mut self,
+        name: S,
+        callbacks: C,
+    ) -> RenderPassBuilder<'fg> {
         let pass = self.create_render_pass_node(name.into(), Box::new(callbacks));
         RenderPassBuilder {
             framegraph: self,
-            pass
+            pass,
         }
     }
 
     /// Creates a resource node.
-    fn create_resource<S: Into<String>>(&mut self, name: S, create_info: ResourceInfo) -> ResourceVersion {
+    fn create_resource<S: Into<String>>(
+        &mut self,
+        name: S,
+        create_info: ResourceInfo,
+    ) -> ResourceVersion {
         // Create a new resource
         self.resources.push(UnversionedResource {
             name: name.into(),
@@ -305,24 +331,23 @@ impl<'node> FrameGraph<'node> {
 
     /// Gets the `ResourceInfo` for the specified resource node.
     pub fn resource_info(&self, res: ResourceVersion) -> &ResourceInfo {
-        self.graph.node_weight(res.0).and_then(
-            |node| if let &Node::Resource { index, .. } = node {
-                Some(&self.resources[index.index()].info)
-            } else {
-                None
-            },
-        ).unwrap()
+        self.graph
+            .node_weight(res.0)
+            .and_then(|node| {
+                if let &Node::Resource { index, .. } = node {
+                    Some(&self.resources[index.index()].info)
+                } else {
+                    None
+                }
+            })
+            .unwrap()
     }
 
     /// Clones a resource node and increase its version index.
     pub fn clone_resource(&mut self, res: ResourceVersion) -> ResourceVersion {
         let (index, version) = {
             let node = self.graph.node_weight(res.0).unwrap();
-            if let &Node::Resource {
-                index,
-                version,
-            } = node
-            {
+            if let &Node::Resource { index, version } = node {
                 (index, version)
             } else {
                 panic!("not a resource node")
@@ -345,7 +370,11 @@ impl<'node> FrameGraph<'node> {
     }
 
     /// Returns true if the pass modifies a version of the specfied resource
-    fn is_resource_modified_by_pass(&self, pass: RenderPass, rindex: UnversionedResourceIndex) -> bool {
+    fn is_resource_modified_by_pass(
+        &self,
+        pass: RenderPass,
+        rindex: UnversionedResourceIndex,
+    ) -> bool {
         // For all outgoing neighbors
         self.graph.neighbors_directed(pass.0, Direction::Outgoing)
             // Return true if any...
@@ -360,14 +389,12 @@ impl<'node> FrameGraph<'node> {
 
     ///
     ///
-    fn toposort_nodes(&self) -> Vec<NodeIndex>
-    {
+    fn toposort_nodes(&self) -> Vec<NodeIndex> {
         use petgraph::algo::toposort;
         toposort(&self.graph, None).expect("Frame graph contains cycles (how is that possible?)")
     }
 
-    fn detect_concurrent_write_hazards(&self, toposort: &Vec<NodeIndex>) -> bool
-    {
+    fn detect_concurrent_write_hazards(&self, toposort: &Vec<NodeIndex>) -> bool {
         let mut has_write_hazards = false;
         for &n in toposort.iter() {
             if let &Node::Resource { index, .. } = self.graph.node_weight(n).unwrap() {
@@ -387,9 +414,7 @@ impl<'node> FrameGraph<'node> {
                     error!("Concurrent read/write hazard detected in frame graph");
                     error!(
                         " -> resource {:?} readers {:?} writers {:?}",
-                        index,
-                        readers,
-                        writers
+                        index, readers, writers
                     );
                 }
             }
@@ -398,8 +423,7 @@ impl<'node> FrameGraph<'node> {
     }
 
     /// Determine the lifetime of the resources referenced in the graph.
-    fn determine_resource_lifetimes(&mut self, toposort: &Vec<NodeIndex>)
-    {
+    fn determine_resource_lifetimes(&mut self, toposort: &Vec<NodeIndex>) {
         for (topo_index, &n) in toposort.iter().enumerate() {
             match self.graph.node_weight(n).unwrap() {
                 &Node::Resource { .. } => (),
@@ -429,28 +453,42 @@ impl<'node> FrameGraph<'node> {
 
     /// Allocate and assign actual resources in the graph.
     /// Concretely, this function sets the 'alloc_index' fields in UnversionedResources
-    fn assign_aliased_resources(&mut self, gctx: &gfx::Context, allocator: &mut FrameGraphAllocator)
-    {
+    fn assign_aliased_resources(
+        &mut self,
+        gctx: &gfx::Context,
+        allocator: &mut FrameGraphAllocator,
+    ) {
         for (index, resource) in self.resources.iter().enumerate() {
             if resource.aliased_index.get().is_none() {
                 // No allocation for the resource, create one
                 match resource.info {
                     ResourceInfo::Texture { desc: ref texdesc } => {
                         // iter over texture entries, find matching desc
-                        let arindex = allocator.allocations.iter().enumerate().find(|&(arindex, ar)| if let &AliasedResource::Texture { ref tex } = ar {
-                            // check if desc matches, and that...
-                            *tex.desc() == *texdesc && {
-                                // ... the lifetime does not conflict with other users of the alloc
-                                self.resources.iter().enumerate().find(|&(other_index, ref other)| {
-                                    (other_index != index)  // not the same resource...
+                        let arindex = allocator
+                            .allocations
+                            .iter()
+                            .enumerate()
+                            .find(|&(arindex, ar)| {
+                                if let &AliasedResource::Texture { ref tex } = ar {
+                                    // check if desc matches, and that...
+                                    *tex.desc() == *texdesc && {
+                                        // ... the lifetime does not conflict with other users of the alloc
+                                        self.resources
+                                            .iter()
+                                            .enumerate()
+                                            .find(|&(other_index, ref other)| {
+                                                (other_index != index)  // not the same resource...
                                         && other.aliased_index.get().map_or(false, |other_arindex| other_arindex == AliasedResourceIndex::new(arindex))   // same allocation...
-                                        && resource.lifetime.unwrap().overlaps(&other.lifetime.unwrap())    // ...and overlapping lifetimes.
-                                    // if all of these conditions are true, then there's a conflict
-                                }).is_none()    // true if no conflicts
-                            }
-                        } else {
-                            false   // not a texture alloc
-                        }).map(|(arindex, _)| AliasedResourceIndex::new(arindex)); // keep only index, drop borrow of allocations
+                                        && resource.lifetime.unwrap().overlaps(&other.lifetime.unwrap()) // ...and overlapping lifetimes.
+                                                                                                         // if all of these conditions are true, then there's a conflict
+                                            })
+                                            .is_none() // true if no conflicts
+                                    }
+                                } else {
+                                    false // not a texture alloc
+                                }
+                            })
+                            .map(|(arindex, _)| AliasedResourceIndex::new(arindex)); // keep only index, drop borrow of allocations
 
                         match arindex {
                             Some(index) => {
@@ -475,19 +513,15 @@ impl<'node> FrameGraph<'node> {
                                 allocator.allocations.push(AliasedResource::Texture {
                                     tex: gfx::TextureAny::new(gctx, texdesc),
                                 });
-                                resource
-                                    .aliased_index
-                                    .set(Some(AliasedResourceIndex::new(allocator.allocations.len() - 1)));
+                                resource.aliased_index.set(Some(AliasedResourceIndex::new(
+                                    allocator.allocations.len() - 1,
+                                )));
                             }
                         }
                     }
                     ResourceInfo::Buffer { byte_size } => {
                         // allocating a buffer
-                        let buffer = gfx::RawBuffer::new(
-                            gctx,
-                            byte_size,
-                            gfx::BufferUsage::UPLOAD,
-                        );
+                        let buffer = gfx::RawBuffer::new(gctx, byte_size, gfx::BufferUsage::UPLOAD);
                         allocator.allocations.push(AliasedResource::Buffer {
                             // TODO allocate in transient pool?
                             // TODO reuse buffers?
@@ -514,7 +548,7 @@ impl<'node> FrameGraph<'node> {
         //--------------------------------------
         // STEP 2: Concurrent resource write detection
         if self.detect_concurrent_write_hazards(&toposort) {
-            return Err(Error::ConcurrentWriteHazard)
+            return Err(Error::ConcurrentWriteHazard);
         }
 
         //--------------------------------------
@@ -531,15 +565,12 @@ impl<'node> FrameGraph<'node> {
     }
 }
 
-
-
 #[cfg(test)]
-mod tests
-{
-    use std::fs::File;
-    use std::path::Path;
-    use std::io::Write;
+mod tests {
     use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::Path;
 
     #[test]
     fn test_empty() {

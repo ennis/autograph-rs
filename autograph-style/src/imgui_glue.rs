@@ -1,19 +1,19 @@
-use autograph::cache::Cache;
-use autograph::gfx;
-use autograph::gfx::draw::{DrawCmd, DrawExt};
-use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
-use autograph::gl;
-use autograph::gl::types::*;
-use failure::Error;
-use glutin;
 use imgui;
 use imgui_sys;
+use autograph::gfx;
+use autograph::cache::{Cache, CacheTrait};
+use autograph::gl;
+use autograph::gl::types::*;
+use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
+use autograph::gfx::draw::{DrawExt, DrawCmd};
+use glutin;
 use std::path::Path;
 use std::sync::Arc;
+use failure::Error;
 
 pub struct Renderer {
     pipeline: gfx::GraphicsPipeline,
-    texture: gfx::TextureAny,
+    texture: gfx::RawTexture,
 }
 
 static IMGUI_SHADER_PATH: &str = "data/shaders/imgui.glsl";
@@ -38,7 +38,11 @@ fn load_pipeline(gctx: &gfx::Context, path: &Path) -> Result<gfx::GraphicsPipeli
 }
 
 impl Renderer {
-    pub fn new(imgui: &mut imgui::ImGui, gctx: &gfx::Context, cache: &Cache) -> Renderer {
+    pub fn new(
+        imgui: &mut imgui::ImGui,
+        gctx: &gfx::Context,
+        cache: &Arc<Cache>,
+    ) -> Renderer {
         let pipeline = cache
             .add_and_watch(IMGUI_SHADER_PATH.to_owned(), |path, reload_reason| {
                 load_pipeline(gctx, Path::new(path)).ok()
@@ -56,7 +60,7 @@ impl Renderer {
                 mip_map_count: gfx::MipMaps::Count(1),
                 sample_count: 1,
             };
-            let texture = gfx::TextureAny::with_pixels(gctx, &desc, handle.pixels);
+            let texture = gfx::RawTexture::with_pixels(gctx, &desc, handle.pixels);
             texture
         });
         imgui.set_texture_id(texture.gl_object() as usize);
@@ -64,11 +68,16 @@ impl Renderer {
         Renderer { pipeline, texture }
     }
 
-    pub fn render<'a>(&mut self, frame: &gfx::Frame, target: &gfx::Framebuffer, ui: imgui::Ui<'a>) {
+    pub fn render<'a>(
+        &mut self,
+        frame: &gfx::Frame,
+        target: &gfx::Framebuffer,
+        ui: imgui::Ui<'a>,
+    ) {
         // hot-reload pipeline from file
         //self.pipeline.update();
         ui.render(move |ui, draw_list| -> Result<(), String> {
-            self.render_draw_list(frame, target, ui, &draw_list)
+            self.render_draw_list(frame, target,  ui, &draw_list)
         });
     }
 
@@ -78,7 +87,8 @@ impl Renderer {
         target: &gfx::Framebuffer,
         ui: &imgui::Ui<'a>,
         draw_list: &imgui::DrawList<'a>,
-    ) -> Result<(), String> {
+    ) -> Result<(), String>
+    {
         let vertex_buffer = frame.upload(draw_list.vtx_buffer);
         let index_buffer = frame.upload(draw_list.idx_buffer);
         let (width, height) = ui.imgui().display_size();
@@ -106,30 +116,19 @@ impl Renderer {
 
             let uniforms = frame.upload(&matrix);
 
-            frame
-                .draw(
-                    target,
-                    &self.pipeline,
-                    DrawCmd::DrawIndexed {
-                        first: idx_start,
-                        count: cmd.elem_count as usize,
-                        base_vertex: 0,
-                    },
-                )
+            frame.draw(target, &self.pipeline, DrawCmd::DrawIndexed { first: idx_start, count: cmd.elem_count as usize, base_vertex: 0 })
                 .with_vertex_buffer(0, &vertex_buffer)
                 .with_index_buffer(&index_buffer)
                 .with_uniform_buffer(0, &uniforms)
-                .with_texture(
-                    0,
-                    &self.texture,
-                    &gfx::SamplerDesc {
-                        addr_u: gfx::TextureAddressMode::Wrap,
-                        addr_v: gfx::TextureAddressMode::Wrap,
-                        addr_w: gfx::TextureAddressMode::Wrap,
-                        mag_filter: gfx::TextureMagFilter::Nearest,
-                        min_filter: gfx::TextureMinFilter::Linear,
-                    },
-                );
+                .with_texture(0,
+                              &self.texture,
+                              &gfx::SamplerDesc {
+                                  addr_u: gfx::TextureAddressMode::Wrap,
+                                  addr_v: gfx::TextureAddressMode::Wrap,
+                                  addr_w: gfx::TextureAddressMode::Wrap,
+                                  mag_filter: gfx::TextureMagFilter::Nearest,
+                                  min_filter: gfx::TextureMinFilter::Linear,
+                              });
 
             /*frame.begin_draw(target, &self.pipeline)
                 .with_vertex_buffer(0, &vertex_buffer)
@@ -172,9 +171,10 @@ pub struct MouseState {
     wheel: f32,
 }
 
+
 pub fn init(
     context: &gfx::Context,
-    cache: &Cache,
+    cache: &Arc<Cache>,
     replacement_font: Option<&str>,
 ) -> (imgui::ImGui, Renderer, MouseState) {
     // setup ImGui
@@ -205,8 +205,8 @@ pub fn handle_event(
     event: &glutin::Event,
     mouse_state: &mut MouseState,
 ) -> bool {
-    use glutin::WindowEvent::*;
     use glutin::{ElementState, Event, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
+    use glutin::WindowEvent::*;
 
     match event {
         &Event::WindowEvent { ref event, .. } => {
@@ -254,8 +254,8 @@ pub fn handle_event(
                     delta: MouseScrollDelta::LineDelta(_, y),
                     phase: TouchPhase::Moved,
                     ..
-                }
-                | &MouseWheel {
+                } |
+                &MouseWheel {
                     delta: MouseScrollDelta::PixelDelta(_, y),
                     phase: TouchPhase::Moved,
                     ..

@@ -9,6 +9,7 @@ gl_generator = "*"
 embed-resource = "*"
 
 [dependencies]
+autograph-derive = { path = "../autograph-derive" }
 derive_deref = "*"
 memoffset = "*"
 failure = "*"
@@ -39,5 +40,6 @@ url = "*"
 notify = "*"
 serde = "*"
 serde_derive = "*"
+spirv_headers = "*"
 #lalrpop = "*"
 #lalrpop-util = "*"

@@ -1,19 +1,19 @@
-use assimp_sys::*;
-use id_table::{IdTable, ID};
-use scene_object::{SceneMesh, SceneObject, SceneObjects};
 use aabb::AABB;
+use assimp_sys::*;
+use cache::Cache;
+use failure::Error;
+use gfx;
+use id_table::{IdTable, ID};
+use itertools::multizip;
 use mesh::{calculate_aabb, Mesh, Vertex3};
 use nalgebra::*;
-use itertools::multizip;
-use gfx;
-use std::sync::Arc;
-use cache::{Cache};
-use std::slice;
-use std::path::Path;
+use scene_object::{SceneMesh, SceneObject, SceneObjects};
 use std::ffi::{CStr, CString};
-use failure::Error;
+use std::path::Path;
+use std::slice;
+use std::sync::Arc;
 
-struct AssimpSceneImporter<'a,'cache> {
+struct AssimpSceneImporter<'a, 'cache> {
     path: &'a Path,
     ids: &'a mut IdTable,
     cache: &'cache Cache,
@@ -21,8 +21,8 @@ struct AssimpSceneImporter<'a,'cache> {
     scene_objects: &'a SceneObjects,
 }
 
-unsafe fn import_mesh<'a,'cache>(
-    importer: &AssimpSceneImporter<'a,'cache>,
+unsafe fn import_mesh<'a, 'cache>(
+    importer: &AssimpSceneImporter<'a, 'cache>,
     scene: *const AiScene,
     index: usize,
 ) -> Arc<SceneMesh> {
@@ -42,13 +42,11 @@ unsafe fn import_mesh<'a,'cache>(
             let texcoords0 =
                 slice::from_raw_parts((*aimesh).vertices, (*aimesh).num_vertices as usize);
             let verts: Vec<Vertex3> = multizip((vertices, normals, tangents, texcoords0))
-                .map(|(v, n, t, uv)| {
-                    Vertex3 {
-                        pos: Point3::new(v.x, v.y, v.z),
-                        normal: Vector3::new(n.x, n.y, n.z),
-                        uv: Vector2::new(uv.x, uv.y),
-                        tangent: Vector3::new(t.x, t.y, t.z),
-                    }
+                .map(|(v, n, t, uv)| Vertex3 {
+                    pos: Point3::new(v.x, v.y, v.z),
+                    normal: Vector3::new(n.x, n.y, n.z),
+                    uv: Vector2::new(uv.x, uv.y),
+                    tangent: Vector3::new(t.x, t.y, t.z),
                 })
                 .collect();
 
@@ -76,8 +74,8 @@ unsafe fn import_mesh<'a,'cache>(
 }
 
 // go full unsafe
-unsafe fn import_node<'a,'cache>(
-    importer: &mut AssimpSceneImporter<'a,'cache>,
+unsafe fn import_node<'a, 'cache>(
+    importer: &mut AssimpSceneImporter<'a, 'cache>,
     scene: *const AiScene,
     node: *const AiNode,
     parent_id: Option<ID>,

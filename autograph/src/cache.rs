@@ -1,10 +1,10 @@
-use std::any::Any;
-use std::collections::HashMap;
-use std::cell::RefCell;
-use std::sync::{Arc, Weak};
 use notify;
 use notify::Watcher;
+use std::any::Any;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver};
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -66,10 +66,7 @@ impl Cache {
         T: Any + Clone,
     {
         let mut hash = self.cached_objects.borrow_mut();
-        let newobj = Box::new(CacheCell::new(
-            path.to_owned(),
-            obj.clone(),
-        ));
+        let newobj = Box::new(CacheCell::new(path.to_owned(), obj.clone()));
         hash.insert(path, newobj);
         obj
     }
@@ -95,12 +92,8 @@ impl Cache {
         let mut hash = self.cached_objects.borrow_mut();
         // if the hashmap doesn't have an entry, call f(), box the returned value, add it to the hash,
         // downcast it to the concrete type and return it
-        let obj = hash.entry(path.to_owned()).or_insert_with(|| {
-            Box::new(CacheCell::new(
-                path.to_owned(),
-                f().clone(),
-            ))
-        });
+        let obj = hash.entry(path.to_owned())
+            .or_insert_with(|| Box::new(CacheCell::new(path.to_owned(), f().clone())));
 
         obj.inner.downcast_ref::<T>().map(|v| v.clone())
     }

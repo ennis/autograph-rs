@@ -41,13 +41,11 @@ impl<'a> ExecutionContext<'a> {
         }
     }
 
-    pub fn texture_resource(&self, res: ResourceVersion) -> gfx::TextureAny
-    {
+    pub fn texture_resource(&self, res: ResourceVersion) -> gfx::TextureAny {
         let aliasedres = self.aliased_resource(res);
         if let &AliasedResource::Texture { ref tex } = aliasedres {
             tex.clone()
-        }
-        else {
+        } else {
             panic!("not a valid texture resource")
         }
     }
@@ -59,9 +57,10 @@ impl<'a> ExecutionContext<'a> {
         let node = self.fg.graph.node_weight(res.0).unwrap();
         if let &Node::Resource { index, .. } = node {
             let res = &self.fg.resources[index.index()];
-            &self.allocator.allocations
-                [res.aliased_index.get().expect("resource was not allocated").index()]
-
+            &self.allocator.allocations[res.aliased_index
+                                            .get()
+                                            .expect("resource was not allocated")
+                                            .index()]
         } else {
             panic!("not a valid resource")
         }

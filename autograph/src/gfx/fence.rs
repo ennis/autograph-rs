@@ -1,7 +1,7 @@
+use super::context::Context;
 use gl;
 use gl::types::*;
 use std::collections::vec_deque::VecDeque;
-use super::context::Context;
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FenceValue(pub i64);
@@ -77,7 +77,6 @@ impl Fence {
         }
         advanced
     }
-
 
     fn wait_until(&mut self, _timeout: u64) {
         unimplemented!()

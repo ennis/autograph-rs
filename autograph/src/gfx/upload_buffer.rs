@@ -1,10 +1,10 @@
-use std::cell::RefCell;
-use std::mem;
-use super::context::Context;
+use super::buffer::{BufferSlice, BufferUsage, RawBuffer, RawBufferSlice};
 use super::buffer_data::BufferData;
-use super::buffer::{RawBuffer, RawBufferSlice, BufferSlice, BufferUsage};
-use std::collections::vec_deque::VecDeque;
+use super::context::Context;
 use super::fence::FenceValue;
+use std::cell::RefCell;
+use std::collections::vec_deque::VecDeque;
+use std::mem;
 use std::ptr::copy_nonoverlapping;
 
 struct FencedRegion {
@@ -22,8 +22,7 @@ pub struct UploadBufferState {
     //frame_fences:
 }
 
-pub struct UploadBuffer
-{
+pub struct UploadBuffer {
     buffer: RawBuffer, // Owned
     state: RefCell<UploadBufferState>,
     mapped_region: *mut u8,
@@ -41,15 +40,10 @@ fn align_offset(align: usize, size: usize, ptr: usize, space: usize) -> Option<u
     }
 }
 
-impl UploadBuffer
-{
-    pub fn new(gctx: &Context, buffer_size: usize) -> UploadBuffer
-    {
+impl UploadBuffer {
+    pub fn new(gctx: &Context, buffer_size: usize) -> UploadBuffer {
         //UploadBuffer { _phantom: PhantomData }
-        let buffer = RawBuffer::new(
-            gctx,
-            buffer_size,
-            BufferUsage::UPLOAD);
+        let buffer = RawBuffer::new(gctx, buffer_size, BufferUsage::UPLOAD);
         let mapped_region = unsafe { buffer.map_persistent_unsynchronized() as *mut u8 };
 
         UploadBuffer {
@@ -78,7 +72,7 @@ impl UploadBuffer
         let byte_size = mem::size_of_val(data);
         let ptr = data as *const T as *const u8;
         let slice = self.allocate(byte_size, align, fence_value, reclaim_until)
-            .expect("upload buffer is full");   // TODO expand? wait?
+            .expect("upload buffer is full"); // TODO expand? wait?
         copy_nonoverlapping(
             ptr,
             self.mapped_region.offset(slice.offset as isize),
@@ -134,8 +128,7 @@ impl UploadBuffer
         } else {
             // begin_ptr > write_ptr
             // reclaim space in the middle
-            if let Some(newptr) =
-                align_offset(align, size, state.write, state.begin - state.write)
+            if let Some(newptr) = align_offset(align, size, state.write, state.begin - state.write)
             {
                 state.write = newptr;
             } else {
@@ -157,8 +150,8 @@ impl UploadBuffer
     fn reclaim(&self, reclaim_until: FenceValue) {
         //debug!("reclaiming: last_completed_fence_step={:?}", last_completed_fence_step);
         let mut state = self.state.borrow_mut();
-        while !state.fenced_regions.is_empty() &&
-            state.fenced_regions.front().unwrap().fence_value <= reclaim_until
+        while !state.fenced_regions.is_empty()
+            && state.fenced_regions.front().unwrap().fence_value <= reclaim_until
         {
             let region = state.fenced_regions.pop_front().unwrap();
             //debug!("reclaiming region {}-{} because all commands using these regions have completed (region={:?} < last_completed_fence_step={:?})", region.begin_ptr, region.end_ptr, region.fence_value, last_completed_fence_step);
@@ -167,7 +160,6 @@ impl UploadBuffer
         }
     }
 }
-
 
 #[test]
 #[should_panic]

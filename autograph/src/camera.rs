@@ -1,5 +1,5 @@
-use nalgebra::*;
 use aabb::{partial_max, AABB};
+use nalgebra::*;
 use std::f32;
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -13,7 +13,6 @@ pub struct Frustum {
     // far clip plane position
     pub far_plane: f32,
 }
-
 
 /// Represents a camera (a view of a scene).
 #[derive(Copy, Clone, Debug)]
@@ -60,7 +59,6 @@ impl Default for CameraControl {
         }
     }
 }
-
 
 impl CameraControl {
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {

@@ -1,7 +1,7 @@
-use nalgebra::*;
+use aabb::*;
 use gfx::buffer::{Buffer, BufferUsage};
 use gfx::context::Context;
-use aabb::*;
+use nalgebra::*;
 use std::f32;
 
 #[derive(Copy, Clone, Debug)]
@@ -51,9 +51,7 @@ impl<V: Copy + 'static> Mesh<V> {
     pub fn new(context: &Context, vertices: &[V], indices: Option<&[i32]>) -> Mesh<V> {
         Mesh {
             vbo: Buffer::with_data(context, BufferUsage::DEFAULT, vertices),
-            ibo: indices.map(|indices| {
-                Buffer::with_data(context, BufferUsage::DEFAULT, indices)
-            }),
+            ibo: indices.map(|indices| Buffer::with_data(context, BufferUsage::DEFAULT, indices)),
             vertex_count: vertices.len(),
             index_count: indices.map(|indices| indices.len()).unwrap_or(0),
         }

@@ -1,14 +1,15 @@
+use super::context::Context;
+use super::state_group::*;
+use failure::Error;
+use gfx;
+use gfx::shader::{GraphicsShaderPipeline, UniformBinder};
+use gfx::shader_interface::{InterfaceBinder, ShaderInterface};
+use gfx::state_cache::StateCache;
 use gl;
 use gl::types::*;
-use super::state_group::*;
-use super::context::Context;
-use gfx;
-use gfx::state_cache::StateCache;
-use gfx::shader::{GraphicsShaderPipeline, UniformBinder};
-use std::sync::Arc;
 use std::ops::Deref;
 use std::path::Path;
-use failure::Error;
+use std::sync::Arc;
 
 #[derive(Copy, Clone, Debug)]
 pub struct VertexAttribute {
@@ -20,11 +21,11 @@ pub struct VertexAttribute {
 }
 
 pub(super) mod inner {
-    use gl;
-    use gl::types::*;
+    use gfx::shader::GraphicsShaderPipeline;
     use gfx::state_group::*;
     use gfx::Context;
-    use gfx::shader::GraphicsShaderPipeline;
+    use gl;
+    use gl::types::*;
 
     pub struct GraphicsPipeline {
         // TODO fix public access
@@ -51,8 +52,6 @@ pub(super) mod inner {
             }
         }
     }
-
-
 }
 
 /// trait GraphicsPipeline: Clone
@@ -61,19 +60,10 @@ pub(super) mod inner {
 /// struct TypedGraphicsPipeline<T>: UntypedGraphicsPipeline
 ///
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, Deref, DerefMut)]
 pub struct GraphicsPipeline(Arc<inner::GraphicsPipeline>);
 
-impl Deref for GraphicsPipeline
-{
-    type Target = Arc<inner::GraphicsPipeline>;
-    fn deref(&self) -> &Arc<inner::GraphicsPipeline> {
-        &self.0
-    }
-}
-
-impl GraphicsPipeline
-{
+impl GraphicsPipeline {
     /// Sets the OpenGL pipeline states (all of them with the exception of uniform bindings)
     pub(super) unsafe fn bind<'a>(&'a self, state_cache: &mut StateCache) -> &'a UniformBinder {
         state_cache.set_graphics_pipeline(self);
@@ -90,7 +80,7 @@ pub enum PrimitiveTopology {
     Triangle,
     Line,
     Point,
-    Patch
+    Patch,
 }
 
 /// Builder for graphics pipelines
@@ -146,7 +136,10 @@ impl GraphicsPipelineBuilder {
         }
     }
 
-    pub fn with_shader_pipeline(mut self, shader_pipeline: Box<gfx::shader::GraphicsShaderPipeline>) -> Self {
+    pub fn with_shader_pipeline(
+        mut self,
+        shader_pipeline: Box<gfx::shader::GraphicsShaderPipeline>,
+    ) -> Self {
         self.shader_pipeline = Some(shader_pipeline);
         self
     }
@@ -182,18 +175,31 @@ impl GraphicsPipelineBuilder {
     }
 
     pub fn build(self, gctx: &Context) -> Result<GraphicsPipeline, Error> {
-        let vao =
-            unsafe { gen_vertex_array(&self.input_layout.ok_or(GraphicsPipelineBuildError::MissingInputLayout)?) };
+        let vao = unsafe {
+            gen_vertex_array(&self.input_layout
+                .ok_or(GraphicsPipelineBuildError::MissingInputLayout)?)
+        };
 
         Ok(GraphicsPipeline(Arc::new(inner::GraphicsPipeline {
             depth_stencil_state: self.depth_stencil_state,
             rasterizer_state: self.rasterizer_state,
             blend_states: self.blend_states,
             vao,
-            shader_pipeline: self.shader_pipeline.ok_or(GraphicsPipelineBuildError::MissingShaderPipeline)?,
+            shader_pipeline: self.shader_pipeline
+                .ok_or(GraphicsPipelineBuildError::MissingShaderPipeline)?,
             primitive_topology: self.primitive_topology,
             gctx: gctx.clone(),
         })))
     }
 }
 
+/// A type representing a collection of shaders with an associated interface type
+/// The interface is checked against the provided pipeline on creation.
+pub struct TypedGraphicsPipeline<T: ShaderInterface> {
+    binder: Box<InterfaceBinder<T>>,
+    pipeline: GraphicsPipeline,
+}
+
+impl<T: ShaderInterface> TypedGraphicsPipeline<T> {
+    pub fn new(untyped_pipeline: GraphicsPipeline) {}
+}

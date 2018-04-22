@@ -1,8 +1,7 @@
 use nalgebra as na;
 
-#[derive(Copy,Clone)]
-pub struct RectTransform
-{
+#[derive(Copy, Clone)]
+pub struct RectTransform {
     /// rect corners relative to anchors
     pub offset_a: na::Point2<f32>,
     pub offset_b: na::Point2<f32>,
@@ -15,33 +14,30 @@ pub struct RectTransform
     /// rotation amount around pivot
     pub rotation: na::Rotation2<f32>,
     /// scale around pivot
-    pub scale: na::Vector2<f32>
+    pub scale: na::Vector2<f32>,
 }
 
-impl Default for RectTransform
-{
+impl Default for RectTransform {
     fn default() -> Self {
         RectTransform {
-            offset_a: na::Point2::new(0.0,0.0),
-            offset_b: na::Point2::new(0.0,0.0),
-            anchor_a: na::Point2::new(0.0,0.0),
-            anchor_b: na::Point2::new(1.0,1.0),
-            pivot: na::Vector2::new(0.5,0.5),
+            offset_a: na::Point2::new(0.0, 0.0),
+            offset_b: na::Point2::new(0.0, 0.0),
+            anchor_a: na::Point2::new(0.0, 0.0),
+            anchor_b: na::Point2::new(1.0, 1.0),
+            pivot: na::Vector2::new(0.5, 0.5),
             rotation: na::Rotation2::new(0.0),
-            scale: na::Vector2::new(1.0,1.0),
+            scale: na::Vector2::new(1.0, 1.0),
         }
     }
 }
 
-pub struct CalculatedRectTransform
-{
+pub struct CalculatedRectTransform {
     pub transform: na::Matrix3<f32>,
-    pub size: na::Vector2<f32>
+    pub size: na::Vector2<f32>,
 }
 
-#[derive(Copy,Clone,Debug)]
-pub enum HorizontalAnchor
-{
+#[derive(Copy, Clone, Debug)]
+pub enum HorizontalAnchor {
     /// Maintain a constant size and anchor to the left border with a constant pixel offset w.r.t. the border
     Left { offset: f32, size: u32 },
     /// Maintain a constant size and anchor to the center line with a constant pixel offset w.r.t. the line
@@ -51,12 +47,16 @@ pub enum HorizontalAnchor
     ///
     Proportional { prop: f32, offset: f32, size: u32 },
     /// Stretch box and maintain a constant pixel inset
-    Stretch { left_prop: f32, right_prop: f32, left_inset: f32, right_inset: f32 },
+    Stretch {
+        left_prop: f32,
+        right_prop: f32,
+        left_inset: f32,
+        right_inset: f32,
+    },
 }
 
-#[derive(Copy,Clone,Debug)]
-pub enum VerticalAnchor
-{
+#[derive(Copy, Clone, Debug)]
+pub enum VerticalAnchor {
     /// Maintain a constant size and anchor to the left border with a constant pixel offset w.r.t. the border
     Bottom { offset: f32, size: u32 },
     /// Maintain a constant size and anchor to the center line with a constant pixel offset w.r.t. the line
@@ -66,13 +66,17 @@ pub enum VerticalAnchor
     ///
     Proportional { prop: f32, offset: f32, size: u32 },
     /// Stretch box with custom proportions and maintain a constant pixel inset
-    Stretch { bottom_prop: f32, top_prop: f32, bottom_inset: f32, top_inset: f32 },
+    Stretch {
+        bottom_prop: f32,
+        top_prop: f32,
+        bottom_inset: f32,
+        top_inset: f32,
+    },
 }
 
-impl RectTransform
-{
+impl RectTransform {
     /// parent_size: parent size in pixels for pixel anchors
-   /* pub fn calculate_in_parent0(&self, parent_transform: &na::Matrix3<f32>, parent_size: &na::Vector2<f32>) -> CalculatedRectTransform {
+    /* pub fn calculate_in_parent0(&self, parent_transform: &na::Matrix3<f32>, parent_size: &na::Vector2<f32>) -> CalculatedRectTransform {
         let par_w = parent_size.x;
         let par_h = parent_size.y;
         let par_aspect = par_w / par_h;
@@ -109,12 +113,16 @@ impl RectTransform
     // pixel space: [w,h] -> [w_parent,h_parent]
     // uniform texture space [0;1]^2 -> [0;1]^2
 
-    pub fn calculate_in_parent(&self, parent_transform: &na::Matrix3<f32>, parent_size: &na::Vector2<f32>) -> CalculatedRectTransform {
-        use self::na::{Vector2,Matrix3};
+    pub fn calculate_in_parent(
+        &self,
+        parent_transform: &na::Matrix3<f32>,
+        parent_size: &na::Vector2<f32>,
+    ) -> CalculatedRectTransform {
+        use self::na::{Matrix3, Vector2};
 
         let par_w = parent_size.x;
         let par_h = parent_size.y;
-        let par_aspect = par_w / par_h;
+        let _par_aspect = par_w / par_h;
 
         let left = f32::round(self.offset_a.x);
         let right = f32::round(self.offset_b.x);
@@ -131,7 +139,10 @@ impl RectTransform
         let rect_left = anchor_left + left;
         let rect_right = anchor_right + right;
 
-        let size = Vector2::new(f32::round(rect_right - rect_left), f32::round(rect_top - rect_bottom));
+        let size = Vector2::new(
+            f32::round(rect_right - rect_left),
+            f32::round(rect_top - rect_bottom),
+        );
         let pos = Vector2::new(f32::round(rect_left), f32::round(rect_bottom));
         let pivot = self.pivot.component_mul(&size);
 
@@ -141,56 +152,90 @@ impl RectTransform
             Matrix3::new_nonuniform_scaling(&self.scale) *  // apply scaling
             self.rotation.to_homogeneous() *    // apply rotation
             Matrix3::new_translation(&-pivot) *  // center on pivot
-            Matrix3::new_nonuniform_scaling(&size);    // texture coords to local pixel coordinates
+            Matrix3::new_nonuniform_scaling(&size); // texture coords to local pixel coordinates
 
         CalculatedRectTransform {
             transform: final_transform,
-            size
+            size,
         }
     }
 
-    pub fn new(horizontal_anchor: HorizontalAnchor, vertical_anchor: VerticalAnchor) -> RectTransform
-    {
-        let (a,b,left,right) = match horizontal_anchor {
-            HorizontalAnchor::Left{ offset, size } => { (0.0, 0.0, offset, offset + size as f32) },
-            HorizontalAnchor::Center{ offset, size } => { (0.5, 0.5, offset - size as f32 / 2.0, offset + size as f32 / 2.0) },
-            HorizontalAnchor::Right{ offset, size } => { (1.0, 1.0, -(offset + size as f32), -offset) },
-            HorizontalAnchor::Proportional { prop, offset, size } => { (prop, prop, offset - size as f32 / 2.0, offset + size as f32 / 2.0) },
-            HorizontalAnchor::Stretch{ left_prop, right_prop, left_inset, right_inset } => { (left_prop, right_prop, left_inset, -right_inset) },
+    pub fn new(
+        horizontal_anchor: HorizontalAnchor,
+        vertical_anchor: VerticalAnchor,
+    ) -> RectTransform {
+        let (a, b, left, right) = match horizontal_anchor {
+            HorizontalAnchor::Left { offset, size } => (0.0, 0.0, offset, offset + size as f32),
+            HorizontalAnchor::Center { offset, size } => (
+                0.5,
+                0.5,
+                offset - size as f32 / 2.0,
+                offset + size as f32 / 2.0,
+            ),
+            HorizontalAnchor::Right { offset, size } => {
+                (1.0, 1.0, -(offset + size as f32), -offset)
+            }
+            HorizontalAnchor::Proportional { prop, offset, size } => (
+                prop,
+                prop,
+                offset - size as f32 / 2.0,
+                offset + size as f32 / 2.0,
+            ),
+            HorizontalAnchor::Stretch {
+                left_prop,
+                right_prop,
+                left_inset,
+                right_inset,
+            } => (left_prop, right_prop, left_inset, -right_inset),
         };
 
-        let (c,d,bottom,top) = match vertical_anchor {
-            VerticalAnchor::Bottom{ offset, size } => { (0.0, 0.0, offset, offset + size as f32) },
-            VerticalAnchor::Center{ offset, size } => { (0.5, 0.5, offset - size as f32 / 2.0, offset + size as f32 / 2.0) },
-            VerticalAnchor::Top{ offset, size } => { (1.0, 1.0, -(offset + size as f32), -offset) },
-            VerticalAnchor::Proportional { prop, offset, size } => { (prop, prop, offset - size as f32 / 2.0, offset + size as f32 / 2.0) },
-            VerticalAnchor::Stretch{ bottom_prop, top_prop, bottom_inset, top_inset } => { (bottom_prop, top_prop, bottom_inset, -top_inset) },
+        let (c, d, bottom, top) = match vertical_anchor {
+            VerticalAnchor::Bottom { offset, size } => (0.0, 0.0, offset, offset + size as f32),
+            VerticalAnchor::Center { offset, size } => (
+                0.5,
+                0.5,
+                offset - size as f32 / 2.0,
+                offset + size as f32 / 2.0,
+            ),
+            VerticalAnchor::Top { offset, size } => (1.0, 1.0, -(offset + size as f32), -offset),
+            VerticalAnchor::Proportional { prop, offset, size } => (
+                prop,
+                prop,
+                offset - size as f32 / 2.0,
+                offset + size as f32 / 2.0,
+            ),
+            VerticalAnchor::Stretch {
+                bottom_prop,
+                top_prop,
+                bottom_inset,
+                top_inset,
+            } => (bottom_prop, top_prop, bottom_inset, -top_inset),
         };
 
         //debug!("(a,b,left,right)={},{},{},{}", a,b,left,right);
         //debug!("(c,d,bottom,top)={},{},{},{}", c,d,bottom,top);
 
         RectTransform {
-            offset_a: na::Point2::new(left,bottom),
-            offset_b: na::Point2::new(right,top),
-            anchor_a: na::Point2::new(a,c),
-            anchor_b: na::Point2::new(b,d),
-            pivot: na::Vector2::new(0.5,0.5),
+            offset_a: na::Point2::new(left, bottom),
+            offset_b: na::Point2::new(right, top),
+            anchor_a: na::Point2::new(a, c),
+            anchor_b: na::Point2::new(b, d),
+            pivot: na::Vector2::new(0.5, 0.5),
             rotation: na::Rotation2::new(0.0),
-            scale: na::Vector2::new(1.0,1.0),
+            scale: na::Vector2::new(1.0, 1.0),
         }
     }
 
     pub fn with_rotation(self, rotation: f32) -> Self {
         RectTransform {
             rotation: na::Rotation2::new(rotation),
-            .. self
+            ..self
         }
     }
 
     pub fn with_scale(self, scale: f32) -> Self {
         RectTransform {
-            scale: na::Vector2::new(scale,scale),
+            scale: na::Vector2::new(scale, scale),
             ..self
         }
     }

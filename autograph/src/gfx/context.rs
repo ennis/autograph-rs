@@ -1,13 +1,13 @@
-use gl::types::*;
-use gl;
-use std::sync::{Arc, Mutex};
-use std::ops::Deref;
-use std::os::raw::c_void;
-use std::str;
-use std::slice;
 use super::sampler::{Sampler, SamplerDesc};
 use cache::Cache;
+use gl;
+use gl::types::*;
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::os::raw::c_void;
+use std::slice;
+use std::str;
+use std::sync::{Arc, Mutex};
 
 extern "system" fn debug_callback(
     _source: GLenum,
@@ -55,7 +55,7 @@ impl ContextObject {
         Arc::new(ContextObject {
             cfg: *cfg,
             sampler_cache: Mutex::new(HashMap::new()),
-            cache: Cache::new()
+            cache: Cache::new(),
         })
     }
 
@@ -73,7 +73,7 @@ impl ContextObject {
     }
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct Context(Arc<ContextObject>);
 
 impl Context {
@@ -84,9 +84,7 @@ impl Context {
 
 impl Deref for Context {
     type Target = Arc<ContextObject>;
-    fn deref(&self) -> &Arc<ContextObject>
-    {
+    fn deref(&self) -> &Arc<ContextObject> {
         &self.0
     }
 }
-

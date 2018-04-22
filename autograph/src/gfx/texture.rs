@@ -1,10 +1,10 @@
+use super::context::Context;
+use super::format::*;
 use gl;
 use gl::types::*;
-use super::format::*;
 use std::cmp::*;
-use super::context::Context;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::ops::{Deref,DerefMut};
 
 /// The dimensions of a texture.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -88,7 +88,14 @@ pub struct Texture2DDesc {
 
 impl Texture2DDesc {
     pub fn simple(format: Format, width: u32, height: u32) -> Texture2DDesc {
-        Texture2DDesc { format, width, height, sample_count: 0, mip_map_count: MipMaps::Count(1), options: TextureOptions::empty() }
+        Texture2DDesc {
+            format,
+            width,
+            height,
+            sample_count: 0,
+            mip_map_count: MipMaps::Count(1),
+            options: TextureOptions::empty(),
+        }
     }
 }
 
@@ -119,7 +126,6 @@ impl From<Texture2DDesc> for TextureDesc {
         }
     }
 }
-
 
 /// Wrapper for OpenGL textures
 ///
@@ -432,28 +438,27 @@ fn get_texture_mip_map_count(width: u32, height: u32) -> u32 {
 
 /// A texture whose precise type is unknown at compile time
 /// Inspired by glium
-#[derive(Clone,Debug,Deref,DerefMut)]
+#[derive(Clone, Debug, Deref, DerefMut)]
 pub struct TextureAny(Arc<TextureObject>);
 
-impl TextureAny
-{
+impl TextureAny {
     pub fn new(gctx: &Context, desc: &TextureDesc) -> TextureAny {
         TextureAny(Arc::new(TextureObject::new(gctx, desc)))
     }
 
     pub fn with_pixels(gctx: &Context, desc: &TextureDesc, data: &[u8]) -> TextureAny {
         let mut texture = TextureObject::new(gctx, desc);
-        texture.upload_region(0, (0,0,0), (desc.width,desc.height,desc.depth), data);
+        texture.upload_region(0, (0, 0, 0), (desc.width, desc.height, desc.depth), data);
         TextureAny(Arc::new(texture))
     }
 }
 
 /// A 1D texture
-#[derive(Clone,Debug,Deref,DerefMut)]
+#[derive(Clone, Debug, Deref, DerefMut)]
 pub struct Texture1D(TextureAny);
 
 /// A 2D texture
-#[derive(Clone,Debug,Deref,DerefMut)]
+#[derive(Clone, Debug, Deref, DerefMut)]
 pub struct Texture2D(TextureAny);
 impl Texture2D {
     pub fn new(gctx: &Context, desc: &Texture2DDesc) -> Texture2D {
@@ -462,11 +467,11 @@ impl Texture2D {
     pub fn with_pixels(gctx: &Context, desc: &Texture2DDesc, data: &[u8]) -> Texture2D {
         Texture2D(TextureAny::with_pixels(gctx, &desc.clone().into(), data))
     }
-    pub fn size(&self) -> (u32,u32) {
+    pub fn size(&self) -> (u32, u32) {
         (self.width(), self.height())
     }
 }
 
 /// A 3D texture
-#[derive(Clone,Debug,Deref,DerefMut)]
+#[derive(Clone, Debug, Deref, DerefMut)]
 pub struct Texture3D(TextureAny);

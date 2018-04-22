@@ -9,18 +9,18 @@ extern crate failure;
 extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
-extern crate nanovg as nvg;
-extern crate gl;
 extern crate autograph;
-extern crate petgraph;
 extern crate cassowary;
+extern crate gl;
+extern crate nanovg as nvg;
+extern crate petgraph;
 
-use std::time::Instant;
-use std::f32::consts::PI;
 use glutin::GlContext;
+use std::f32::consts::PI;
+use std::time::Instant;
 
-mod ui;
 mod test_ui;
+mod ui;
 
 const INIT_WINDOW_SIZE: (u32, u32) = (1024, 720);
 
@@ -42,10 +42,12 @@ fn main() {
         gl::ClearColor(0.0, 0.0, 0.0, 1.0);
     }
 
-    let context = nvg::ContextBuilder::new().stencil_strokes().build().expect("Initialization of NanoVG failed!");
-    let iosevka_font =
-        nvg::Font::from_file(&context, "Iosevka", "data/fonts/iosevka-regular.ttf")
-            .expect("Failed to load font");
+    let context = nvg::ContextBuilder::new()
+        .stencil_strokes()
+        .build()
+        .expect("Initialization of NanoVG failed!");
+    let iosevka_font = nvg::Font::from_file(&context, "Iosevka", "data/fonts/iosevka-regular.ttf")
+        .expect("Failed to load font");
 
     let start_time = Instant::now();
     let mut running = true;
@@ -54,13 +56,11 @@ fn main() {
 
     while running {
         events_loop.poll_events(|event| match event {
-            glutin::Event::WindowEvent { event, .. } => {
-                match event {
-                    glutin::WindowEvent::Closed => running = false,
-                    glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
-                    _ => {}
-                }
-            }
+            glutin::Event::WindowEvent { event, .. } => match event {
+                glutin::WindowEvent::Closed => running = false,
+                glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
+                _ => {}
+            },
             _ => {}
         });
 
@@ -69,9 +69,7 @@ fn main() {
 
         unsafe {
             gl::Viewport(0, 0, width, height);
-            gl::Clear(
-                gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT,
-            );
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
         }
 
         let elapsed = {
@@ -87,13 +85,15 @@ fn main() {
                 |path| {
                     path.rect((100.0, 100.0), (300.0, 300.0));
                     path.fill(nvg::FillStyle {
-                        coloring_style: nvg::ColoringStyle::Paint(nvg::Paint::with_linear_gradient(
-                            //&context,
-                            (100.0, 100.0),
-                            (400.0, 400.0),
-                            nvg::Color::from_rgb(0xAA, 0x6C, 0x39),
-                            nvg::Color::from_rgb(0x88, 0x2D, 0x60),
-                        )),
+                        coloring_style: nvg::ColoringStyle::Paint(
+                            nvg::Paint::with_linear_gradient(
+                                //&context,
+                                (100.0, 100.0),
+                                (400.0, 400.0),
+                                nvg::Color::from_rgb(0xAA, 0x6C, 0x39),
+                                nvg::Color::from_rgb(0x88, 0x2D, 0x60),
+                            ),
+                        ),
                         ..Default::default()
                     });
                 },
@@ -110,17 +110,23 @@ fn main() {
                     path.quad_bezier_to((origin.0 + 500.0, origin.1 + 100.0), (300.0, 100.0));
                     path.close();
                     path.stroke(nvg::StrokeStyle {
-                        coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(1.0, 1.0, 0.0, 1.0)),
+                        coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(
+                            1.0, 1.0, 0.0, 1.0,
+                        )),
                         width: 3.0,
                         ..Default::default()
                     });
                     path.fill(nvg::FillStyle {
-                        coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(0.2, 0.0, 0.8, 1.0)),
+                        coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(
+                            0.2, 0.0, 0.8, 1.0,
+                        )),
                         ..Default::default()
                     });
                 },
                 nvg::PathOptions {
-                    composite_operation: nvg::CompositeOperation::Basic(nvg::BasicCompositeOperation::Lighter),
+                    composite_operation: nvg::CompositeOperation::Basic(
+                        nvg::BasicCompositeOperation::Lighter,
+                    ),
                     alpha: elapsed.cos() * 0.5 + 0.5,
                     transform: Some(nvg::Transform::new().translate(100.0, 50.0).scale(0.2, 1.0)),
                     ..Default::default()
@@ -139,7 +145,8 @@ fn main() {
                         (0.0, 0.0),
                         (0.0, 1.0),
                         nvg::Color::new(0.2, 0.0, 0.8, 1.0),
-                        nvg::Color::new(0.2, 0.0, 0.0, 1.0));
+                        nvg::Color::new(0.2, 0.0, 0.0, 1.0),
+                    );
                     path.circle(origin, radius);
                     path.fill(nvg::FillStyle {
                         coloring_style: nvg::ColoringStyle::Paint(paint),
@@ -167,7 +174,9 @@ fn main() {
                         elapsed.sin() * 0.5 + 0.5,
                     );
                     path.fill(nvg::FillStyle {
-                        coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(0.2, 0.2, 0.2, 0.7)),
+                        coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(
+                            0.2, 0.2, 0.2, 0.7,
+                        )),
                         ..Default::default()
                     });
                     path.stroke(nvg::StrokeStyle {
@@ -213,17 +222,14 @@ fn main() {
                     size: 24.0,
                     align: nvg::Alignment::new().right().baseline(),
                     line_height: 1.2,
-                    line_max_width: gl_window.get_inner_size().unwrap_or(INIT_WINDOW_SIZE).0 as f32 -
-                        800.0,
+                    line_max_width: gl_window.get_inner_size().unwrap_or(INIT_WINDOW_SIZE).0 as f32
+                        - 800.0,
                     ..Default::default()
                 },
             );
         });
 
-
-
         test_ui::make_ui(&mut ui, &mut data);
-
 
         gl_window.swap_buffers().unwrap();
     }

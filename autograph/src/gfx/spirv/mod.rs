@@ -1,14 +1,13 @@
+use failure::Error;
 use gfx;
-use std::fs::File;
+use gfx::pipeline::GraphicsPipelineBuilder;
+use gfx::pipeline::VertexAttribute;
+use gfx::shader;
+use gfx::shader::DefaultUniformBinder;
+use gfx::shader_interface;
 use gl;
 use gl::types::*;
-use std::io::Read;
-use failure::Error;
-use std::path::{Path, PathBuf};
 use regex::Regex;
-use gfx::pipeline::VertexAttribute;
-use gfx::pipeline::GraphicsPipelineBuilder;
-use gfx::shader;
-use gfx::shader_interface;
-use gfx::shader::DefaultUniformBinder;
-
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};

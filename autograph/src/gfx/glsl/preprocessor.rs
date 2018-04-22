@@ -1,14 +1,15 @@
+use super::{PipelineStages, PS_COMPUTE, PS_FRAGMENT, PS_GEOMETRY, PS_TESS_CONTROL, PS_TESS_EVAL,
+            PS_VERTEX};
+use failure::Error;
 use gfx;
-use std::fs::File;
+use gfx::pipeline::GraphicsPipelineBuilder;
+use gfx::pipeline::VertexAttribute;
 use gl;
 use gl::types::*;
-use std::io::Read;
-use failure::Error;
-use std::path::{Path, PathBuf};
-use gfx::pipeline::VertexAttribute;
-use gfx::pipeline::GraphicsPipelineBuilder;
 use regex::Regex;
-use super::{PipelineStages,PS_VERTEX,PS_FRAGMENT,PS_GEOMETRY,PS_TESS_CONTROL,PS_TESS_EVAL,PS_COMPUTE};
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 struct SourceMapEntry {
     index: i32,
@@ -33,9 +34,12 @@ fn preprocess_shader_internal<'a>(
     source_map: &mut Vec<SourceMapEntry>,
 ) -> i32 {
     lazy_static! {
-        static ref SHADER_STAGE_PRAGMA_RE: Regex = Regex::new(r#"^stages\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
-        static ref INPUT_LAYOUT_PRAGMA_RE: Regex = Regex::new(r#"^input_layout\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
-        static ref PRIMITIVE_TOPOLOGY_PRAGMA_RE: Regex = Regex::new(r#"^primitive_topology\s*\(\s*(\w+)\s*\)\s*?$"#).unwrap();
+        static ref SHADER_STAGE_PRAGMA_RE: Regex =
+            Regex::new(r#"^stages\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
+        static ref INPUT_LAYOUT_PRAGMA_RE: Regex =
+            Regex::new(r#"^input_layout\s*\(\s*(\w+(?:\s*,\s*\w+)*)\s*\)\s*?$"#).unwrap();
+        static ref PRIMITIVE_TOPOLOGY_PRAGMA_RE: Regex =
+            Regex::new(r#"^primitive_topology\s*\(\s*(\w+)\s*\)\s*?$"#).unwrap();
         static ref INCLUDE_RE: Regex = Regex::new(r#"^\s*#include\s+"(.*)"\s*?$"#).unwrap();
         static ref VERSION_RE: Regex = Regex::new(r#"^\s*#version\s+([0-9]*)\s*?$"#).unwrap();
         static ref PRAGMA_RE: Regex = Regex::new(r#"^\s*#pragma\s+(.*)\s*?$"#).unwrap();
@@ -80,10 +84,7 @@ fn preprocess_shader_internal<'a>(
                 Err(e) => {
                     error!(
                         "{:?}({:?}): Could not open include file {:?}: {:?}",
-                        this_file.path,
-                        cur_line,
-                        inc_path,
-                        e
+                        this_file.path, cur_line, inc_path, e
                     );
                     num_errors += 1;
                 }
@@ -92,7 +93,7 @@ fn preprocess_shader_internal<'a>(
             should_output_line_directive = true;
             cur_line += 1;
             continue;
-            //debug!();
+        //debug!();
         } else if let Some(captures) = VERSION_RE.captures(line) {
             match captures[1].parse::<i32>() {
                 Ok(ver) => if let Some(previous_ver) = *last_seen_version {
@@ -112,9 +113,7 @@ fn preprocess_shader_internal<'a>(
                 Err(_err) => {
                     error!(
                         "{:?}({:?}): Malformed version directive: \" {:?} \"",
-                        this_file.path,
-                        cur_line,
-                        line
+                        this_file.path, cur_line, line
                     );
                     num_errors += 1;
                 }
@@ -166,8 +165,7 @@ fn preprocess_shader_internal<'a>(
                 if input_layout.is_some() {
                     error!(
                         "{:?}({:?}): Duplicate input_layout directive",
-                        this_file.path,
-                        cur_line
+                        this_file.path, cur_line
                     );
                     num_errors += 1;
                     continue 'line; // ignore this directive
@@ -180,8 +178,7 @@ fn preprocess_shader_internal<'a>(
                     if slot.is_none() || relative_offset.is_none() {
                         error!(
                             "{:?}({:?}): Error parsing input_layout directive",
-                            this_file.path,
-                            cur_line
+                            this_file.path, cur_line
                         );
                         num_errors += 1;
                         continue 'line;
@@ -227,8 +224,7 @@ fn preprocess_shader_internal<'a>(
                 if topology.is_some() {
                     error!(
                         "{:?}({:?}): Duplicate primitive_topology directive",
-                        this_file.path,
-                        cur_line
+                        this_file.path, cur_line
                     );
                     num_errors += 1;
                     continue 'line; // ignore this directive
@@ -240,9 +236,7 @@ fn preprocess_shader_internal<'a>(
                     _ => {
                         error!(
                             "{:?}({:?}): Unsupported primitive topology: {:?}",
-                            this_file.path,
-                            cur_line,
-                            topo_str
+                            this_file.path, cur_line, topo_str
                         );
                         num_errors += 1;
                         continue 'line;
@@ -251,9 +245,7 @@ fn preprocess_shader_internal<'a>(
             } else {
                 error!(
                     "{:?}({:?}): Malformed `#pragma` directive: `{:?}`",
-                    this_file.path,
-                    cur_line,
-                    pragma_str
+                    this_file.path, cur_line, pragma_str
                 );
                 num_errors += 1;
             }
@@ -272,7 +264,7 @@ fn preprocess_shader_internal<'a>(
 }
 
 #[derive(Debug)]
-pub(super) struct PreprocessedShaders {
+pub struct PreprocessedShaders {
     pub vertex: Option<String>,
     pub fragment: Option<String>,
     pub geometry: Option<String>,
@@ -347,23 +339,25 @@ pub(super) fn preprocess_combined_shader_source<P: AsRef<Path>>(
         }
     }
 
-    let gen_variant = |stage: PipelineStages| if enabled_pipeline_stages.contains(stage) {
-        let stage_def = match stage {
-            PS_VERTEX => "_VERTEX_",
-            PS_GEOMETRY => "_GEOMETRY_",
-            PS_FRAGMENT => "_FRAGMENT_",
-            PS_TESS_CONTROL => "_TESS_CONTROL_",
-            PS_TESS_EVAL => "_TESS_EVAL_",
-            PS_COMPUTE => "_COMPUTE_",
-            _ => panic!("Unexpected pattern"),
-        };
-        let mut out = out_header.clone();
-        out.push_str(&format!("#define {}\n", stage_def));
-        out.push_str("#line 0 0\n");
-        out.push_str(&preprocessed);
-        Some(out)
-    } else {
-        None
+    let gen_variant = |stage: PipelineStages| {
+        if enabled_pipeline_stages.contains(stage) {
+            let stage_def = match stage {
+                PS_VERTEX => "_VERTEX_",
+                PS_GEOMETRY => "_GEOMETRY_",
+                PS_FRAGMENT => "_FRAGMENT_",
+                PS_TESS_CONTROL => "_TESS_CONTROL_",
+                PS_TESS_EVAL => "_TESS_EVAL_",
+                PS_COMPUTE => "_COMPUTE_",
+                _ => panic!("Unexpected pattern"),
+            };
+            let mut out = out_header.clone();
+            out.push_str(&format!("#define {}\n", stage_def));
+            out.push_str("#line 0 0\n");
+            out.push_str(&preprocessed);
+            Some(out)
+        } else {
+            None
+        }
     };
 
     (

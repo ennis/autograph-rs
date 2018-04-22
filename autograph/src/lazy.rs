@@ -21,7 +21,9 @@ impl<T: Sync> Lazy<T> {
         F: FnOnce() -> T,
     {
         unsafe {
-            self.1.call_once(|| { *self.0.get() = Some(f()); });
+            self.1.call_once(|| {
+                *self.0.get() = Some(f());
+            });
 
             match *self.0.get() {
                 Some(ref x) => x,

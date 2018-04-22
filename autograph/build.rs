@@ -1,5 +1,5 @@
-extern crate gl_generator;
 extern crate embed_resource;
+extern crate gl_generator;
 
 use gl_generator::{Api, Fallbacks, GlobalGenerator, Profile, Registry};
 use std::env;

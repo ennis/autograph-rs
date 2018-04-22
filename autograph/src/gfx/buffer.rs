@@ -1,14 +1,14 @@
+use super::buffer_data::BufferData;
+use super::context::Context;
+use gfx::shader_interface::{IndexElementType, VertexType};
 use gl;
 use gl::types::*;
+use std::clone::Clone;
 use std::marker::PhantomData;
 use std::mem;
-use std::os::raw::c_void;
-use super::context::Context;
-use std::sync::Arc;
-use super::buffer_data::BufferData;
-use std::clone::Clone;
 use std::ops::Deref;
-use gfx::shader_interface::{VertexType,IndexElementType};
+use std::os::raw::c_void;
+use std::sync::Arc;
 
 macro_rules! deref_to {
     ($from:ty, $to:ty) => {
@@ -40,7 +40,7 @@ pub struct RawBufferObject {
     gctx: Context,
     obj: GLuint,
     byte_size: usize,
-    usage: BufferUsage
+    usage: BufferUsage,
 }
 
 unsafe fn create_buffer<T: BufferData + ?Sized>(
@@ -50,12 +50,8 @@ unsafe fn create_buffer<T: BufferData + ?Sized>(
 ) -> GLuint {
     let mut obj: GLuint = 0;
     let flags = match usage {
-        BufferUsage::READBACK => {
-            gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
-        }
-        BufferUsage::UPLOAD => {
-            gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT
-        }
+        BufferUsage::READBACK => gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
+        BufferUsage::UPLOAD => gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT,
         BufferUsage::DEFAULT => 0,
     };
     gl::CreateBuffers(1, &mut obj);
@@ -86,7 +82,7 @@ impl RawBufferSlice {
         assert!(self.byte_size % elem_size == 0);
         BufferSlice {
             raw: self,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
@@ -97,14 +93,13 @@ pub struct BufferSlice<T: BufferData + ?Sized> {
     _phantom: PhantomData<*const T>,
 }
 
-
 // Explicit impl of Clone, workaround issue 26925 ?
 // https://github.com/rust-lang/rust/issues/26925
 impl<T: BufferData + ?Sized> Clone for BufferSlice<T> {
     fn clone(&self) -> Self {
         BufferSlice {
             raw: self.raw.clone(),
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
@@ -136,17 +131,21 @@ impl RawBufferObject {
             gctx: gctx.clone(),
             obj: unsafe { create_buffer::<u8>(byte_size, usage, None) },
             byte_size,
-            usage
+            usage,
         }
     }
 
-    pub fn with_data<T: BufferData + ?Sized>(gctx: &Context, usage: BufferUsage, data: &T) -> RawBufferObject {
+    pub fn with_data<T: BufferData + ?Sized>(
+        gctx: &Context,
+        usage: BufferUsage,
+        data: &T,
+    ) -> RawBufferObject {
         let byte_size = mem::size_of_val(data);
         RawBufferObject {
             gctx: gctx.clone(),
             obj: unsafe { create_buffer(mem::size_of_val(data), usage, Some(data)) },
             byte_size,
-            usage
+            usage,
         }
     }
 
@@ -154,12 +153,12 @@ impl RawBufferObject {
     pub unsafe fn map_persistent_unsynchronized(&self) -> *mut c_void {
         let flags = match self.usage {
             BufferUsage::READBACK => {
-                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT |
-                    gl::MAP_COHERENT_BIT
+                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT
+                    | gl::MAP_COHERENT_BIT
             }
             BufferUsage::UPLOAD => {
-                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT |
-                    gl::MAP_COHERENT_BIT
+                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT
+                    | gl::MAP_COHERENT_BIT
             }
             BufferUsage::DEFAULT => {
                 panic!("Cannot map a buffer allocated with BufferUsage::DEFAULT")
@@ -178,17 +177,19 @@ impl RawBufferObject {
     }
 }
 
-
-#[derive(Clone,Debug,Deref)]
+#[derive(Clone, Debug, Deref)]
 pub struct RawBuffer(Arc<RawBufferObject>);
 
-impl RawBuffer
-{
+impl RawBuffer {
     pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> RawBuffer {
         RawBuffer(Arc::new(RawBufferObject::new(gctx, byte_size, usage)))
     }
 
-    pub fn with_data<T: BufferData + ?Sized>(gctx: &Context, usage: BufferUsage, data: &T) -> RawBuffer {
+    pub fn with_data<T: BufferData + ?Sized>(
+        gctx: &Context,
+        usage: BufferUsage,
+        data: &T,
+    ) -> RawBuffer {
         RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data)))
     }
 
@@ -198,7 +199,7 @@ impl RawBuffer
         RawBufferSlice {
             owner: self.clone(),
             byte_size,
-            offset
+            offset,
         }
     }
 
@@ -211,8 +212,7 @@ impl RawBuffer
     }
 }
 
-
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct Buffer<T: BufferData + ?Sized>(RawBuffer, PhantomData<*const T>);
 
 impl<T: BufferData + ?Sized> Deref for Buffer<T> {
@@ -222,14 +222,19 @@ impl<T: BufferData + ?Sized> Deref for Buffer<T> {
     }
 }
 
-impl<T: BufferData+?Sized> Buffer<T>
-{
+impl<T: BufferData + ?Sized> Buffer<T> {
     pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> Buffer<T> {
-        Buffer(RawBuffer(Arc::new(RawBufferObject::new(gctx, byte_size, usage))), PhantomData)
+        Buffer(
+            RawBuffer(Arc::new(RawBufferObject::new(gctx, byte_size, usage))),
+            PhantomData,
+        )
     }
 
     pub fn with_data(gctx: &Context, usage: BufferUsage, data: &T) -> Buffer<T> {
-        Buffer(RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data))), PhantomData)
+        Buffer(
+            RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data))),
+            PhantomData,
+        )
     }
 }
 
@@ -289,7 +294,6 @@ impl<T: IndexElementType> IndexDataSource for Buffer<[T]> {
 impl<T: IndexElementType> IndexDataSource for BufferSlice<[T]> {
     type ElementType = T;
 }
-
 
 /*pub trait AsSlice<T: BufferData + ?Sized> {
     fn as_slice(&self) -> BufferSlice<T>;
