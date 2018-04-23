@@ -6,12 +6,21 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
+layout(binding=0) uniform sampler2D tex;
+layout(binding=0, rgba8_snorm) uniform image2D img;
+
 layout(std140,binding=0) uniform Uniforms {
     mat3 transform;
 };
 
-uniform float AAAA;
-uniform mat3 BBBB;
+layout(std430, binding = 0) buffer layoutName
+{
+ int data_SSBO[];
+};
+
+
+layout(location=0) uniform float AAAA;
+layout(location=1) uniform mat3 BBBB;
 
 #ifdef _VERTEX_
 

@@ -118,6 +118,26 @@ pub enum TypeCheckError {
 // -> caused by: interface mismatch in Z
 // -> caused by: mismatching member offsets in W
 
+#[derive(Copy,Clone,Debug,Eq,Hash)]
+enum ShaderResourceKind {
+    UniformConstant,
+    UniformBuffer,
+    ShaderStorageBuffer,
+    Image,
+    Texture,
+    Input,
+    Output
+}
+
+struct ShaderResource<'a> {
+    /// Location (uniform constants, inputs, outputs) or binding (textures, buffers)
+    location_or_binding: u32,
+    /// Instruction describing the resource type (the type pointed to by the variable)
+    resource_ty_inst: &'a Instruction,
+    /// OpVariable corresponding to the shader resource
+    inst: &'a Instruction,
+}
+
 impl ModuleWrapper {
     fn find_decoration(&self, id: u32, deco: spirv::Decoration) -> Option<&IDecorate> {
         self.0.instructions.iter().find_map(|inst| match *inst {
@@ -135,12 +155,12 @@ impl ModuleWrapper {
     fn find_name(&self, id: u32) -> Option<&str> {
         self.0.instructions.iter().find_map(|inst| match *inst {
             Instruction::Name(IName {
-                target_id,
-                ref name,
-            }) if target_id == id =>
-            {
-                Some(name.as_ref())
-            }
+                                  target_id,
+                                  ref name,
+                              }) if target_id == id =>
+                {
+                    Some(name.as_ref())
+                }
             _ => None,
         })
     }
@@ -156,16 +176,16 @@ impl ModuleWrapper {
             Instruction::TypeImage(ITypeImage { result_id, .. }) if result_id == id => true,
             Instruction::TypeSampler(ITypeSampler { result_id }) if result_id == id => true,
             Instruction::TypeSampledImage(ITypeSampledImage { result_id, .. })
-                if result_id == id =>
-            {
-                true
-            }
+            if result_id == id =>
+                {
+                    true
+                }
             Instruction::TypeArray(ITypeArray { result_id, .. }) if result_id == id => true,
             Instruction::TypeRuntimeArray(ITypeRuntimeArray { result_id, .. })
-                if result_id == id =>
-            {
-                true
-            }
+            if result_id == id =>
+                {
+                    true
+                }
             Instruction::TypeStruct(ITypeStruct { result_id, .. }) if result_id == id => true,
             Instruction::TypeOpaque(ITypeOpaque { result_id, .. }) if result_id == id => true,
             Instruction::TypePointer(ITypePointer { result_id, .. }) if result_id == id => true,
@@ -177,6 +197,146 @@ impl ModuleWrapper {
         self.find_decoration(id, spirv::Decoration::Location)
             .map(|deco| deco.params[0])
     }
+
+    fn find_binding_decoration(&self, id: u32) -> Option<u32> {
+        self.find_decoration(id, spirv::Decoration::Binding)
+            .map(|deco| deco.params[0])
+    }
+
+    fn find_location_or_binding_decoration(&self, id: u32) -> Option<u32> {
+        self.find_decoration(id, spirv::Decoration::Location).map(|deco| deco.params[0]).or_else(|| {
+            self.find_decoration(id, spirv::Decoration::Binding).map(|deco| deco.params[0])
+        })
+    }
+
+    fn match_by_name_or_location(&self, id: u32, shader_binding_or_location: u32, host_name: Option<&str>, host_binding_or_location: Option<u32>) -> bool
+    {
+        if let Some(host_binding_or_location) = host_binding_or_location {
+            shader_binding_or_location == host_binding_or_location
+        } else {
+            // host code did not specify a location, try to match by name
+            // This is very brittle, as SPIR-V allows two uniforms with the same name, but different locations
+            let shader_name = module.find_name(id);
+            if let (Some(shader_name), Some(host_name)) = (shader_name, host_name) {
+                shader_name == host_name
+            } else {
+                // cannot match, skip
+                false
+            }
+        }
+    }
+
+    fn find_in_module<'a>(&'a self, kind: ShaderResourceKind, name: Option<&str>, location: Option<u32>) -> Option<ShaderResource<'a>> {
+        for inst in self.0.instructions.iter() {
+            // filter out anything that is not a variable
+            let var = if let Instruction::Variable(var) = inst { var } else { continue };
+            let location_or_binding = self.find_location_or_binding_decoration(var.result_id);
+            // get the underlying type of the uniform
+            // the primary type must be a pointer (the SPIR-V binary is malformed otherwise)
+            let ptr_ty = if let Some(Instruction::TypePointer(ref ptr_ty)) = self.find_type(var.result_type_id) { ptr_ty } else {
+                panic!("malformed SPIR-V")
+            };
+            // get underlying type
+            let resource_ty_id = ptr_ty.type_id;
+            let resource_ty_inst = self.find_type(resource_ty_id).expect("malformed SPIR-V");
+
+            match kind {
+                // looking for a uniform constant
+                UniformConstant => {
+                    if var.storage_class != spirv::StorageClass::UniformConstant { continue }
+                    let shader_loc = self.find_location_decoration(var.result_id).expect("uniform constant with no location decoration");
+                    if !self.match_by_name_or_location(var.result_id, shader_loc, name, location) { continue }
+                    return Some(ShaderResource {
+                        location_or_binding,
+                        inst,
+                        resource_ty_inst
+                    })
+                },
+                UniformBuffer => {
+                    // Storage class is uniform, and has a Block decoration
+                    if !(var.storage_class == spirv::StorageClass::Uniform && self.find_decoration(resource_ty_id, spirv::Decoration::Block).is_some()) { continue }
+                    let shader_loc = self.find_binding_decoration(var.result_id).expect("uniform buffer with no binding");
+                    if !self.match_by_name_or_location(var.result_id, shader_loc, name, location) { continue }
+                    return Some(ShaderResource {
+                        location_or_binding,
+                        inst,
+                        resource_ty_inst
+                    })
+                },
+                ShaderStorageBuffer => {
+                    // Storage class is uniform, and has a bufferBlock decoration (deprecated) OR Storage class is StorageBuffer
+                    if !((var.storage_class == spirv::StorageClass::Uniform && self.find_decoration(resource_ty_id, spirv::Decoration::BufferBlock).is_some())
+                        || var.storage_class == spirv::StorageClass::StorageBuffer) { continue }
+                    let shader_loc = self.find_binding_decoration(var.result_id).expect("SSBO with no binding");
+                    if !self.match_by_name_or_location(var.result_id, shader_loc, name, location) { continue }
+                    return Some(ShaderResource {
+                        location_or_binding,
+                        inst,
+                        resource_ty_inst
+                    })
+                },
+                Image => {
+                    // storage class is uniformconstant
+                    if var.storage_class != spirv::StorageClass::UniformConstant { continue }
+                    // type is TypeImage
+                    if let &Instruction::TypeImage(_) = resource_ty_inst {
+                        let shader_loc = self.find_binding_decoration(var.result_id).expect("image with no binding");
+                        if !self.match_by_name_or_location(var.result_id, shader_loc, name, location) { continue }
+                        return Some(ShaderResource {
+                            location_or_binding,
+                            inst,
+                            resource_ty_inst
+                        })
+                    }
+                    else {
+                        continue
+                    }
+                },
+                Texture => {
+                    // storage class is uniformconstant
+                    if var.storage_class != spirv::StorageClass::UniformConstant { continue }
+                    // type is TypeImage
+                    if let &Instruction::TypeSampledImage(_) = resource_ty_inst {
+                        let shader_loc = self.find_binding_decoration(var.result_id).expect("image with no binding");
+                        if !self.match_by_name_or_location(var.result_id, shader_loc, name, location) { continue }
+                        return Some(ShaderResource {
+                            location_or_binding,
+                            inst,
+                            resource_ty_inst
+                        })
+                    }
+                    else {
+                        continue
+                    }
+                },
+                Input => {
+                    unimplemented!()
+                },
+                Output => {
+                    unimplemented!()
+                }
+            };
+        }
+        unimplemented!()
+    }
+
+    fn check_uniform_constant(&self, u: &UniformConstantDesc) -> VerifyResult {
+        let resource = self.find_in_module(ShaderResourceKind::UniformConstant, u.name.as_ref().map(|v| v.as_ref()), u.index);
+        if let Some(resource) = resource {
+            // compare types
+            if let Err(err) = self.compare_types(resource.resource_ty_inst, u.ty) {
+                VerifyResult::Mismatch {
+                    loc: resource.location_or_binding,
+                    err,
+                }
+            } else {
+                VerifyResult::Match { loc: resource.location_or_binding }
+            }
+        } else {
+            VerifyResult::NotFound
+        }
+    }
+
 
     /// Check that the type described by the spirv instruction
     /// is layout-compatible with the given host type description
@@ -342,30 +502,32 @@ enum VerifyResult {
     },
     Match {
         loc: u32,
-        bad_rematch: bool,
+        //bad_rematch: bool,
     },
     Mismatch {
         loc: u32,
         err: Error,
-        bad_rematch: bool,
+        //bad_rematch: bool,
     },
 }
 
-enum ShaderBindingType {
-    UniformConstant,
-    UniformBuffer,
-    ShaderStorageBuffer,
-    Image,
-    Texture,
-}
 
-struct ShaderBinding<'a> {
-    loc: u32,
-    stages: super::PipelineStages,
-    def: &'a Instruction,
-}
+// texture -> binding (texture unit)
+// image -> binding (image unit)
+// ubo -> binding
+// ssbo -> binding
+// uniform constant -> location
+// input -> location
+// output -> location
 
 impl SpirvGraphicsPipelineModules {
+
+    fn find_interface_element<'a>(&'a self, kind: InterfaceElementKind, name: Option<&str>, location: Option<u32>) -> InterfaceElement<'a> {
+
+
+        unimplemented!()
+    }
+
     /// Look for the specified uniform constant in the shader modules
     /// and verify that the types on both sides (shader and host) match.
     /// If the host code specifies a location then the shader and host constants
@@ -375,17 +537,21 @@ impl SpirvGraphicsPipelineModules {
     /// This function stops searching as soon as a matching uniform is found in
     /// any shader. It does not detect potential different definitions of the
     /// same variable in different modules, which is a linker error.
+    ///
     fn verify_named_uniform<'a>(
         &self,
         u: &'a UniformConstantDesc,
         matched_locations: &mut HashMap<u32, (bool, *const UniformConstantDesc)>,
     ) -> Result<(), Error> {
+
+        // location matching: name+index+type -> instruction
+
         let mut verify = |module: &ModuleWrapper| -> VerifyResult {
             for inst in module.0.instructions.iter() {
                 // filter out anything that is not a variable
                 if let Instruction::Variable(var) = inst {
                     // must have uniform storage class
-                    if var.storage_class != spirv::StorageClass::Uniform {
+                    if var.storage_class != spirv::StorageClass::UniformConstant {
                         continue;
                     }
                     // get underlying location and check that it matches, otherwise skip
@@ -503,7 +669,21 @@ impl SpirvGraphicsPipelineModules {
             Err(format_err!("binding not found"))
         }
     }
+
+    /// Perform a pseudo link step on the shader modules:
+    /// make a list of all bindings and verify that their definition matches between stages.
+   /* fn link_shaders<'a>(&'a self) -> HashMap<(ShaderBindingKind,u32), ShaderBinding<'a>> {
+        let collect_bindings = |module: &ModuleWrapper| {
+            for inst in module.0.instructions.iter() {
+                let var = if let Instruction::Variable(var) = inst { var } else { continue };
+                //
+            }
+        };
+
+    }*/
 }
+
+
 
 pub fn verify_spirv_interface(
     interface: &ShaderInterfaceDesc,

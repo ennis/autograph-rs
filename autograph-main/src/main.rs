@@ -111,7 +111,7 @@ impl CameraParameters {
 
 fn dump_shader_interface<T: gfx::ShaderInterface>() {
     let interface_desc = <T as gfx::ShaderInterface>::get_description();
-    let named_uniforms = interface_desc.get_named_uniforms();
+    let uniform_constants = interface_desc.get_uniform_constants();
     let render_targets = interface_desc.get_render_targets();
     let vertex_buffers = interface_desc.get_vertex_buffers();
     let index_buffer = interface_desc.get_index_buffer();
@@ -122,7 +122,7 @@ fn dump_shader_interface<T: gfx::ShaderInterface>() {
         <MyVertexType as gfx::VertexType>::get_layout()
     );
     debug!("texture bindings: {:#?}", texture_bindings);
-    debug!("named uniforms: {:#?}", named_uniforms);
+    debug!("uniform constants: {:#?}", uniform_constants);
     debug!("render targets: {:#?}", render_targets);
     debug!("vertex buffers: {:#?}", vertex_buffers);
     debug!("index buffer: {:#?}", index_buffer);
