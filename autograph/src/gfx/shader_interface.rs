@@ -229,12 +229,14 @@ pub trait VertexType: BufferData {
     fn get_layout() -> &'static VertexLayout;
 }
 
+
 /// Descriptions of shader interfaces.
 ///
 /// This trait is a facade to recover information about the bindings defined in a shader interface.
 /// It is meant to be derived automatically with `#[derive(ShaderInterface)]`, but you can implement it by hand.
 ///
 /// TODO replace it with a simple struct?
+/// TODO reduce the number of members
 pub trait ShaderInterfaceDesc: Sync + 'static {
     /// Returns the list of uniform buffers (`#[uniform_buffer]`)
     fn get_uniform_buffers(&self) -> &[UniformBufferDesc];
