@@ -270,6 +270,9 @@ pub trait ShaderInterfaceDesc: Sync + 'static {
 pub trait InterfaceBinder<T: ShaderInterface> {
     /// Binds the contents of the shader interface to the OpenGL pipeline, without any validation.
     /// Validation is intended to be done when creating the graphics/compute pipeline.
+    ///
+    /// uniform constant => <ty as UniformConstantInterface>.bind(uniform_binder);
+    /// uniform buffer => uniform_binder.bind(binding, buffer)
     unsafe fn bind_unchecked(&self, interface: &T, uniform_binder: &UniformBinder);
 }
 
@@ -296,6 +299,8 @@ pub trait ShaderInterface {
     fn get_description() -> &'static ShaderInterfaceDesc;
     /// Creates an _interface binder_ object that will handle binding interfaces of this specific
     /// type to the OpenGL pipeline.
+    ///
+    /// Returns an error if the shader interface does not match with the given pipeline.
     fn create_interface_binder(
         pipeline: &GraphicsPipeline,
     ) -> Result<Box<InterfaceBinder<Self>>, Error>

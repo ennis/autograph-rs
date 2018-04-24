@@ -275,7 +275,7 @@ pub struct PreprocessedShaders {
     pub primitive_topology: Option<GLenum>,
 }
 
-pub(super) fn preprocess_combined_shader_source<P: AsRef<Path>>(
+pub fn preprocess_combined_shader_source<P: AsRef<Path>>(
     source: &str,
     path: P,
     macros: &[&str],

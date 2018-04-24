@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 pub mod interface;
 mod preprocessor;
 mod spirv_parse;
+pub use self::preprocessor::{preprocess_combined_shader_source, PreprocessedShaders};
 
 bitflags! {
     #[derive(Default)]

@@ -99,6 +99,59 @@ impl Std140LayoutBuilder {
     }
 }
 
+struct Std140LayoutBuilder2 {
+    next_offset: usize,
+}
+
+impl Std140LayoutBuilder2 {
+    fn new() -> Std140LayoutBuilder2 {
+        Std140LayoutBuilder2 { next_offset: 0 }
+    }
+
+    fn align(&mut self, a: usize) -> usize {
+        self.next_offset += align_offset(self.next_offset, a);
+        self.next_offset
+    }
+
+    fn get_align_and_size(&self, ty: &TypeDesc) -> (usize, usize) {
+        match *ty {
+            TypeDesc::Primitive(PrimitiveType::Int)
+            | TypeDesc::Primitive(PrimitiveType::UnsignedInt)
+            | TypeDesc::Primitive(PrimitiveType::Float) => {
+                //assert!(ty.width == 32);
+                (4, 4)
+            }
+            TypeDesc::Vector(primty, num_components) => {
+                let (_, n) = self.get_align_and_size(&TypeDesc::Primitive(primty));
+                match num_components {
+                    2 => (2 * n, 2 * n),
+                    3 => (4 * n, 3 * n),
+                    4 => (4 * n, 4 * n),
+                    _ => panic!("unsupported vector size"),
+                }
+            }
+            TypeDesc::Matrix(primty, rows, cols) => {
+                let (col_align, col_size) =
+                    self.get_align_and_size(&TypeDesc::Vector(primty, rows));
+                // alignment = column type align rounded up to vec4 align (16 bytes)
+                let base_align = max(16, col_align);
+                let stride = col_size + align_offset(col_size, col_align);
+                // total array size = num columns * stride, rounded up to the next multiple of the base alignment
+                let array_size = round_up(cols as usize * stride, base_align);
+                (base_align, array_size)
+            }
+            _ => panic!("unsupported type"),
+        }
+    }
+
+    fn add_member(&mut self, ty: &TypeDesc) -> usize {
+        let (align, size) = self.get_align_and_size(ty);
+        let current_offset = self.align(align);
+        self.next_offset += size;
+        current_offset
+    }
+}
+
 #[derive(Fail, Debug)]
 pub enum TypeCheckError {
     #[fail(display = "member offset mismatch")]
@@ -116,6 +169,92 @@ enum ShaderResource<'a> {
     UniformConstant(&'a UniformConstantDesc),
     Texture(&'a TextureBindingDesc),
     Image(&'a TextureBindingDesc),
+}
+
+fn compare_types(shader_ty: &TypeDesc, host_ty: &TypeDesc) -> Result<(), Error> {
+    match (shader_ty, host_ty) {
+        /////////////////////////////////////////////////////////
+        (&TypeDesc::Primitive(a), &TypeDesc::Primitive(b)) => {
+            if a != b {
+                bail!("type mismatch: {:?} (shader) and {:?} (host)", a, b);
+            }
+        }
+        /////////////////////////////////////////////////////////
+        (
+            &TypeDesc::Vector(shader_comp_ty, shader_num_comp),
+            &TypeDesc::Vector(host_comp_ty, host_num_comp),
+        ) => {
+            compare_types(
+                &TypeDesc::Primitive(shader_comp_ty),
+                &TypeDesc::Primitive(host_comp_ty),
+            ).context(
+                format!("type mismatch: {:?} (shader) and {:?} (host)", shader_ty, host_ty)
+            )?;
+            if shader_num_comp != host_num_comp {
+                bail!(
+                    "vector size mismatch: {} (shader) and {} (host)",
+                    shader_num_comp,
+                    host_num_comp
+                )
+            }
+        }
+        /////////////////////////////////////////////////////////
+        (
+            &TypeDesc::Matrix(shader_ty, shader_rows, shader_cols),
+            &TypeDesc::Matrix(host_ty, host_rows, host_cols),
+        ) => {
+            compare_types(
+                &TypeDesc::Primitive(shader_ty),
+                &TypeDesc::Primitive(host_ty),
+            ).context(format!("type mismatch: {:?} (shader) and {:?} (host)", shader_ty, host_ty))?;
+            if !(shader_rows == host_rows && shader_cols == host_cols) {
+                bail!(
+                    "matrix size mismatch: {}x{} (shader) and {}x{} (host)",
+                    shader_rows,
+                    shader_cols,
+                    host_rows,
+                    host_cols
+                )
+            }
+        }
+        /////////////////////////////////////////////////////////
+        (&TypeDesc::Struct(ref shader), &TypeDesc::Struct(ref host)) => {
+            let mut shader_member_index = 0;
+            let mut host_member_index = 0;
+
+            loop {
+                let host_member = host.get(host_member_index);
+                let shader_member = shader.get(shader_member_index);
+                // TODO ignore padding fields
+                match (host_member, shader_member) {
+                    (Some(host_ty), Some(shader_ty)) => {
+                        compare_types(&host_ty.1, &shader_ty.1).context(format!("member type mismatch: #{}({}) (shader) and #{}({}) (host)",
+                                                                      shader_member_index, "<unnamed>",
+                                                                      host_member_index, "<unnamed>"))?;
+                        let shader_offset = shader_ty.0;
+                        let host_offset = host_ty.0;
+                        if host_ty.0 != shader_ty.0 {
+                            bail!("member offset mismatch: #{}({}) @ {} (shader) and #{}({}) @ {} (host)",
+                                    shader_member_index, "<unnamed>",
+                                    shader_offset,
+                                    host_member_index, "<unnamed>",
+                                    host_offset);
+                        }
+                    },
+                    (None, None) => { break },
+                    _ => bail!("shader and host structs do not have the same number of non-padding members")
+                }
+                host_member_index += 1;
+                shader_member_index += 1;
+            }
+        }
+        _ => bail!(
+            "type mismatch: {:?} (shader) and {:?} (host)",
+            shader_ty,
+            host_ty
+        ),
+    }
+    Ok(())
 }
 
 impl ModuleWrapper {
@@ -209,6 +348,83 @@ impl ModuleWrapper {
         }
     }*/
 
+    /// Get a typedesc from a spirv instruction
+    fn optype_to_typedesc(&self, inst: &Instruction) -> TypeDesc {
+        match *inst {
+            Instruction::TypeVoid(_) => panic!(),
+            Instruction::TypeBool(ref ty) => {
+                TypeDesc::Primitive(unimplemented!("boolean primitive type"))
+            }
+            Instruction::TypeInt(ref ty) => {
+                assert_eq!(ty.width, 32);
+                if ty.signedness {
+                    TypeDesc::Primitive(PrimitiveType::Int)
+                } else {
+                    TypeDesc::Primitive(PrimitiveType::UnsignedInt)
+                }
+            }
+            Instruction::TypeFloat(ref ty) => {
+                assert_eq!(ty.width, 32);
+                TypeDesc::Primitive(PrimitiveType::Float)
+            }
+            Instruction::TypeVector(ref ty) => {
+                let comp_ty = self.find_type(ty.component_id).unwrap();
+                let comp_ty = self.optype_to_typedesc(comp_ty);
+                let comp_count = ty.count;
+                assert!(comp_count <= 4);
+                if let TypeDesc::Primitive(prim) = comp_ty {
+                    TypeDesc::Vector(prim, comp_count as u8)
+                } else {
+                    panic!()
+                }
+            }
+            Instruction::TypeMatrix(ref ty) => {
+                let column_ty = self.find_type(ty.column_type_id).unwrap();
+                let col_count = ty.column_count;
+                if let Instruction::TypeVector(column_ty) = column_ty {
+                    let comp_ty = self.find_type(column_ty.component_id).unwrap();
+                    let comp_ty = self.optype_to_typedesc(comp_ty);
+                    let row_count = column_ty.count;
+                    if let TypeDesc::Primitive(prim) = comp_ty {
+                        TypeDesc::Matrix(prim, row_count as u8, col_count as u8)
+                    } else {
+                        panic!("vector of non-primitive type")
+                    }
+                } else {
+                    panic!("malformed SPIR-V bytecode")
+                }
+            }
+            Instruction::TypeImage(_) => unimplemented!(),
+            Instruction::TypeSampler(_) => unimplemented!(),
+            Instruction::TypeSampledImage(_) => unimplemented!(),
+            Instruction::TypeArray(_) => unimplemented!(),
+            Instruction::TypeRuntimeArray(_) => unimplemented!(),
+            Instruction::TypeStruct(ref ty) => {
+                // build layout
+                let mut std140_layout = Std140LayoutBuilder2::new();
+                //let mut member_index = 0;
+                let mut members = Vec::new();
+                for &member_ty in ty.member_types.iter() {
+                    let member_ty = self.find_type(member_ty).unwrap();
+                    let member_ty = self.optype_to_typedesc(member_ty);
+                    let member_offset = std140_layout.add_member(&member_ty);
+                    members.push((member_offset, member_ty));
+                }
+                TypeDesc::Struct(members)
+            }
+            Instruction::TypeOpaque(_) => unimplemented!(),
+            Instruction::TypePointer(_) => unimplemented!(),
+            _ => unimplemented!(),
+        }
+    }
+
+    /// Check that the type described by the spirv instruction
+    /// is layout-compatible with the given host type description
+    fn compare_types(&self, ty_inst: &Instruction, host_ty: &TypeDesc) -> Result<(), Error> {
+        let shader_ty = self.optype_to_typedesc(ty_inst);
+        compare_types(&shader_ty, host_ty)
+    }
+
     /// Finds a shader resource of the specified kind at the specified location
     fn verify_shader_resource<'a>(&'a self, sr: &ShaderResource) -> Result<bool, Error> {
         for inst in self.0.instructions.iter() {
@@ -216,7 +432,7 @@ impl ModuleWrapper {
             let var = if let Instruction::Variable(var) = inst {
                 var
             } else {
-                continue
+                continue;
             };
             // let location_or_binding = self.find_location_or_binding_decoration(var.result_id);
             // get the underlying type of the uniform
@@ -240,19 +456,19 @@ impl ModuleWrapper {
                     let location = desc.index
                         .expect("must provide a location for uniform constants");
                     if var.storage_class != spirv::StorageClass::UniformConstant {
-                        continue
+                        continue;
                     }
                     let shader_loc = if let Some(loc) = self.find_location_decoration(var.result_id)
                     {
                         loc
                     } else {
-                        continue
+                        continue;
                     };
                     if shader_loc != location {
-                        continue
+                        continue;
                     }
                     self.compare_types(resource_ty_inst, desc.ty)?;
-                    return Ok(true)
+                    return Ok(true);
                 }
                 ShaderResource::UniformBuffer(desc) => {
                     // Storage class is uniform, and has a Block decoration
@@ -262,15 +478,15 @@ impl ModuleWrapper {
                         && self.find_decoration(resource_ty_id, spirv::Decoration::Block)
                             .is_some())
                     {
-                        continue
+                        continue;
                     }
                     let shader_binding = self.find_binding_decoration(var.result_id)
                         .expect("uniform buffer with no binding");
                     if shader_binding != binding {
-                        continue
+                        continue;
                     }
                     self.compare_types(resource_ty_inst, desc.tydesc)?;
-                    return Ok(true)
+                    return Ok(true);
                 }
                 ShaderResource::ShaderStorageBuffer(desc) => {
                     // Storage class is uniform, and has a bufferBlock decoration (deprecated) OR Storage class is StorageBuffer
@@ -281,19 +497,19 @@ impl ModuleWrapper {
                             .is_some())
                         || var.storage_class == spirv::StorageClass::StorageBuffer)
                     {
-                        continue
+                        continue;
                     }
                     let shader_binding = self.find_binding_decoration(var.result_id)
                         .expect("SSBO with no binding");
                     if shader_binding != binding {
-                        continue
+                        continue;
                     }
                     unimplemented!()
                 }
                 ShaderResource::Image(desc) => {
                     // storage class is uniformconstant
                     if var.storage_class != spirv::StorageClass::UniformConstant {
-                        continue
+                        continue;
                     }
                     let binding = desc.index.expect("must provide an image unit");
                     // type is TypeImage
@@ -301,17 +517,17 @@ impl ModuleWrapper {
                         let shader_binding = self.find_binding_decoration(var.result_id)
                             .expect("image with no binding in shader");
                         if shader_binding != binding {
-                            continue
+                            continue;
                         }
                         unimplemented!()
                     } else {
-                        continue
+                        continue;
                     }
                 }
                 ShaderResource::Texture(desc) => {
                     // storage class is uniformconstant
                     if var.storage_class != spirv::StorageClass::UniformConstant {
-                        continue
+                        continue;
                     }
                     let binding = desc.index.expect("must provide a texture unit");
                     // type is TypeSampledImage
@@ -319,7 +535,7 @@ impl ModuleWrapper {
                         let shader_binding = self.find_binding_decoration(var.result_id)
                             .expect("texture with no binding in shader");
                         if shader_binding != binding {
-                            continue
+                            continue;
                         }
                         // load OpTypeImage and check dimensions
                         let image_ty = self.find_type(sampled_image.image_type_id).unwrap();
@@ -341,154 +557,18 @@ impl ModuleWrapper {
                                     desc.dimensions
                                 );
                             }
-                            return Ok(true)
+                            return Ok(true);
                         } else {
                             panic!("malformed SPIR-V")
                         }
                     } else {
-                        continue
+                        continue;
                     }
                 }
             };
         }
 
         Ok(false)
-    }
-
-    /// Check that the type described by the spirv instruction
-    /// is layout-compatible with the given host type description
-    fn compare_types(&self, ty_inst: &Instruction, host_ty: &TypeDesc) -> Result<(), Error> {
-        match *ty_inst {
-            //Instruction::TypePointer(ptr) => { panic!()}, // no pointers in interface, for now
-            Instruction::TypeFloat(ref ty) => {
-                if !(ty.width == 32 && host_ty == &TypeDesc::Primitive(PrimitiveType::Float)) {
-                    bail!(
-                            "type mismatch: {:?} (shader) and {:?} (host)",
-                        ty_inst, host_ty)
-                } else {
-                    Ok(())
-                }
-            }
-            Instruction::TypeInt(ref ty) => {
-                if !(ty.width == 32 && host_ty == &TypeDesc::Primitive(if ty.signedness {
-                    PrimitiveType::Int
-                } else {
-                    PrimitiveType::UnsignedInt
-                })) {
-                    bail!(
-                            "type mismatch: {:?} (shader) and {:?} (host)",
-                        ty_inst, host_ty)
-                } else {
-                    Ok(())
-                }
-            }
-            Instruction::TypeVector(ref ty) => {
-                if let TypeDesc::Vector(host_comp_ty, host_comp_count) = host_ty {
-                    let comp_ty = self.find_type(ty.component_id).unwrap();
-                    let comp_count = ty.count;
-                    assert!(ty.count <= 4);
-                    self.compare_types(comp_ty, &TypeDesc::Primitive(*host_comp_ty))
-                        .context(format!(
-                            "type mismatch: {:?} (shader) and {:?} (host)",
-                            ty_inst, host_ty
-                        ))?;
-                    if comp_count != *host_comp_count as u32 {
-                         bail!("vector size mismatch: {} (shader) and {} (host)",
-                                comp_count, host_comp_count)
-                    }
-                    Ok(())
-                } else {
-                    bail!("type mismatch: {:?} (shader) and {:?} (host)",
-                        ty_inst, host_ty)
-                }
-            }
-            Instruction::TypeMatrix(ref ty) => {
-                if let TypeDesc::Matrix(host_comp_ty, host_row_count, host_col_count) = host_ty {
-                    let column_ty = self.find_type(ty.column_type_id).unwrap();
-                    let col_count = ty.column_count;
-                    if let Instruction::TypeVector(column_ty) = column_ty {
-                        let comp_ty = self.find_type(column_ty.component_id).unwrap();
-                        let row_count = column_ty.count;
-                        self.compare_types(comp_ty, &TypeDesc::Primitive(*host_comp_ty))
-                            .context(format!(
-                                "type mismatch: {:?} (shader) and {:?} (host)",
-                                ty_inst, host_ty
-                            ))?;
-                        if !(row_count == *host_row_count as u32
-                            && col_count == *host_col_count as u32)
-                        {
-                            return Err(TypeCheckError::TypeMismatch
-                                .context(format!(
-                                    "type mismatch: {:?} (shader) and {:?} (host)",
-                                    ty_inst, host_ty
-                                ))
-                                .into());
-                        }
-                        Ok(())
-                    } else {
-                        panic!("malformed SPIR-V bytecode")
-                    }
-                } else {
-                    return Err(TypeCheckError::TypeMismatch
-                        .context(format!(
-                            "type mismatch: {:?} (shader) and {:?} (host)",
-                            ty_inst, host_ty
-                        ))
-                        .into());
-                }
-            }
-            Instruction::TypeStruct(ref ty) => {
-                if let TypeDesc::Struct(ref host_members) = host_ty {
-                    // build layout
-                    let mut std140_layout = Std140LayoutBuilder::new();
-                    let mut device_member_index = 0;
-                    let mut host_member_index = 0;
-                    for &member_ty in ty.member_types.iter() {
-                        let member_ty = self.find_type(member_ty).unwrap();
-                        // get next member in reference struct
-                        let (host_member_offset, host_member_ty) =
-                            if let Some(v) = host_members.get(host_member_index) {
-                                v
-                            } else {
-                                return Err(TypeCheckError::MemberOffsetMismatch
-                                    .context(format!(
-                                        "struct layout mismatch: {:?} (shader) and {:?} (host)",
-                                        ty_inst, host_ty
-                                    ))
-                                    .into());
-                            };
-
-                        self.compare_types(member_ty, host_member_ty)
-                            .context(format!(
-                            "member type mismatch: #{}({}) (shader) | #{}({}) (host)",
-                            device_member_index, "<unnamed>", host_member_index, "<unnamed>"
-                        ))?;
-
-                        let member_offset = std140_layout.add_member(self, member_ty);
-                        if member_offset != *host_member_offset {
-                            return Err(TypeCheckError::MemberOffsetMismatch.context(
-                                format!("member offset mismatch: #{}({}) @ {} (shader) and #{}({}) @ {} (host)",
-                                        device_member_index, "<unnamed>",
-                                        member_offset,
-                                        host_member_index, "<unnamed>",
-                                        host_member_offset)).into());
-                        }
-
-                        device_member_index += 1;
-                        host_member_index += 1;
-                    }
-                    Ok(())
-                } else {
-                    return Err(TypeCheckError::TypeMismatch
-                        .context(format!(
-                            "type mismatch: {:?} (shader) and {:?} (host)",
-                            ty_inst, host_ty
-                        ))
-                        .into());
-                }
-            }
-            _ => panic!("unsupported type"),
-        }
     }
 }
 

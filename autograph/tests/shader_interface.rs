@@ -9,7 +9,7 @@ extern crate failure;
 
 use autograph::gfx;
 use autograph::gfx::glsl::interface::{verify_spirv_interface, ShaderInterfaceVerificationError};
-use autograph::gfx::glsl::{compile_glsl_to_spirv, load_combined_shader_source, SourceWithFileName,
+use autograph::gfx::glsl::{compile_glsl_to_spirv, preprocess_combined_shader_source, SourceWithFileName,
                            SpirvModules};
 use autograph::gfx::shader_interface::{ShaderInterface, ShaderInterfaceDesc};
 use autograph::gfx::GraphicsShaderPipeline;
@@ -17,33 +17,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-#[repr(C)]
-#[derive(BufferInterface)]
-struct CameraParams {
-    view_matrix: [[f32; 4]; 4],
-    proj_matrix: [[f32; 4]; 4],
-    viewproj_matrix: [[f32; 4]; 4],
-    inverse_proj_matrix: [[f32; 4]; 4],
-    prev_viewproj_matrix_velocity: [[f32; 4]; 4],
-    viewproj_matrix_velocity: [[f32; 4]; 4],
-    temporal_aa_offset: [f32; 2],
-}
-
-#[derive(ShaderInterface)]
-struct Interface0 {
-    #[uniform_constant(index = "0")]
-    a: f32,
-    #[uniform_constant(index = "1")]
-    b: f32,
-    #[texture_binding(index = "0")]
-    tex: gfx::Texture2D,
-    #[uniform_buffer(index = "0")]
-    camera_params: CameraParams
-}
-
-fn load_spv_modules<P: AsRef<Path>>(p: P) -> SpirvModules {
-    let pp = load_combined_shader_source(p.as_ref()).unwrap();
-    let src_path_str = p.as_ref().to_str().unwrap();
+fn load_spv_modules(src: &str) -> SpirvModules {
+    let (_, pp) = preprocess_combined_shader_source(src, "<internal>", &[], &[]);
+    let src_path_str = "<internal>";
     let spv_modules = compile_glsl_to_spirv(
         SourceWithFileName {
             source: pp.vertex.as_ref().unwrap(),
@@ -80,8 +56,8 @@ fn dump_error(error: &failure::Error) {
     }
 }
 
-fn load_pipeline_and_check_interface<I: ShaderInterface, P: AsRef<Path>>(p: P) {
-    let spv = load_spv_modules(p.as_ref());
+fn load_pipeline_and_check_interface<I: ShaderInterface>(src: &str) {
+    let spv = load_spv_modules(src);
     let desc = <I as ShaderInterface>::get_description();
     let result = verify_spirv_interface(
         desc,
@@ -100,7 +76,73 @@ fn load_pipeline_and_check_interface<I: ShaderInterface, P: AsRef<Path>>(p: P) {
     }
 }
 
+
+macro_rules! shader_skeleton {
+    ($src:expr) => {
+        concat!(
+            r#"#version 450
+#pragma stages(vertex,fragment)
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_ARB_shading_language_420pack : enable"#,
+            $src,
+            r#"
+#ifdef _VERTEX_
+// visible to this stage only
+layout(location=1) uniform float b;
+void main() {
+  gl_Position = vec4(0.0);
+}
+#endif
+#ifdef _FRAGMENT_
+layout(location = 0) out vec4 color;
+void main() {
+    color = vec4(0.0);
+}
+#endif
+"#
+        );
+    };
+}
+
+
+#[repr(C)]
+#[derive(BufferInterface)]
+struct CameraParams {
+    view_matrix: [[f32; 4]; 4],
+    proj_matrix: [[f32; 4]; 4],
+    viewproj_matrix: [[f32; 4]; 4],
+    inverse_proj_matrix: [[f32; 4]; 4],
+    prev_viewproj_matrix_velocity: [[f32; 4]; 4],
+    viewproj_matrix_velocity: [[f32; 4]; 4],
+    temporal_aa_offset: [f32; 2],
+}
+
+#[derive(ShaderInterface)]
+struct Interface0 {
+    #[uniform_constant(index = "0")]
+    a: f32,
+    #[uniform_constant(index = "1")]
+    b: f32,
+    #[texture_binding(index = "0")]
+    tex: gfx::Texture2D,
+    #[uniform_buffer(index = "0")]
+    camera_params: CameraParams,
+}
+
 #[test]
 fn test_stuff() {
-    load_pipeline_and_check_interface::<Interface0, _>("tests/interface/simple.glsl");
+    load_pipeline_and_check_interface::<Interface0>(shader_skeleton! { r#"
+layout(location=0) uniform float A;
+layout(binding=0) uniform sampler2D tex;
+
+layout(binding=0,std140) uniform U {
+        mat4 viewMatrix;
+        mat4 projMatrix;
+        mat4 viewProjMatrix;
+        mat4 invViewProjMatrix;
+        mat4 prevViewProjMatrixVelocity;
+        mat4 viewProjMatrixVelocity;
+        ivec2 temporalAAOffset;
+};
+"# });
 }
