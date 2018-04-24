@@ -89,7 +89,6 @@ pub enum TextureDataType {
     Float, // and also depth
     Integer,
     UnsignedInteger,
-    Unknown,
 }
 
 /// Represents a texture binding expected by a shader.
@@ -103,8 +102,25 @@ pub struct TextureBindingDesc {
     /// index (texture uint) of the texture binding in shader, can be None.
     /// name and index should not be both None
     pub index: Option<u32>,
-    /// Basic data type of the texture
-    pub data_type: TextureDataType,
+    /// Basic data type of the texture (if known)
+    pub data_type: Option<TextureDataType>,
+    /// dimensions (if known)
+    pub dimensions: Option<TextureDimensions>,
+}
+
+/// A trait defined for types that can be bound to the pipeline as a texture.
+pub trait TextureInterface {
+    fn get_data_type() -> Option<TextureDataType>;
+    fn get_dimensions() -> Option<TextureDimensions>;
+}
+
+impl TextureInterface for Texture2D {
+    fn get_data_type() -> Option<TextureDataType> {
+        None
+    }
+    fn get_dimensions() -> Option<TextureDimensions> {
+        Some(TextureDimensions::Tex2D)
+    }
 }
 
 /// Trait implemented by types that can serve as a vertex attribute.
@@ -228,7 +244,6 @@ pub struct VertexLayout {
 pub trait VertexType: BufferData {
     fn get_layout() -> &'static VertexLayout;
 }
-
 
 /// Descriptions of shader interfaces.
 ///

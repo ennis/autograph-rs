@@ -211,7 +211,9 @@ impl Ui {
         solver.add_edit_variable(root_bounds.left, STRONG).unwrap();
         solver.add_edit_variable(root_bounds.right, STRONG).unwrap();
         solver.add_edit_variable(root_bounds.top, STRONG).unwrap();
-        solver.add_edit_variable(root_bounds.bottom, STRONG).unwrap();
+        solver
+            .add_edit_variable(root_bounds.bottom, STRONG)
+            .unwrap();
         Ui {
             //draw_items: Vec::new(),
             items: HashMap::new(),
@@ -219,12 +221,11 @@ impl Ui {
             root,
             graph,
             root_bounds,
-            solver
+            solver,
         }
     }
 
-    pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F)
-    {
+    pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F) {
         let root_bounds = self.root_bounds;
         let mut root_container = UiContainer {
             ui: self,
@@ -259,14 +260,13 @@ impl Ui {
         // should probably be push_item or something like that
         self.graph.add_node(id);
         self.graph.add_edge(parent_id, id, ());
-       // debug!("ID stack -> {:?}", self.id_stack);
+        // debug!("ID stack -> {:?}", self.id_stack);
         id
     }
 
     pub fn pop_id(&mut self) {
         self.id_stack.pop();
     }
-
 
     /*pub fn button<S: Into<String>>(&mut self, label: S) -> ItemResult {
         let label_str = label.into();
@@ -308,21 +308,31 @@ impl Ui {
         result
     }*/
 
-    pub fn layout_and_render<'a>(&mut self, window_size: (u32, u32), frame: &nvg::Frame<'a>)
-    {
-        self.solver.suggest_value(self.root_bounds.left, 0.0).unwrap();
-        self.solver.suggest_value(self.root_bounds.right, window_size.0 as f64).unwrap();
-        self.solver.suggest_value(self.root_bounds.top, 0.0).unwrap();
-        self.solver.suggest_value(self.root_bounds.bottom, window_size.1 as f64).unwrap();
+    pub fn layout_and_render<'a>(&mut self, window_size: (u32, u32), frame: &nvg::Frame<'a>) {
+        self.solver
+            .suggest_value(self.root_bounds.left, 0.0)
+            .unwrap();
+        self.solver
+            .suggest_value(self.root_bounds.right, window_size.0 as f64)
+            .unwrap();
+        self.solver
+            .suggest_value(self.root_bounds.top, 0.0)
+            .unwrap();
+        self.solver
+            .suggest_value(self.root_bounds.bottom, window_size.1 as f64)
+            .unwrap();
 
         let changes = self.solver.fetch_changes();
         debug!("layout changes: {:?}", changes);
     }
 }
 
-impl<'a> UiContainer<'a>
-{
-    pub fn vbox<S: Into<String>, F: FnOnce(&mut UiContainer)>(&mut self, id: S, f: F) -> ItemResult {
+impl<'a> UiContainer<'a> {
+    pub fn vbox<S: Into<String>, F: FnOnce(&mut UiContainer)>(
+        &mut self,
+        id: S,
+        f: F,
+    ) -> ItemResult {
         // convert ID to string for later storage
         let id_str = id.into();
         // get numeric ID
@@ -331,11 +341,13 @@ impl<'a> UiContainer<'a>
         // if item not present, create it
 
         let bounds = {
-            let item = self.ui.items.entry(id).or_insert_with(|| Item {
-                pref_width: None,
-                pref_height: None,
-                bounds: Default::default(),
-                //state: Box::new(RefCell::new(VBoxState {})),
+            let item = self.ui.items.entry(id).or_insert_with(|| {
+                Item {
+                    pref_width: None,
+                    pref_height: None,
+                    bounds: Default::default(),
+                    //state: Box::new(RefCell::new(VBoxState {})),
+                }
             });
             // cannot borrow solver here, as self.ui is already mutably borrowed
 
@@ -351,7 +363,10 @@ impl<'a> UiContainer<'a>
         // insert children
 
         {
-            let mut child_container = UiContainer { ui: self.ui, bounds };
+            let mut child_container = UiContainer {
+                ui: self.ui,
+                bounds,
+            };
             f(&mut child_container);
         }
 

@@ -371,12 +371,14 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
                 .as_ref()
                 .map_or(texbind.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&texbind.index);
+            let ty = &texbind.ty;
 
             quote! {
                 ::autograph::gfx::shader_interface::TextureBindingDesc {
                     name: Some(stringify!(#name).into()),
                     index: #index_tokens,
-                    data_type: TextureDataType::Unknown
+                    data_type: <#ty as TextureInterface>::get_data_type(),
+                    dimensions: <#ty as TextureInterface>::get_dimensions()
                 }
             }
         })

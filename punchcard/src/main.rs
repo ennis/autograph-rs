@@ -231,7 +231,6 @@ fn main() {
             ui.layout_and_render((width as u32, height as u32), &frame);
         });
 
-
         gl_window.swap_buffers().unwrap();
     }
 }

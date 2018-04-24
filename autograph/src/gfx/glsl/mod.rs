@@ -429,7 +429,8 @@ impl shader::GraphicsShaderPipeline for SpirvGraphicsShaderPipeline {
             self.spirv_modules.gs.as_ref().map(|v| v.as_ref()),
             self.spirv_modules.tcs.as_ref().map(|v| v.as_ref()),
             self.spirv_modules.tes.as_ref().map(|v| v.as_ref()),
-        )
+        )?;
+        Ok(())
     }
 
     fn get_program(&self) -> Result<GLuint, Error> {
@@ -578,7 +579,7 @@ pub fn compile_glsl_to_spirv<'a>(
     let mut options = shaderc::CompileOptions::new().unwrap();
     options.set_target_env(shaderc::TargetEnv::OpenGL, 0);
     options.set_forced_version_profile(450, shaderc::GlslProfile::None);
-    options.set_optimization_level(shaderc::OptimizationLevel::Size);
+    options.set_optimization_level(shaderc::OptimizationLevel::Zero);
 
     //debug!("==== Preprocessed ====\n\n{}", pp.vertex.as_ref().unwrap());
 
