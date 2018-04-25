@@ -4,6 +4,7 @@ use super::pipeline::GraphicsPipeline;
 use super::shader::GraphicsShaderPipeline;
 use gl;
 use gl::types::*;
+use gfx::{Framebuffer, FramebufferObject, GraphicsPipeline, Scissors, Uniforms, VertexInput, RawBufferSlice};
 
 const MAX_TEXTURE_UNITS: usize = 16;
 const MAX_IMAGE_UNITS: usize = 8;
@@ -191,4 +192,167 @@ pub(super) unsafe fn bind_scissors(scissors: &Scissors) {
 pub(super) unsafe fn bind_target(framebuffer: &Framebuffer, viewport: &[(f32, f32, f32, f32)]) {
     gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, framebuffer.obj);
     gl::ViewportArrayv(0, 8, viewport.as_ptr() as *const GLfloat);
+}
+
+
+pub(super) struct StateCache {
+    /// All uniforms
+    //uniforms: Option<Uniforms>,
+    //vertex_input: Option<VertexInput>,
+    framebuffer: Option<*const FramebufferObject>,
+    pipeline: Option<*const super::pipeline::inner::GraphicsPipeline>,
+    scissors: Option<Scissors>,
+}
+
+impl StateCache {
+    pub fn new() -> StateCache {
+        StateCache {
+            //uniforms: None,
+            //vertex_input: None,
+            pipeline: None,
+            framebuffer: None,
+            scissors: None,
+        }
+    }
+
+    pub unsafe fn set_graphics_pipeline(&mut self, pipe: &GraphicsPipeline) {
+        // same pipeline as before?
+        if self.pipeline
+            .map_or(true, |prev_pipe| prev_pipe != pipe.as_ref() as *const _)
+            {
+                // nope, bind it
+                // TODO fine-grained state changes
+                bind_graphics_pipeline(pipe, SG_ALL);
+                self.pipeline = Some(pipe.as_ref() as *const _);
+            }
+    }
+
+    pub unsafe fn set_uniform_buffer(&mut self, slot: u32, buffer: &RawBufferSlice)
+    {
+        // TODO batch and cache
+        gl::BindBufferRange(
+            gl::UNIFORM_BUFFER,
+            slot,
+            buffer.owner.gl_object(),
+            buffer.offset as isize,
+            buffer.byte_size as isize,
+        );
+    }
+
+    pub unsafe fn set_shader_storage_buffer(&mut self, slot: u32, buffer: &RawBufferSlice)
+    {
+        // TODO batch and cache
+        gl::BindBufferRange(
+            gl::SHADER_STORAGE_BUFFER,
+            slot,
+            buffer.owner.gl_object(),
+            buffer.offset as isize,
+            buffer.byte_size as isize,
+        );
+    }
+
+    pub unsafe fn bind_sampler(&self, index: u32, sampler: GLuint) {
+        unimplemented!()
+    }
+
+    pub unsafe fn bind_vertex_buffer(
+        &self,
+        slot: u32,
+        buffer: &RawBufferSlice,
+        stride: usize,
+        _layout: Option<VertexLayout>,
+    )
+    {
+        // No caching
+        gl::BindVertexBuffer(
+            slot,
+            buffer.owner.gl_object(),
+            buffer.offset as isize,
+            stride as i32,
+        );
+    }
+
+    pub unsafe fn bind_index_buffer(
+        &self,
+        buffer: &RawBufferSlice,
+        _index_type: Option<Format>,
+    ) {
+        // TODO cache
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, buffer.owner.gl_object());
+    }
+
+    pub unsafe fn bind_texture(&self, slot: u32, texture: &TextureAny, sampler: &Sampler) {
+        // TODO cache and batch
+        gl::BindTextureUnit(slot, texture.gl_object());
+        gl::BindSampler(slot, sampler.obj);
+    }
+
+    pub unsafe fn set_target(
+        &mut self,
+        framebuffer: &Framebuffer,
+        viewport: &[(f32, f32, f32, f32)],
+    ) {
+        // same framebuffer as before?
+        if self.framebuffer.map_or(true, |prev_framebuffer| {
+            prev_framebuffer != framebuffer.as_ref() as *const _
+        }) {
+            // nope, bind it
+            bind_target(framebuffer, viewport);
+            self.framebuffer = Some(framebuffer.as_ref() as *const _);
+        }
+    }
+
+    pub unsafe fn set_scissors(&mut self, scissors: &Scissors) {
+        // TODO cache
+        bind_scissors(scissors);
+    }
+
+    /// Commit all uniforms
+    pub unsafe fn commit(&self) {
+        // TODO
+    }
+
+    pub unsafe fn set_uniform_f32(&self, location: u32, v: f32) {
+        gl::ProgramUniform1f(self.program, location as i32, v);
+    }
+
+    pub unsafe fn set_uniform_vec2(&self, location: u32, v: [f32; 2]) {
+        gl::ProgramUniform2f(self.program, location as i32, v[0], v[1]);
+    }
+
+    pub unsafe fn set_uniform_vec3(&self, location: u32, v: [f32; 3]) {
+        gl::ProgramUniform3f(self.program, location as i32, v[0], v[1], v[2]);
+    }
+
+    pub unsafe fn set_uniform_vec4_unchecked(&self, location: u32, v: [f32; 4]) {
+        gl::ProgramUniform4f(self.program, location as i32, v[0], v[1], v[2], v[3]);
+    }
+
+    pub unsafe fn set_uniform_i32_unchecked(&self, location: u32, v: i32) {
+        unimplemented!()
+    }
+
+    pub unsafe fn set_uniform_ivec2_unchecked(&self, location: u32, v: [i32; 2]) {
+        unimplemented!()
+    }
+
+    pub unsafe fn set_uniform_ivec3_unchecked(&self, location: u32, v: [i32; 3]) {
+        unimplemented!()
+    }
+
+    pub unsafe fn set_uniform_ivec4_unchecked(&self, location: u32, v: [i32; 4]) {
+        unimplemented!()
+    }
+
+    pub unsafe fn set_uniform_mat2_unchecked(&self, location: u32, v: [f32; 2 * 2]) {
+        unimplemented!()
+    }
+
+    pub unsafe fn set_uniform_mat3_unchecked(&self, location: u32, v: [f32; 3 * 3]) {
+        unimplemented!()
+    }
+
+    pub unsafe fn set_uniform_mat4_unchecked(&self, location: u32, v: [f32; 4 * 4]) {
+        unimplemented!()
+    }
 }

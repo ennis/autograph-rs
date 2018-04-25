@@ -16,7 +16,6 @@ pub mod sampler;
 pub mod shader;
 pub mod shader_interface;
 pub mod spirv;
-mod state_cache;
 pub mod state_group;
 pub mod texture;
 pub mod upload_buffer;
