@@ -363,26 +363,36 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
     //
     // texture+sampler bindings
     //
-    let texture_binding_items = texture_bindings
-        .iter()
-        .map(|texbind| {
-            let name = texbind
-                .rename
-                .as_ref()
-                .map_or(texbind.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
-            let index_tokens = make_option_tokens(&texbind.index);
-            let ty = &texbind.ty;
+    let mut texture_binding_items = Vec::new();
+    let mut texture_bind_statements = Vec::new();
+    for texbind in texture_bindings.iter() {
+        let orig_name = texbind.ident.unwrap();
+        let name = texbind
+            .rename
+            .as_ref()
+            .map_or(texbind.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+        let index_tokens = make_option_tokens(&texbind.index);
+        let ty = &texbind.ty;
 
-            quote! {
-                ::autograph::gfx::shader_interface::TextureBindingDesc {
-                    name: Some(stringify!(#name).into()),
-                    index: #index_tokens,
-                    data_type: <#ty as TextureInterface>::get_data_type(),
-                    dimensions: <#ty as TextureInterface>::get_dimensions()
-                }
+        texture_binding_items.push(quote! {
+            ::autograph::gfx::shader_interface::TextureBindingDesc {
+                name: Some(stringify!(#name).into()),
+                index: #index_tokens,
+                data_type: <<#ty as SampledTextureInterface>::TextureType as TextureInterface>::get_data_type(),
+                dimensions: <<#ty as SampledTextureInterface>::TextureType as TextureInterface>::get_dimensions()
             }
-        })
-        .collect::<Vec<_>>();
+        });
+
+        texture_bind_statements.push(quote! {
+             {
+                let tex = interface.#orig_name.get_texture().into_texture_any();
+                let sampler = interface.#orig_name.get_sampler();
+                let sampler_obj = bind_context.gctx.get_sampler(sampler);
+                bind_context.state_cache.set_texture((#index_tokens).unwrap(), &tex, &sampler_obj);
+                bind_context.tracker.ref_texture(tex);
+            }
+        });
+    }
     let num_texture_binding_items = texture_binding_items.len();
 
     //
@@ -522,6 +532,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
             impl InterfaceBinder<#struct_name> for Binder {
                 unsafe fn bind_unchecked(&self, interface: &#struct_name, bind_context: &mut ::autograph::gfx::InterfaceBindingContext) {
                     use ::autograph::gfx::ToBufferSliceAny;
+                    use ::autograph::gfx::SampledTextureInterface;
                     unsafe {
                         #(#uniform_buffer_bind_statements)*
                     }

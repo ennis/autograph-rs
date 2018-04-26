@@ -1,5 +1,6 @@
 use super::context::Context;
 use super::format::*;
+use super::sampler::SamplerDesc;
 use gl;
 use gl::types::*;
 use std::cmp::*;
@@ -470,8 +471,35 @@ impl Texture2D {
     pub fn size(&self) -> (u32, u32) {
         (self.width(), self.height())
     }
+    pub fn sampled(&self, sampler: &SamplerDesc) -> SampledTexture2D {
+        SampledTexture2D(self.clone(), sampler.clone())
+    }
+    pub fn into_texture_any(self) {
+
+    }
+}
+
+impl From<Texture2D> for TextureAny {
+    fn from(other: Texture2D) -> Self {
+        other.0
+    }
 }
 
 /// A 3D texture
-#[derive(Clone, Debug, Deref, DerefMut)]
+#[derive(Clone, Debug)]
 pub struct Texture3D(TextureAny);
+
+// TODO automatically derive?
+impl From<Texture3D> for TextureAny {
+    fn from(other: Texture3D) -> Self {
+        other.0
+    }
+}
+
+/// A combination of a 2D texture and a sampler
+#[derive(Clone, Debug)]
+pub struct SampledTexture2D(pub Texture2D, pub SamplerDesc);
+
+/// A combination of a 3D texture and a sampler
+#[derive(Clone, Debug)]
+pub struct SampledTexture3D(pub Texture3D, pub SamplerDesc);

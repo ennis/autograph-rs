@@ -9,7 +9,7 @@ layout(binding=0) uniform sampler2D tex;
 
 layout(binding=0,std140) uniform U {
 	mat4 viewMatrix;
-	mat4 projMatrix;
+	mat3 projMatrix;
 	mat4 viewProjMatrix;
 	mat4 invViewProjMatrix;
 	mat4 prevViewProjMatrixVelocity;

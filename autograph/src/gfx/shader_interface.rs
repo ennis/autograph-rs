@@ -111,8 +111,8 @@ pub struct TextureBindingDesc {
     pub dimensions: Option<TextureDimensions>,
 }
 
-/// A trait defined for types that can be bound to the pipeline as a texture.
-pub trait TextureInterface {
+/// A trait defined for types that can be bound to the pipeline as an image.
+pub trait TextureInterface: Into<TextureAny> + 'static {
     fn get_data_type() -> Option<TextureDataType>;
     fn get_dimensions() -> Option<TextureDimensions>;
 }
@@ -133,6 +133,23 @@ impl TextureInterface for TextureAny {
     fn get_dimensions() -> Option<TextureDimensions> {
         None
     }
+}
+
+pub trait SampledTextureInterface
+{
+    type TextureType: TextureInterface;
+    //fn get_texture(&self) -> &Self::TextureType;
+    fn get_sampler(&self) -> &gfx::SamplerDesc;
+    fn into_texture_any(self) -> TextureAny;
+}
+
+impl SampledTextureInterface for SampledTexture2D
+{
+    type TextureType = Texture2D;
+    fn into_texture_any(self) -> TextureAny {
+        self.0.into()
+    }
+    fn get_sampler(&self) -> &gfx::SamplerDesc { &self.1 }
 }
 
 /// Trait implemented by types that can serve as a vertex attribute.
@@ -329,6 +346,7 @@ pub trait ShaderInterfaceDesc: Sync + 'static {
 }
 
 pub struct InterfaceBindingContext<'a> {
+    pub gctx: &'a gfx::Context,
     pub tracker: &'a mut ResourceTracker,
     pub upload_buffer: &'a UploadBuffer,
     pub state_cache: &'a mut StateCache

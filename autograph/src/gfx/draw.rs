@@ -221,13 +221,13 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
     }
 
     pub fn with_texture(mut self, slot: u32, tex: &TextureAny, sampler: &SamplerDesc) -> Self {
-        {
+
             let gctx = self.frame.queue().context();
             unsafe {
                 self.state_cache
                     .set_texture(slot, tex, &gctx.get_sampler(sampler));
             }
-        }
+
         self.frame
             .resource_tracker
             .borrow_mut()
