@@ -1,11 +1,10 @@
+use gfx::bind::StateCache;
 use gfx::bind::{bind_graphics_pipeline, bind_scissors, bind_target, bind_uniforms,
                 bind_vertex_input, SG_ALL};
 use gfx::bind::{Scissors, Uniforms, VertexInput};
 use gfx::buffer_data::BufferData;
 use gfx::pipeline::GraphicsPipeline;
-use gfx::shader::UniformBinder;
 use gfx::shader_interface::ShaderInterface;
-use gfx::state_cache::StateCache;
 use gfx::Frame;
 use gfx::Framebuffer;
 use gfx::TextureAny;
@@ -14,6 +13,7 @@ use gfx::{BufferSlice, RawBufferSlice, SamplerDesc};
 use gl;
 use gl::types::*;
 
+use std::cell::RefMut;
 use std::marker::PhantomData;
 use std::mem;
 
@@ -169,19 +169,22 @@ impl<'queue> DrawExt<'queue> for Frame<'queue> {
     where
         'queue: 'frame,
     {
-        let binder = unsafe {
-            let mut state_cache = self.state_cache.borrow_mut();
-            pipeline.bind(&mut state_cache)
-        };
+        // first, begin by binding the GraphicsPipeline
+        // this means
+        // - calling glUseProgram
+        // - setting draw states
+
+        let mut state_cache = self.state_cache.borrow_mut();
         let fb_size = target.size();
         let viewports = [(0f32, 0f32, fb_size.0 as f32, fb_size.1 as f32); 8];
         unsafe {
-            self.state_cache.borrow_mut().set_target(target, &viewports);
+            state_cache.set_graphics_pipeline(pipeline);
+            state_cache.set_target(target, &viewports);
         }
 
         DrawCmdBuilder {
             frame: self,
-            uniform_binder: binder,
+            state_cache,
             cmd,
             pipeline: &pipeline,
             index_buffer_offset: None,
@@ -196,7 +199,7 @@ impl<'queue> DrawExt<'queue> for Frame<'queue> {
 pub struct DrawCmdBuilder<'frame, 'queue: 'frame, 'binder> {
     frame: &'frame Frame<'queue>,
     pipeline: &'binder GraphicsPipeline,
-    uniform_binder: &'binder UniformBinder,
+    state_cache: RefMut<'frame, StateCache>,
     index_buffer_type: Option<GLenum>,
     index_buffer_offset: Option<usize>,
     index_stride: Option<usize>,
@@ -204,15 +207,16 @@ pub struct DrawCmdBuilder<'frame, 'queue: 'frame, 'binder> {
 }
 
 impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
+    /// Set a uniform buffer to use for this command.
     pub fn with_uniform_buffer<U: ToRawBufferSlice>(mut self, slot: u32, buffer: &U) -> Self {
         let buffer = unsafe { buffer.to_raw_slice() };
         self.frame
             .ref_buffers
             .borrow_mut()
             .push(buffer.owner.clone());
+
         unsafe {
-            self.uniform_binder
-                .bind_uniform_buffer_unchecked(slot, &buffer);
+            self.state_cache.set_uniform_buffer(slot, &buffer);
         }
         self
     }
@@ -221,8 +225,8 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
         {
             let gctx = self.frame.queue().context();
             unsafe {
-                self.uniform_binder
-                    .bind_texture_unchecked(slot, tex, &gctx.get_sampler(sampler));
+                self.state_cache
+                    .set_texture(slot, tex, &gctx.get_sampler(sampler));
             }
         }
         self
@@ -236,8 +240,7 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
             .push(vertices.owner.clone());
         let stride = mem::size_of::<<<V as ToRawBufferSlice>::Target as BufferData>::Element>();
         unsafe {
-            self.uniform_binder
-                .bind_vertex_buffer_unchecked(slot, &vertices, stride, None);
+            self.state_cache.set_vertex_buffer(slot, &vertices, stride);
         }
         self
     }
@@ -259,8 +262,7 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
         self.index_buffer_offset = Some(indices.offset);
         self.index_stride = Some(index_stride);
         unsafe {
-            self.uniform_binder
-                .bind_index_buffer_unchecked(&indices, None);
+            self.state_cache.set_index_buffer(&indices);
         }
         self
     }
@@ -269,6 +271,9 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
 /// Submit on drop
 impl<'frame, 'queue: 'frame, 'binder> Drop for DrawCmdBuilder<'frame, 'queue, 'binder> {
     fn drop(&mut self) {
+        unsafe {
+            self.state_cache.commit();
+        }
         match self.cmd {
             DrawCmd::DrawArrays { first, count } => unsafe {
                 gl::DrawArrays(self.pipeline.primitive_topology, first as i32, count as i32);

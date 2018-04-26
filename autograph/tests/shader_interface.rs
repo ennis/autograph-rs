@@ -9,8 +9,8 @@ extern crate failure;
 
 use autograph::gfx;
 use autograph::gfx::glsl::interface::{verify_spirv_interface, ShaderInterfaceVerificationError};
-use autograph::gfx::glsl::{compile_glsl_to_spirv, preprocess_combined_shader_source, SourceWithFileName,
-                           SpirvModules};
+use autograph::gfx::glsl::{compile_glsl_to_spirv, preprocess_combined_shader_source,
+                           SourceWithFileName, SpirvModules};
 use autograph::gfx::shader_interface::{ShaderInterface, ShaderInterfaceDesc};
 use autograph::gfx::GraphicsShaderPipeline;
 use std::fs::File;
@@ -76,7 +76,6 @@ fn load_pipeline_and_check_interface<I: ShaderInterface>(src: &str) {
     }
 }
 
-
 macro_rules! shader_skeleton {
     ($src:expr) => {
         concat!(
@@ -103,7 +102,6 @@ void main() {
         );
     };
 }
-
 
 #[repr(C)]
 #[derive(BufferInterface)]

@@ -511,7 +511,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
             }
 
             impl InterfaceBinder<#struct_name> for Binder {
-                unsafe fn bind_unchecked(&self, interface: &#struct_name, uniform_binder: &::autograph::gfx::UniformBinder) {
+                unsafe fn bind_unchecked(&self, interface: &#struct_name, frame: &::autograph::gfx::Frame, state_cache: &::autograph::gfx::StateCache) {
                     unimplemented!()
                 }
             }

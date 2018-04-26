@@ -187,9 +187,10 @@ fn compare_types(shader_ty: &TypeDesc, host_ty: &TypeDesc) -> Result<(), Error> 
             compare_types(
                 &TypeDesc::Primitive(shader_comp_ty),
                 &TypeDesc::Primitive(host_comp_ty),
-            ).context(
-                format!("type mismatch: {:?} (shader) and {:?} (host)", shader_ty, host_ty)
-            )?;
+            ).context(format!(
+                "type mismatch: {:?} (shader) and {:?} (host)",
+                shader_ty, host_ty
+            ))?;
             if shader_num_comp != host_num_comp {
                 bail!(
                     "vector size mismatch: {} (shader) and {} (host)",
@@ -206,7 +207,10 @@ fn compare_types(shader_ty: &TypeDesc, host_ty: &TypeDesc) -> Result<(), Error> 
             compare_types(
                 &TypeDesc::Primitive(shader_ty),
                 &TypeDesc::Primitive(host_ty),
-            ).context(format!("type mismatch: {:?} (shader) and {:?} (host)", shader_ty, host_ty))?;
+            ).context(format!(
+                "type mismatch: {:?} (shader) and {:?} (host)",
+                shader_ty, host_ty
+            ))?;
             if !(shader_rows == host_rows && shader_cols == host_cols) {
                 bail!(
                     "matrix size mismatch: {}x{} (shader) and {}x{} (host)",

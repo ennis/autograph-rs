@@ -1,4 +1,4 @@
-use super::bind::{Scissors, Uniforms, VertexInput};
+use super::bind::{Scissors, StateCache, Uniforms, VertexInput};
 use super::buffer::{BufferSlice, RawBuffer, RawBufferSlice};
 use super::buffer_data::BufferData;
 use super::fence::FenceValue;
@@ -6,7 +6,6 @@ use super::framebuffer::{Framebuffer, FramebufferObject};
 use super::pipeline::GraphicsPipeline;
 use super::queue::{FrameResources, Queue};
 use super::sampler::SamplerDesc;
-use super::state_cache::StateCache;
 use super::texture::TextureAny;
 use super::upload_buffer::UploadBuffer;
 

@@ -1,9 +1,9 @@
+use super::bind::StateCache;
 use super::buffer_data::BufferData;
 use super::format::Format;
 use super::pipeline::GraphicsPipeline;
-use super::shader::UniformBinder;
-use super::state_cache::StateCache;
 use super::texture::*;
+use super::Frame;
 use failure::Error;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -120,6 +120,15 @@ impl TextureInterface for Texture2D {
     }
     fn get_dimensions() -> Option<TextureDimensions> {
         Some(TextureDimensions::Tex2D)
+    }
+}
+
+impl TextureInterface for TextureAny {
+    fn get_data_type() -> Option<TextureDataType> {
+        None
+    }
+    fn get_dimensions() -> Option<TextureDimensions> {
+        None
     }
 }
 
@@ -273,7 +282,7 @@ pub trait InterfaceBinder<T: ShaderInterface> {
     ///
     /// uniform constant => <ty as UniformConstantInterface>.bind(uniform_binder);
     /// uniform buffer => uniform_binder.bind(binding, buffer)
-    unsafe fn bind_unchecked(&self, interface: &T, uniform_binder: &UniformBinder);
+    unsafe fn bind_unchecked(&self, interface: &T, frame: &Frame, state_cache: &StateCache);
 }
 
 /// Trait implemented by types that represent a shader interface.

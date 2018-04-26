@@ -3,7 +3,6 @@ use gfx;
 use gfx::pipeline::GraphicsPipelineBuilder;
 use gfx::pipeline::VertexAttribute;
 use gfx::shader;
-use gfx::shader::DefaultUniformBinder;
 use gfx::shader_interface;
 use gl;
 use gl::types::*;
@@ -157,7 +156,6 @@ pub struct GlslGraphicsShaderPipeline {
     pub tess_control: Option<Shader>,
     pub tess_eval: Option<Shader>,
     pub program: GLuint,
-    uniform_binder: DefaultUniformBinder,
 }
 
 impl ::std::fmt::Debug for GlslGraphicsShaderPipeline {
@@ -208,10 +206,6 @@ impl shader::GraphicsShaderPipeline for GlslGraphicsShaderPipeline {
 
     fn get_program(&self) -> Result<GLuint, Error> {
         Ok(self.program)
-    }
-
-    unsafe fn bind(&self) -> &shader::UniformBinder {
-        return &self.uniform_binder;
     }
 }
 
@@ -356,7 +350,6 @@ pub fn create_pipeline_via_gl<P: AsRef<Path>>(
             tess_control,
             tess_eval,
             program,
-            uniform_binder: DefaultUniformBinder { program },
         },
         input_layout: pp.input_layout.ok_or(format_err!(
             "Missing input layout in combined shader source: {}",
@@ -377,7 +370,6 @@ pub struct SpirvGraphicsShaderPipeline {
     pub tess_eval: Option<Shader>,
     pub program: GLuint,
     pub spirv_modules: SpirvModules,
-    uniform_binder: DefaultUniformBinder,
 }
 
 impl ::std::fmt::Debug for SpirvGraphicsShaderPipeline {
@@ -437,10 +429,6 @@ impl shader::GraphicsShaderPipeline for SpirvGraphicsShaderPipeline {
     fn get_program(&self) -> Result<GLuint, Error> {
         Ok(self.program)
     }
-
-    unsafe fn bind(&self) -> &shader::UniformBinder {
-        return &self.uniform_binder;
-    }
 }
 
 impl SpirvGraphicsShaderPipeline {
@@ -496,7 +484,6 @@ impl SpirvGraphicsShaderPipeline {
             tess_eval,
             program,
             spirv_modules,
-            uniform_binder: DefaultUniformBinder { program },
         })
     }
 

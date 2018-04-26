@@ -3,7 +3,6 @@ use gfx;
 use gfx::pipeline::GraphicsPipelineBuilder;
 use gfx::pipeline::VertexAttribute;
 use gfx::shader;
-use gfx::shader::DefaultUniformBinder;
 use gfx::shader_interface;
 use gl;
 use gl::types::*;

@@ -2,9 +2,8 @@ use super::context::Context;
 use super::state_group::*;
 use failure::Error;
 use gfx;
-use gfx::shader::{GraphicsShaderPipeline, UniformBinder};
+use gfx::shader::GraphicsShaderPipeline;
 use gfx::shader_interface::{InterfaceBinder, ShaderInterface};
-use gfx::state_cache::StateCache;
 use gl;
 use gl::types::*;
 use std::ops::Deref;
@@ -62,14 +61,6 @@ pub(super) mod inner {
 
 #[derive(Clone, Debug, Deref, DerefMut)]
 pub struct GraphicsPipeline(Arc<inner::GraphicsPipeline>);
-
-impl GraphicsPipeline {
-    /// Sets the OpenGL pipeline states (all of them with the exception of uniform bindings)
-    pub(super) unsafe fn bind<'a>(&'a self, state_cache: &mut StateCache) -> &'a UniformBinder {
-        state_cache.set_graphics_pipeline(self);
-        self.shader_pipeline.bind()
-    }
-}
 
 /// A graphics pipeline with an attached interface type
 //pub struct TypedGraphicsPipeline<T: ShaderInterface>(Arc<inner::GraphicsPipeline>);
