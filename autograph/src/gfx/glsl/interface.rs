@@ -489,7 +489,12 @@ impl ModuleWrapper {
                     if shader_binding != binding {
                         continue;
                     }
-                    self.compare_types(resource_ty_inst, desc.tydesc)?;
+                    if let Some(tydesc) = desc.tydesc {
+                        self.compare_types(resource_ty_inst, tydesc)?;
+                    }
+                    else {
+                        warn!("No buffer layout provided for {:?}", desc);
+                    }
                     return Ok(true);
                 }
                 ShaderResource::ShaderStorageBuffer(desc) => {

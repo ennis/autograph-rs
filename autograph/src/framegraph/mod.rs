@@ -107,7 +107,7 @@ struct Edge {
 /// As their name suggest, AliasedResources can be aliased between resources if the frame graph detects
 /// that there are no usage conflicts.
 pub enum AliasedResource {
-    Buffer { buf: gfx::RawBuffer },
+    Buffer { buf: gfx::BufferAny },
     Texture { tex: gfx::TextureAny },
 }
 
@@ -521,7 +521,7 @@ impl<'node> FrameGraph<'node> {
                     }
                     ResourceInfo::Buffer { byte_size } => {
                         // allocating a buffer
-                        let buffer = gfx::RawBuffer::new(gctx, byte_size, gfx::BufferUsage::UPLOAD);
+                        let buffer = gfx::BufferAny::new(gctx, byte_size, gfx::BufferUsage::UPLOAD);
                         allocator.allocations.push(AliasedResource::Buffer {
                             // TODO allocate in transient pool?
                             // TODO reuse buffers?

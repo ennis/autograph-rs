@@ -1,5 +1,5 @@
 use gfx::{BufferData, Framebuffer, FramebufferObject, GraphicsPipeline, GraphicsShaderPipeline,
-          RawBufferSlice, Sampler, TextureAny};
+          BufferSliceAny, Sampler, TextureAny};
 use gl;
 use gl::types::*;
 
@@ -223,7 +223,7 @@ impl StateCache {
         }
     }
 
-    pub unsafe fn set_uniform_buffer(&mut self, slot: u32, buffer: &RawBufferSlice) {
+    pub unsafe fn set_uniform_buffer(&mut self, slot: u32, buffer: &BufferSliceAny) {
         // TODO batch and cache
         gl::BindBufferRange(
             gl::UNIFORM_BUFFER,
@@ -234,7 +234,7 @@ impl StateCache {
         );
     }
 
-    pub unsafe fn set_shader_storage_buffer(&mut self, slot: u32, buffer: &RawBufferSlice) {
+    pub unsafe fn set_shader_storage_buffer(&mut self, slot: u32, buffer: &BufferSliceAny) {
         // TODO batch and cache
         gl::BindBufferRange(
             gl::SHADER_STORAGE_BUFFER,
@@ -249,7 +249,7 @@ impl StateCache {
         unimplemented!()
     }
 
-    pub unsafe fn set_vertex_buffer(&self, slot: u32, buffer: &RawBufferSlice, stride: usize) {
+    pub unsafe fn set_vertex_buffer(&self, slot: u32, buffer: &BufferSliceAny, stride: usize) {
         // No caching
         gl::BindVertexBuffer(
             slot,
@@ -259,7 +259,7 @@ impl StateCache {
         );
     }
 
-    pub unsafe fn set_index_buffer(&self, buffer: &RawBufferSlice) {
+    pub unsafe fn set_index_buffer(&self, buffer: &BufferSliceAny) {
         // TODO cache
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, buffer.owner.gl_object());
     }

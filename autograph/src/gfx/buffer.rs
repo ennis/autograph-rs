@@ -70,13 +70,13 @@ unsafe fn create_buffer<T: BufferData + ?Sized>(
 }
 
 #[derive(Clone, Debug)]
-pub struct RawBufferSlice {
-    pub owner: RawBuffer,
+pub struct BufferSliceAny {
+    pub owner: BufferAny,
     pub offset: usize,
     pub byte_size: usize,
 }
 
-impl RawBufferSlice {
+impl BufferSliceAny {
     pub unsafe fn into_typed<T: BufferData + ?Sized>(self) -> BufferSlice<T> {
         let elem_size = mem::size_of::<T::Element>();
         assert!(self.byte_size % elem_size == 0);
@@ -89,7 +89,7 @@ impl RawBufferSlice {
 
 #[derive(Debug)]
 pub struct BufferSlice<T: BufferData + ?Sized> {
-    pub raw: RawBufferSlice,
+    pub raw: BufferSliceAny,
     _phantom: PhantomData<*const T>,
 }
 
@@ -113,13 +113,13 @@ impl<T: BufferData + ?Sized> BufferSlice<T> {
         self.raw.byte_size
     }
 
-    pub fn into_raw(self) -> RawBufferSlice {
+    pub fn into_slice_any(self) -> BufferSliceAny {
         self.raw
     }
 }
 
 pub struct BufferMapping<T: BufferData + ?Sized> {
-    pub owner: RawBuffer,
+    pub owner: BufferAny,
     pub ptr: *mut T,
     pub len: usize,
     _phantom: PhantomData<*const T>,
@@ -178,28 +178,36 @@ impl RawBufferObject {
 }
 
 #[derive(Clone, Debug, Deref)]
-pub struct RawBuffer(Arc<RawBufferObject>);
+pub struct BufferAny(Arc<RawBufferObject>);
 
-impl RawBuffer {
-    pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> RawBuffer {
-        RawBuffer(Arc::new(RawBufferObject::new(gctx, byte_size, usage)))
+impl BufferAny {
+    pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> BufferAny {
+        BufferAny(Arc::new(RawBufferObject::new(gctx, byte_size, usage)))
     }
 
     pub fn with_data<T: BufferData + ?Sized>(
         gctx: &Context,
         usage: BufferUsage,
         data: &T,
-    ) -> RawBuffer {
-        RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data)))
+    ) -> BufferAny {
+        BufferAny(Arc::new(RawBufferObject::with_data(gctx, usage, data)))
     }
 
     // This is unsafe because nothing prevents the user from creating two overlapping
     // slices, and immutability of the buffer contents is not enforced by this API
-    pub unsafe fn get_slice(&self, offset: usize, byte_size: usize) -> RawBufferSlice {
-        RawBufferSlice {
+    pub unsafe fn get_slice(&self, offset: usize, byte_size: usize) -> BufferSliceAny {
+        BufferSliceAny {
             owner: self.clone(),
             byte_size,
             offset,
+        }
+    }
+
+    pub unsafe fn get_full_slice(&self) -> BufferSliceAny {
+        BufferSliceAny {
+            owner: self.clone(),
+            byte_size: self.byte_size(),
+            offset: 0
         }
     }
 
@@ -213,11 +221,11 @@ impl RawBuffer {
 }
 
 #[derive(Clone, Debug)]
-pub struct Buffer<T: BufferData + ?Sized>(RawBuffer, PhantomData<*const T>);
+pub struct Buffer<T: BufferData + ?Sized>(BufferAny, PhantomData<*const T>);
 
 impl<T: BufferData + ?Sized> Deref for Buffer<T> {
-    type Target = RawBuffer;
-    fn deref(&self) -> &RawBuffer {
+    type Target = BufferAny;
+    fn deref(&self) -> &BufferAny {
         &self.0
     }
 }
@@ -225,49 +233,18 @@ impl<T: BufferData + ?Sized> Deref for Buffer<T> {
 impl<T: BufferData + ?Sized> Buffer<T> {
     pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> Buffer<T> {
         Buffer(
-            RawBuffer(Arc::new(RawBufferObject::new(gctx, byte_size, usage))),
+            BufferAny(Arc::new(RawBufferObject::new(gctx, byte_size, usage))),
             PhantomData,
         )
     }
 
     pub fn with_data(gctx: &Context, usage: BufferUsage, data: &T) -> Buffer<T> {
         Buffer(
-            RawBuffer(Arc::new(RawBufferObject::with_data(gctx, usage, data))),
+            BufferAny(Arc::new(RawBufferObject::with_data(gctx, usage, data))),
             PhantomData,
         )
     }
 }
-
-/*#[derive(Clone,Debug)]
-pub struct VertexBuffer<T: VertexType + ?Sized>(Buffer<T>);
-
-impl<T: VertexType + ?Sized> VertexBuffer<T> {
-    pub fn new(gctx: &Context, byte_size: usize, usage: BufferUsage) -> VertexBuffer<T> {
-         VertexBuffer(Buffer::new(gctx, byte_size, usage))
-    }
-
-    pub fn with_data(gctx: &Context, usage: BufferUsage, data: &T) -> VertexBuffer<T> {
-        VertexBuffer(Buffer::with_data(gctx, usage, data))
-    }
-}
-
-impl<T: VertexType + ?Sized> Deref for VertexBuffer<T>
-{
-    type Target = Buffer<T>;
-    fn deref(&self) -> &Buffer<T> {
-        &self.0
-    }
-}
-
-#[derive(Clone,Debug)]
-pub struct VertexBufferSlice<T: VertexType + ?Sized>(BufferSlice<[T]>);
-
-impl<T: VertexType + ?Sized> Deref for VertexBufferSlice<T> {
-    type Target = BufferSlice<T>;
-    fn deref(&self) -> &BufferSlice<T> {
-        &self.0
-    }
-}*/
 
 /// Trait for a thing that provides vertex data
 pub trait VertexDataSource {

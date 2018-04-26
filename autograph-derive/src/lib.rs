@@ -13,25 +13,25 @@ use darling::FromField;
 use proc_macro::TokenStream;
 //use autograph::gfx::shader_interface::*;
 
-#[proc_macro_derive(BufferInterface)]
-pub fn buffer_interface_derive(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(BufferLayout)]
+pub fn buffer_layout_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
 
     let result = match ast.data {
-        syn::Data::Struct(ref s) => process_buffer_interface_struct(&ast, &s.fields),
-        _ => panic!("BufferInterface trait can only be automatically derived on structs."),
+        syn::Data::Struct(ref s) => process_buffer_layout_struct(&ast, &s.fields),
+        _ => panic!("BufferLayout trait can only be automatically derived on structs."),
     };
 
     result.into()
 }
 
-fn process_buffer_interface_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
+fn process_buffer_layout_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
     let struct_name = &ast.ident;
 
     let fields = match *fields {
         syn::Fields::Named(ref fields_named) => &fields_named.named,
         syn::Fields::Unnamed(ref fields_unnamed) => &fields_unnamed.unnamed,
-        syn::Fields::Unit => panic!("BufferInterface trait cannot be derived on unit structs"),
+        syn::Fields::Unit => panic!("BufferLayout trait cannot be derived on unit structs"),
     };
 
     let mut field_descs = Vec::new();
@@ -48,14 +48,14 @@ fn process_buffer_interface_struct(ast: &syn::DeriveInput, fields: &syn::Fields)
             quote!(offset_of!(#struct_name,#i))
         };
         field_descs.push(quote!{
-           (#field_offset, <#field_ty as ::autograph::gfx::BufferInterface>::get_description().clone())
+           (#field_offset, <#field_ty as ::autograph::gfx::BufferLayout>::get_description().clone())
         });
     }
 
     let num_fields = field_descs.len();
 
     let private_module_name = syn::Ident::new(
-        &format!("__buffer_interface_{}", struct_name),
+        &format!("__buffer_layout_{}", struct_name),
         proc_macro2::Span::call_site(),
     );
 
@@ -70,7 +70,7 @@ fn process_buffer_interface_struct(ast: &syn::DeriveInput, fields: &syn::Fields)
             }
         }
 
-        unsafe impl ::autograph::gfx::BufferInterface for #struct_name {
+        unsafe impl ::autograph::gfx::BufferLayout for #struct_name {
             fn get_description() -> &'static ::autograph::gfx::TypeDesc {
                 &*#private_module_name::TYPE_DESC
             }
@@ -353,7 +353,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
                 UniformConstantDesc {
                     name: Some(stringify!(#name).into()),
                     index: #index_tokens,
-                    ty: <#ty as BufferInterface>::get_description()
+                    ty: <#ty as UniformInterface>::get_description()
                 }
             }
         })
@@ -411,24 +411,33 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
     //
     // uniform buffers
     //
-    let uniform_buffer_items = uniform_buffers
-        .iter()
-        .map(|ub| {
-            let name = ub.rename
-                .as_ref()
-                .map_or(ub.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
-            let index_tokens = make_option_tokens(&ub.index);
-            let ty = &ub.ty;
+    let mut uniform_buffer_items = Vec::new();
+    let mut uniform_buffer_bind_statements = Vec::new();
+    for ub in uniform_buffers.iter() {
+        let orig_name = ub.ident.unwrap();
+        let name = ub.rename
+            .as_ref()
+            .map_or(ub.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+        let index_tokens = make_option_tokens(&ub.index);
+        let ty = &ub.ty;
 
+        uniform_buffer_items.push(
             quote! {
                 ::autograph::gfx::shader_interface::UniformBufferDesc {
                     name: Some(stringify!(#name).into()),
                     index: #index_tokens,
-                    tydesc: <#ty as ::autograph::gfx::BufferInterface>::get_description()
+                    tydesc: <#ty as ::autograph::gfx::BufferInterface>::get_layout()
                 }
+            });
+        uniform_buffer_bind_statements.push(quote! {
+            {
+                let slice_any = interface.#orig_name.to_slice_any();
+                bind_context.state_cache.set_uniform_buffer((#index_tokens).unwrap(), &slice_any);
+                bind_context.tracker.ref_buffer(slice_any.owner);
             }
-        })
-        .collect::<Vec<_>>();
+        });
+    }
+
     let num_uniform_buffer_items = uniform_buffer_items.len();
 
     //
@@ -511,8 +520,11 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
             }
 
             impl InterfaceBinder<#struct_name> for Binder {
-                unsafe fn bind_unchecked(&self, interface: &#struct_name, frame: &::autograph::gfx::Frame, state_cache: &::autograph::gfx::StateCache) {
-                    unimplemented!()
+                unsafe fn bind_unchecked(&self, interface: &#struct_name, bind_context: &mut ::autograph::gfx::InterfaceBindingContext) {
+                    use ::autograph::gfx::ToBufferSliceAny;
+                    unsafe {
+                        #(#uniform_buffer_bind_statements)*
+                    }
                 }
             }
 

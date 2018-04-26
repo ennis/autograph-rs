@@ -8,8 +8,8 @@ use gfx::shader_interface::ShaderInterface;
 use gfx::Frame;
 use gfx::Framebuffer;
 use gfx::TextureAny;
-use gfx::ToRawBufferSlice;
-use gfx::{BufferSlice, RawBufferSlice, SamplerDesc};
+use gfx::{ToBufferSlice, ToBufferSliceAny};
+use gfx::{BufferSlice, BufferSliceAny, SamplerDesc};
 use gl;
 use gl::types::*;
 
@@ -208,16 +208,15 @@ pub struct DrawCmdBuilder<'frame, 'queue: 'frame, 'binder> {
 
 impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
     /// Set a uniform buffer to use for this command.
-    pub fn with_uniform_buffer<U: ToRawBufferSlice>(mut self, slot: u32, buffer: &U) -> Self {
-        let buffer = unsafe { buffer.to_raw_slice() };
-        self.frame
-            .ref_buffers
-            .borrow_mut()
-            .push(buffer.owner.clone());
-
+    pub fn with_uniform_buffer<U: ToBufferSlice>(mut self, slot: u32, buffer: &U) -> Self {
+        let buffer = unsafe { buffer.to_slice_any() };
         unsafe {
             self.state_cache.set_uniform_buffer(slot, &buffer);
         }
+        self.frame
+            .resource_tracker
+            .borrow_mut()
+            .ref_buffer(buffer.owner);
         self
     }
 
@@ -229,30 +228,30 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
                     .set_texture(slot, tex, &gctx.get_sampler(sampler));
             }
         }
+        self.frame
+            .resource_tracker
+            .borrow_mut()
+            .ref_texture(tex.clone());
         self
     }
 
-    pub fn with_vertex_buffer<V: ToRawBufferSlice>(mut self, slot: u32, vertices: &V) -> Self {
-        let vertices = unsafe { vertices.to_raw_slice() };
-        self.frame
-            .ref_buffers
-            .borrow_mut()
-            .push(vertices.owner.clone());
-        let stride = mem::size_of::<<<V as ToRawBufferSlice>::Target as BufferData>::Element>();
+    pub fn with_vertex_buffer<V: ToBufferSlice>(mut self, slot: u32, vertices: &V) -> Self {
+        let vertices = unsafe { vertices.to_slice_any() };
+        let stride = mem::size_of::<<<V as ToBufferSlice>::Target as BufferData>::Element>();
         unsafe {
             self.state_cache.set_vertex_buffer(slot, &vertices, stride);
         }
+        self.frame
+            .resource_tracker
+            .borrow_mut()
+            .ref_buffer(vertices.owner);
         self
     }
 
-    pub fn with_index_buffer<I: ToRawBufferSlice>(mut self, indices: &I) -> Self {
-        let indices = unsafe { indices.to_raw_slice() };
-        self.frame
-            .ref_buffers
-            .borrow_mut()
-            .push(indices.owner.clone());
+    pub fn with_index_buffer<I: ToBufferSlice>(mut self, indices: &I) -> Self {
+        let indices = unsafe { indices.to_slice_any() };
         let index_stride =
-            mem::size_of::<<<I as ToRawBufferSlice>::Target as BufferData>::Element>();
+            mem::size_of::<<<I as ToBufferSlice>::Target as BufferData>::Element>();
         self.index_buffer_type = Some(match index_stride {
             4 => gl::UNSIGNED_INT,
             2 => gl::UNSIGNED_SHORT,
@@ -264,6 +263,10 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
         unsafe {
             self.state_cache.set_index_buffer(&indices);
         }
+        self.frame
+            .resource_tracker
+            .borrow_mut()
+            .ref_buffer(indices.owner);
         self
     }
 }

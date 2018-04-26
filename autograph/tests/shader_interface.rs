@@ -104,7 +104,7 @@ void main() {
 }
 
 #[repr(C)]
-#[derive(BufferInterface)]
+#[derive(Copy,Clone,BufferLayout)]
 struct CameraParams {
     view_matrix: [[f32; 4]; 4],
     proj_matrix: [[f32; 4]; 4],
@@ -124,7 +124,7 @@ struct Interface0 {
     #[texture_binding(index = "0")]
     tex: gfx::Texture2D,
     #[uniform_buffer(index = "0")]
-    camera_params: CameraParams,
+    camera_params: gfx::BufferSlice<CameraParams>,
 }
 
 #[test]

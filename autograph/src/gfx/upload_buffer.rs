@@ -1,4 +1,4 @@
-use super::buffer::{BufferSlice, BufferUsage, RawBuffer, RawBufferSlice};
+use super::buffer::{BufferSlice, BufferUsage, BufferAny, BufferSliceAny};
 use super::buffer_data::BufferData;
 use super::context::Context;
 use super::fence::FenceValue;
@@ -23,7 +23,7 @@ pub struct UploadBufferState {
 }
 
 pub struct UploadBuffer {
-    buffer: RawBuffer, // Owned
+    buffer: BufferAny, // Owned
     state: RefCell<UploadBufferState>,
     mapped_region: *mut u8,
 }
@@ -43,7 +43,7 @@ fn align_offset(align: usize, size: usize, ptr: usize, space: usize) -> Option<u
 impl UploadBuffer {
     pub fn new(gctx: &Context, buffer_size: usize) -> UploadBuffer {
         //UploadBuffer { _phantom: PhantomData }
-        let buffer = RawBuffer::new(gctx, buffer_size, BufferUsage::UPLOAD);
+        let buffer = BufferAny::new(gctx, buffer_size, BufferUsage::UPLOAD);
         let mapped_region = unsafe { buffer.map_persistent_unsynchronized() as *mut u8 };
 
         UploadBuffer {
@@ -88,7 +88,7 @@ impl UploadBuffer {
         align: usize,
         fence_value: FenceValue,
         reclaim_until: FenceValue,
-    ) -> Option<RawBufferSlice> {
+    ) -> Option<BufferSliceAny> {
         //debug!("alloc size={}, align={}, fence_value={:?}", size, align, fence_value);
         if let Some(offset) = self.try_allocate_contiguous(size, align, fence_value) {
             Some(self.buffer.get_slice(offset, size))

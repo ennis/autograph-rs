@@ -3,7 +3,9 @@ use super::buffer_data::BufferData;
 use super::format::Format;
 use super::pipeline::GraphicsPipeline;
 use super::texture::*;
-use super::Frame;
+use super::{Frame, ResourceTracker};
+use super::upload_buffer::UploadBuffer;
+use gfx;
 use failure::Error;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -66,7 +68,8 @@ pub struct UniformConstantDesc {
 pub struct UniformBufferDesc {
     pub name: Option<String>,
     pub index: Option<u32>,
-    pub tydesc: &'static TypeDesc,
+    /// This can be none if using a BufferSliceAny
+    pub tydesc: Option<&'static TypeDesc>,
 }
 
 /// An input buffer for vertex data
@@ -186,14 +189,28 @@ impl_index_element_type!(u32, R32_UINT);
 /// Trait implemented by types that are layout-compatible with an specific
 /// to GLSL/SPIR-V type.
 /// An implementation is provided for most primitive types and arrays of primitive types.
-/// Structs can derive it automatically with `#[derive(BufferInterface)]`
-pub unsafe trait BufferInterface {
+/// Structs can derive it automatically with `#[derive(BufferLayout)]`
+pub unsafe trait BufferLayout {
     fn get_description() -> &'static TypeDesc;
 }
 
-macro_rules! impl_interface_type {
+/// Trait implemented by types that can be bound to the pipeline with a
+/// variant of glProgramUniform
+/// An implementation is provided for most primitive types .
+pub unsafe trait UniformInterface {
+    fn get_description() -> &'static TypeDesc;
+}
+
+
+macro_rules! impl_uniform_type {
     ($t:ty, $tydesc:expr) => {
-        unsafe impl BufferInterface for $t {
+        unsafe impl BufferLayout for $t {
+            fn get_description() -> &'static TypeDesc {
+                static DESC: TypeDesc = $tydesc;
+                &DESC
+            }
+        }
+        unsafe impl UniformInterface for $t {
             fn get_description() -> &'static TypeDesc {
                 static DESC: TypeDesc = $tydesc;
                 &DESC
@@ -202,17 +219,52 @@ macro_rules! impl_interface_type {
     };
 }
 
-impl_interface_type!(f32, TypeDesc::Primitive(PrimitiveType::Float));
-impl_interface_type!([f32; 2], TypeDesc::Vector(PrimitiveType::Float, 2));
-impl_interface_type!([f32; 3], TypeDesc::Vector(PrimitiveType::Float, 3));
-impl_interface_type!([f32; 4], TypeDesc::Vector(PrimitiveType::Float, 4));
-impl_interface_type!(i32, TypeDesc::Primitive(PrimitiveType::Int));
-impl_interface_type!([i32; 2], TypeDesc::Vector(PrimitiveType::Int, 2));
-impl_interface_type!([i32; 3], TypeDesc::Vector(PrimitiveType::Int, 3));
-impl_interface_type!([i32; 4], TypeDesc::Vector(PrimitiveType::Int, 4));
-impl_interface_type!([[f32; 2]; 2], TypeDesc::Matrix(PrimitiveType::Float, 2, 2));
-impl_interface_type!([[f32; 3]; 3], TypeDesc::Matrix(PrimitiveType::Float, 3, 3));
-impl_interface_type!([[f32; 4]; 4], TypeDesc::Matrix(PrimitiveType::Float, 4, 4));
+impl_uniform_type!(f32, TypeDesc::Primitive(PrimitiveType::Float));
+impl_uniform_type!([f32; 2], TypeDesc::Vector(PrimitiveType::Float, 2));
+impl_uniform_type!([f32; 3], TypeDesc::Vector(PrimitiveType::Float, 3));
+impl_uniform_type!([f32; 4], TypeDesc::Vector(PrimitiveType::Float, 4));
+impl_uniform_type!(i32, TypeDesc::Primitive(PrimitiveType::Int));
+impl_uniform_type!([i32; 2], TypeDesc::Vector(PrimitiveType::Int, 2));
+impl_uniform_type!([i32; 3], TypeDesc::Vector(PrimitiveType::Int, 3));
+impl_uniform_type!([i32; 4], TypeDesc::Vector(PrimitiveType::Int, 4));
+impl_uniform_type!([[f32; 2]; 2], TypeDesc::Matrix(PrimitiveType::Float, 2, 2));
+impl_uniform_type!([[f32; 3]; 3], TypeDesc::Matrix(PrimitiveType::Float, 3, 3));
+impl_uniform_type!([[f32; 4]; 4], TypeDesc::Matrix(PrimitiveType::Float, 4, 4));
+
+/// Trait implemented by types that can be bound to the pipeline as a buffer object
+pub unsafe trait BufferInterface: gfx::ToBufferSliceAny {
+    /// Get the layout of the buffer data, if it is known.
+    fn get_layout() -> Option<&'static TypeDesc>;
+}
+
+/*unsafe impl<T: BufferData+BufferLayout> BufferInterface for gfx::Buffer<T>
+{
+    fn get_layout() -> Option<&'static BufferLayout> {
+        Some(<T as BufferLayout>::get_description())
+    }
+}
+
+unsafe impl BufferInterface for gfx::BufferAny
+{
+    fn get_layout() -> Option<&'static BufferLayout> {
+        None
+    }
+}*/
+
+// impl for typed buffers
+unsafe impl<T: BufferData+BufferLayout> BufferInterface for gfx::BufferSlice<T>
+{
+    fn get_layout() -> Option<&'static TypeDesc> {
+        Some(<T as BufferLayout>::get_description())
+    }
+}
+
+// impl for untyped buffers
+unsafe impl BufferInterface for gfx::BufferSliceAny {
+    fn get_layout() -> Option<&'static TypeDesc> {
+        None
+    }
+}
 
 /// Description of a vertex attribute.
 #[derive(Clone, Debug)]
@@ -276,13 +328,19 @@ pub trait ShaderInterfaceDesc: Sync + 'static {
     fn get_texture_bindings(&self) -> &[TextureBindingDesc];
 }
 
+pub struct InterfaceBindingContext<'a> {
+    pub tracker: &'a mut ResourceTracker,
+    pub upload_buffer: &'a UploadBuffer,
+    pub state_cache: &'a mut StateCache
+}
+
 pub trait InterfaceBinder<T: ShaderInterface> {
     /// Binds the contents of the shader interface to the OpenGL pipeline, without any validation.
     /// Validation is intended to be done when creating the graphics/compute pipeline.
     ///
     /// uniform constant => <ty as UniformConstantInterface>.bind(uniform_binder);
     /// uniform buffer => uniform_binder.bind(binding, buffer)
-    unsafe fn bind_unchecked(&self, interface: &T, frame: &Frame, state_cache: &StateCache);
+    unsafe fn bind_unchecked(&self, interface: &T, bind_context: &mut InterfaceBindingContext);
 }
 
 /// Trait implemented by types that represent a shader interface.

@@ -53,7 +53,7 @@ use main_loop::MainLoop;
 const UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, BufferInterface)]
+#[derive(Copy, Clone, Debug, BufferLayout)]
 struct CameraParameters {
     view_matrix: [[f32; 4]; 4],
     proj_matrix: [[f32; 4]; 4],
@@ -75,9 +75,9 @@ struct MyVertexType {
 
 #[derive(ShaderInterface)]
 struct TestShaderInterface {
-    #[named_uniform(rename = "transform")]
+    #[uniform_constant(rename = "transform")]
     matrix: [f32; 4],
-    #[named_uniform]
+    #[uniform_constant]
     color: [f32; 4],
     #[texture_binding(index = "0", rename = "diffuse")]
     #[autobind(path = "data/textures/background.png")]
