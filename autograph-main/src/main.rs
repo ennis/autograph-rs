@@ -44,11 +44,13 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
+use autograph::gfx::GraphicsPipelineBuilder;
 use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
 use autograph::gfx::DrawUtilsExt;
 
 use image::GenericImage;
 use main_loop::MainLoop;
+use failure::Error;
 
 const UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
@@ -65,6 +67,14 @@ struct CameraParameters {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone, Debug, BufferLayout)]
+struct ObjectParameters {
+    model_matrix: [[f32; 4]; 4],
+    prev_model_matrix: [[f32; 4]; 4],
+    object_id: i32
+}
+
+#[repr(C)]
 #[derive(Copy, Clone, Debug, VertexType)]
 struct MyVertexType {
     position: [f32; 3],
@@ -74,20 +84,19 @@ struct MyVertexType {
 }
 
 #[derive(ShaderInterface)]
-struct TestShaderInterface {
-    #[uniform_constant(rename = "transform")]
-    matrix: [f32; 4],
-    #[uniform_constant]
-    color: [f32; 4],
-    #[texture_binding(index = "0", rename = "diffuse")]
-    #[autobind(path = "data/textures/background.png")]
-    texture: gfx::TextureAny,
+struct MeshShaderInterface {
+    #[texture_binding(index = "0")]
+    texture: gfx::SampledTexture2D,
     #[vertex_buffer(index = "0")]
     vertices: gfx::BufferSlice<[MyVertexType]>,
     #[index_buffer]
     indices: gfx::BufferSlice<[u32]>,
     #[render_target(index = "0")]
-    diffuse: gfx::TextureAny,
+    diffuse: gfx::SampledTexture2D,
+    #[uniform_buffer(index="0")]
+    camera_params: gfx::BufferSlice<CameraParameters>,
+    #[uniform_buffer(index="1")]
+    object_params: gfx::BufferSlice<ObjectParameters>
 }
 
 impl CameraParameters {
@@ -212,13 +221,14 @@ struct State<'c> {
     scene: Option<Scene>,
     camera_control: CameraControl,
     interpolation_mode: i32,
+    mesh_shader: Option<gfx::TypedGraphicsPipeline<MeshShaderInterface>>
 }
 
 impl<'c> State<'c> {
     fn new(context: &gfx::Context, cache: &'c Cache) -> State<'c> {
-        dump_shader_interface::<TestShaderInterface>();
+        dump_shader_interface::<MeshShaderInterface>();
 
-        State {
+        let mut state = State {
             tex_offset: [0.0f32; 2],
             tex_rotation: 0.0,
             tex_scale: 1.0,
@@ -231,11 +241,36 @@ impl<'c> State<'c> {
             scene: None,
             camera_control: CameraControl::default(),
             interpolation_mode: 0,
-        }
+            mesh_shader: None
+        };
+        state.reload_pipelines();
+        state
     }
 
     fn reload_scene(&mut self) {
         self.scene = Scene::load(&self.context, &self.cache, &self.scene_file).ok();
+    }
+
+    fn reload_pipelines(&mut self) -> Result<(),Error>
+    {
+        let mesh_shader = GraphicsPipelineBuilder::new().with_glsl_file_via_spirv("data/shaders/deferred.glsl")?
+            .with_rasterizer_state(&gfx::RasterizerState {
+                fill_mode: gl::FILL,
+                ..Default::default()
+            })
+            .with_all_blend_states(&gfx::BlendState {
+                enabled: true,
+                mode_rgb: gl::FUNC_ADD,
+                mode_alpha: gl::FUNC_ADD,
+                func_src_rgb: gl::SRC_ALPHA,
+                func_dst_rgb: gl::ONE_MINUS_SRC_ALPHA,
+                func_src_alpha: gl::ONE,
+                func_dst_alpha: gl::ZERO,
+            })
+            .build(&self.context)?
+            .into_typed::<MeshShaderInterface>()?;
+        self.mesh_shader = Some(mesh_shader);
+        Ok(())
     }
 
     fn reload_tex(&mut self) {
