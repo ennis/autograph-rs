@@ -128,7 +128,7 @@ struct Interface0 {
 }
 
 #[test]
-fn test_stuff() {
+fn test_shader_interface_basic() {
     load_pipeline_and_check_interface::<Interface0>(shader_skeleton! { r#"
 layout(location=0) uniform float A;
 layout(binding=0) uniform sampler2D tex;

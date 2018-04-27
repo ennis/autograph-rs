@@ -10,8 +10,6 @@
 #![feature(iterator_find_map)]
 
 #[macro_use]
-extern crate autograph_derive;
-#[macro_use]
 extern crate failure;
 extern crate alga;
 extern crate assimp_sys;

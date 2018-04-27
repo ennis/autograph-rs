@@ -8,8 +8,19 @@ build = "build.rs"
 gl_generator = "*"
 embed-resource = "*"
 
-[dependencies]
+[dev-dependencies]
 autograph-derive = { path = "../autograph-derive" }
+pretty_env_logger = "*"
+log = "*"
+itertools = "*"
+winit = "*"
+glutin = "*"
+failure = "*"
+image = "*"
+nfd = "*"
+time="*"
+
+[dependencies]
 derive_deref = "*"
 memoffset = "*"
 failure = "*"
