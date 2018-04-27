@@ -1,6 +1,7 @@
 #version 450
 #include "utils.glsli"
 
+#pragma stages(vertex,fragment)
 #pragma input_layout(rgb32f,0,0, rgb32f,0,12, rgb32f,0,24, rg32f,0,36)
 #pragma primitive_topology(triangle)
 
@@ -20,28 +21,17 @@ layout(std140, binding = 1) uniform ObjectParameters {
 	int uObjectID;
 };
 
-struct CameraParameters {
-	mat4 uViewMatrix;
-	mat4 uProjMatrix;
-	mat4 uViewProjMatrix;
-	mat4 uInvProjMatrix;
-	mat4 uPrevViewProjMatrixVelocity;
-	mat4 uViewProjMatrixVelocity;
-	vec2 uTAAOffset;
-};
-
 #ifdef _VERTEX_
 	layout(location = 0) in vec3 iPosition;
 	layout(location = 1) in vec3 iNormal;
 	layout(location = 2) in vec3 iTangent;
 	layout(location = 3) in vec2 iTexcoords;
 
-	out vec3 Nv0;
-	//out vec3 Pv;
-	out vec3 Tv0;
-	out vec2 uv;
-	out vec4 prevPos;
-	out vec4 curPos;
+	layout(location=0) out vec3 Nv0;
+	layout(location=1) out vec3 Tv0;
+	layout(location=2) out vec2 uv;
+	layout(location=3) out vec4 prevPos;
+	layout(location=4) out vec4 curPos;
 
 	void main() {
 	  gl_Position = uViewProjMatrix * uModelMatrix * vec4(iPosition, 1.0f);
@@ -59,12 +49,11 @@ struct CameraParameters {
 
 #ifdef _FRAGMENT_
 
-	in vec3 Nv0;
-	//in vec3 Pv;
-	in vec3 Tv0;
-	in vec2 uv;
-	in vec4 prevPos;
-	in vec4 curPos;
+	layout(location=0) in vec3 Nv0;
+	layout(location=1) in vec3 Tv0;
+	layout(location=2) in vec2 uv;
+	layout(location=3) in vec4 prevPos;
+	layout(location=4) in vec4 curPos;
 
 	layout(location = 0) out vec4 rtAlbedo; 	// RGBA8
 	layout(location = 1) out vec4 rtNormals;	// RG16F

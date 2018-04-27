@@ -243,7 +243,7 @@ impl<'c> State<'c> {
             interpolation_mode: 0,
             mesh_shader: None
         };
-        state.reload_pipelines();
+        state.reload_pipelines().map_err(|err| error!("Reload pipelines failed: {}", err));
         state
     }
 

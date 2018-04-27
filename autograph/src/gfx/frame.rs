@@ -163,6 +163,19 @@ impl<'q> Frame<'q> {
         self.upload_into(self.queue.default_upload_buffer(), data)
     }
 
+    /// Add the specified buffer to the list of resources required by this frame.
+    /// The Frame object will hold a strong ref to the buffer until the frame is complete.
+    /// This function is for internal use by Frame, DrawExt and automatic shader interface binding.
+    /// You don't need to call it manually for the resources that you pass through these APIs.
+    pub fn ref_buffer(&self, buf: BufferAny) {
+        self.resource_tracker.borrow_mut().ref_buffer(buf);
+    }
+
+    /// See ref_buffer for more info.
+    pub fn ref_texture(&self, tex: TextureAny) {
+        self.resource_tracker.borrow_mut().ref_texture(tex);
+    }
+
     /// Returns the current value of the fence of the queue.
     pub fn fence_value(&self) -> FenceValue {
         self.queue.fence.borrow().next_value()

@@ -387,9 +387,9 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
              {
                 let tex = interface.#orig_name.get_texture().into_texture_any();
                 let sampler = interface.#orig_name.get_sampler();
-                let sampler_obj = bind_context.gctx.get_sampler(sampler);
-                bind_context.state_cache.set_texture((#index_tokens).unwrap(), &tex, &sampler_obj);
-                bind_context.tracker.ref_texture(tex);
+                let sampler_obj = frame.queue().context().get_sampler(sampler);
+                state_cache.set_texture((#index_tokens).unwrap(), &tex, &sampler_obj);
+                frame.ref_texture(tex);
             }
         });
     }
@@ -442,8 +442,8 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
         uniform_buffer_bind_statements.push(quote! {
             {
                 let slice_any = interface.#orig_name.to_slice_any();
-                bind_context.state_cache.set_uniform_buffer((#index_tokens).unwrap(), &slice_any);
-                bind_context.tracker.ref_buffer(slice_any.owner);
+                state_cache.set_uniform_buffer((#index_tokens).unwrap(), &slice_any);
+                frame.ref_buffer(slice_any.owner);
             }
         });
     }
@@ -530,7 +530,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
             }
 
             impl InterfaceBinder<#struct_name> for Binder {
-                unsafe fn bind_unchecked(&self, interface: &#struct_name, bind_context: &mut ::autograph::gfx::InterfaceBindingContext) {
+                unsafe fn bind_unchecked(&self, interface: &#struct_name, frame: &::autograph::gfx::Frame, state_cache: &mut ::autograph::gfx::StateCache) {
                     use ::autograph::gfx::ToBufferSliceAny;
                     use ::autograph::gfx::SampledTextureInterface;
                     unsafe {

@@ -983,7 +983,12 @@ Requirements:
     - This is a user-facing API, not meant as an intermediate API
     - NO: vertex buffer interface is part of the pipeline, not a part of the command
 - Describe a layout for the uniforms+vertex input (with a macro, then autobind)
- 
+
+##### High-level context creation
+- level 3: open window, have a default context and queue, return event loop (from glutin)
+- level 2: create a GlWindow manually, then create a MainLoop object
+- level 1: create and link everything manually (GlWindow, gfx::Context, gfx::Queue, gfx::Frame, gfx::Framebuffer)
+- Q: control of the event loop?
 
 ### Rendering large worlds
 

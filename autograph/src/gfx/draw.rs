@@ -3,7 +3,7 @@ use gfx::bind::{bind_graphics_pipeline, bind_scissors, bind_target, bind_uniform
                 bind_vertex_input, SG_ALL};
 use gfx::bind::{Scissors, Uniforms, VertexInput};
 use gfx::buffer_data::BufferData;
-use gfx::pipeline::GraphicsPipeline;
+use gfx::pipeline::{GraphicsPipeline, TypedGraphicsPipeline};
 use gfx::shader_interface::ShaderInterface;
 use gfx::Frame;
 use gfx::Framebuffer;
@@ -72,6 +72,16 @@ pub trait DrawExt<'queue> {
     ) -> DrawCmdBuilder<'frame, 'queue, 'pipeline>
     where
         'queue: 'frame;
+
+    fn draw2<'frame, 'pipeline, T: ShaderInterface>(
+        &'frame self,
+        target: &Framebuffer,
+        pipeline: &'pipeline TypedGraphicsPipeline<T>,
+        interface: &T,
+        cmd: DrawCmd,
+    ) -> DrawCmdBuilder<'frame, 'queue, 'pipeline>
+        where
+            'queue: 'frame;
 }
 
 impl<'queue> DrawExt<'queue> for Frame<'queue> {
@@ -169,11 +179,6 @@ impl<'queue> DrawExt<'queue> for Frame<'queue> {
     where
         'queue: 'frame,
     {
-        // first, begin by binding the GraphicsPipeline
-        // this means
-        // - calling glUseProgram
-        // - setting draw states
-
         let mut state_cache = self.state_cache.borrow_mut();
         let fb_size = target.size();
         let viewports = [(0f32, 0f32, fb_size.0 as f32, fb_size.1 as f32); 8];
@@ -187,6 +192,41 @@ impl<'queue> DrawExt<'queue> for Frame<'queue> {
             state_cache,
             cmd,
             pipeline: &pipeline,
+            index_buffer_offset: None,
+            index_stride: None,
+            index_buffer_type: None,
+        }
+    }
+
+    /// V2 API
+    fn draw2<'frame, 'pipeline, T: ShaderInterface>(
+        &'frame self,
+        target: &Framebuffer,
+        pipeline: &'pipeline TypedGraphicsPipeline<T>,
+        interface: &T,
+        cmd: DrawCmd,
+    ) -> DrawCmdBuilder<'frame, 'queue, 'pipeline>
+        where
+            'queue: 'frame,
+    {
+        unsafe {
+            let mut state_cache = self.state_cache.borrow_mut();
+            pipeline.binder.bind_unchecked(interface, self, &mut state_cache);
+        }
+
+        let mut state_cache = self.state_cache.borrow_mut();
+        let fb_size = target.size();
+        let viewports = [(0f32, 0f32, fb_size.0 as f32, fb_size.1 as f32); 8];
+        unsafe {
+            state_cache.set_graphics_pipeline(&pipeline.pipeline);
+            state_cache.set_target(target, &viewports);
+        }
+
+        DrawCmdBuilder {
+            frame: self,
+            state_cache,
+            cmd,
+            pipeline: &pipeline.pipeline,
             index_buffer_offset: None,
             index_stride: None,
             index_buffer_type: None,

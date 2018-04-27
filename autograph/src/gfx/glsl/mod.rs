@@ -656,11 +656,11 @@ impl GraphicsPipelineBuilderExt for GraphicsPipelineBuilder {
         let src_path_str = path.as_ref().to_str().unwrap();
         let spv_modules = compile_glsl_to_spirv(
             SourceWithFileName {
-                source: pp.vertex.as_ref().unwrap(),
+                source: pp.vertex.as_ref().ok_or(format_err!("No vertex shader defined in input file (missing `#pragma stages' directive?)"))?,
                 file_name: &src_path_str,
             },
             SourceWithFileName {
-                source: pp.fragment.as_ref().unwrap(),
+                source: pp.fragment.as_ref().ok_or(format_err!("No fragment shader defined in input file (missing `#pragma stages' directive?)"))?,
                 file_name: &src_path_str,
             },
             pp.geometry.as_ref().map(|geom| SourceWithFileName {

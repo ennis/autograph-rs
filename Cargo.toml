@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "spirv-reflect",
     "autograph",
     "autograph-main",
     "autograph-derive",

@@ -358,7 +358,7 @@ pub trait InterfaceBinder<T: ShaderInterface> {
     ///
     /// uniform constant => <ty as UniformConstantInterface>.bind(uniform_binder);
     /// uniform buffer => uniform_binder.bind(binding, buffer)
-    unsafe fn bind_unchecked(&self, interface: &T, bind_context: &mut InterfaceBindingContext);
+    unsafe fn bind_unchecked(&self, interface: &T, frame: &Frame, state_cache: &mut StateCache);
 }
 
 /// Trait implemented by types that represent a shader interface.
