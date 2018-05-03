@@ -15,6 +15,7 @@ pub trait DrawUtilsExt<'queue> {
     ) -> DrawCmdBuilder<'frame, 'queue, 'pipeline>
     where
         'queue: 'frame;
+
     fn blit_texture(
         &self,
         target: &Framebuffer,
@@ -122,6 +123,7 @@ impl<'queue> DrawUtilsExt<'queue> for Frame<'queue> {
 
         self.draw_quad(target, &pipeline, (0.0, 1.0, 0.0, 1.0))
             .with_texture(0, tex, sampler)
-            .with_uniform_buffer(0, &uniform_buffer);
+            .with_uniform_buffer(0, &uniform_buffer)
+            .submit();
     }
 }

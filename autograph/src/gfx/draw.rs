@@ -236,6 +236,7 @@ impl<'queue> DrawExt<'queue> for Frame<'queue> {
 
 /// Draw command builder.
 /// Statically locks the frame object: allocate your buffers before starting a command!
+#[must_use]
 pub struct DrawCmdBuilder<'frame, 'queue: 'frame, 'binder> {
     frame: &'frame Frame<'queue>,
     pipeline: &'binder GraphicsPipeline,
@@ -244,6 +245,14 @@ pub struct DrawCmdBuilder<'frame, 'queue: 'frame, 'binder> {
     index_buffer_offset: Option<usize>,
     index_stride: Option<usize>,
     cmd: DrawCmd,
+}
+
+
+// Drop bomb
+impl<'frame, 'queue: 'frame, 'binder> Drop for DrawCmdBuilder<'frame, 'queue, 'binder> {
+    fn drop(&mut self) {
+        panic!("unsubmitted draw command")
+    }
 }
 
 impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
@@ -261,7 +270,6 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
     }
 
     pub fn with_texture(mut self, slot: u32, tex: &TextureAny, sampler: &SamplerDesc) -> Self {
-
             let gctx = self.frame.queue().context();
             unsafe {
                 self.state_cache
@@ -309,11 +317,9 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
             .ref_buffer(indices.owner);
         self
     }
-}
 
-/// Submit on drop
-impl<'frame, 'queue: 'frame, 'binder> Drop for DrawCmdBuilder<'frame, 'queue, 'binder> {
-    fn drop(&mut self) {
+    pub fn submit(mut self)
+    {
         unsafe {
             self.state_cache.commit();
         }
@@ -336,5 +342,16 @@ impl<'frame, 'queue: 'frame, 'binder> Drop for DrawCmdBuilder<'frame, 'queue, 'b
                 );
             },
         }
+
+        // extract everything that needs to be dropped, and drop it there
+        // then, forget (leak) the DrawCmdBuilder to prevent the destructor bomb from going off
+        let mut state_cache = unsafe { mem::uninitialized() };
+        let mut cmd = unsafe { mem::uninitialized() };
+        mem::swap(&mut self.state_cache, &mut state_cache);
+        mem::swap(&mut self.cmd, &mut cmd);
+        drop(state_cache);
+        drop(cmd);
+        mem::forget(self);
     }
 }
+

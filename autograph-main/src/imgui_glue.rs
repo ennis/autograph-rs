@@ -129,7 +129,7 @@ impl Renderer {
                         mag_filter: gfx::TextureMagFilter::Nearest,
                         min_filter: gfx::TextureMinFilter::Linear,
                     },
-                );
+                ).submit();
 
             /*frame.begin_draw(target, &self.pipeline)
                 .with_vertex_buffer(0, &vertex_buffer)
