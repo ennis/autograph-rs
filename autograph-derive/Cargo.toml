@@ -10,6 +10,7 @@ quote = "*"
 syn = "*"
 darling = "*"
 proc-macro2 = "*"
+memoffset="*"
 
 [lib]
 proc-macro = true

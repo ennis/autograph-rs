@@ -6,7 +6,7 @@
 #![feature(log_syntax)]
 #![feature(const_unsafe_cell_new)]
 #![feature(ascii_ctype)]
-#![feature(macro_reexport)]
+#![feature(use_extern_macros)]
 #![feature(iterator_find_map)]
 
 #[macro_use]
@@ -23,7 +23,6 @@ extern crate typed_arena;
 #[macro_use]
 extern crate log;
 #[macro_use]
-#[macro_reexport(lazy_static)]
 extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
@@ -38,7 +37,6 @@ extern crate url;
 #[macro_use]
 extern crate derive_deref;
 #[macro_use]
-#[macro_reexport(offset_of)]
 extern crate memoffset;
 
 // Hack for autograph-derive
@@ -62,3 +60,4 @@ pub mod mesh;
 pub mod rect_transform;
 pub mod scene_loader;
 pub mod scene_object;
+pub use memoffset::offset_of;
