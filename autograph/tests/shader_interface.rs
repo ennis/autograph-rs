@@ -2,106 +2,9 @@
 extern crate autograph;
 #[macro_use]
 extern crate autograph_derive;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate failure;
 
+#[macro_use] mod common;
 use autograph::gfx;
-use autograph::gfx::glsl::interface::{verify_spirv_interface, ShaderInterfaceVerificationError};
-use autograph::gfx::glsl::{compile_glsl_to_spirv, preprocess_combined_shader_source,
-                           SourceWithFileName, SpirvModules};
-use autograph::gfx::shader_interface::{ShaderInterface, ShaderInterfaceDesc};
-use autograph::gfx::GraphicsShaderPipeline;
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
-
-fn load_spv_modules(src: &str) -> SpirvModules {
-    let (_, pp) = preprocess_combined_shader_source(src, "<internal>", &[], &[]);
-    let src_path_str = "<internal>";
-    let spv_modules = compile_glsl_to_spirv(
-        SourceWithFileName {
-            source: pp.vertex.as_ref().unwrap(),
-            file_name: &src_path_str,
-        },
-        SourceWithFileName {
-            source: pp.fragment.as_ref().unwrap(),
-            file_name: &src_path_str,
-        },
-        pp.geometry.as_ref().map(|geom| SourceWithFileName {
-            source: geom,
-            file_name: &src_path_str,
-        }),
-        pp.tess_control
-            .as_ref()
-            .map(|tess_control| SourceWithFileName {
-                source: tess_control,
-                file_name: &src_path_str,
-            }),
-        pp.tess_eval.as_ref().map(|tess_eval| SourceWithFileName {
-            source: tess_eval,
-            file_name: &src_path_str,
-        }),
-    ).unwrap();
-    spv_modules
-}
-
-fn dump_error(error: &failure::Error) {
-    let mut fail = error.cause();
-    eprintln!("error: {}", fail);
-    while let Some(cause) = fail.cause() {
-        eprintln!("Caused by: {}", cause);
-        fail = cause;
-    }
-}
-
-fn load_pipeline_and_check_interface<I: ShaderInterface>(src: &str) {
-    let spv = load_spv_modules(src);
-    let desc = <I as ShaderInterface>::get_description();
-    let result = verify_spirv_interface(
-        desc,
-        spv.vs.as_ref(),
-        spv.fs.as_ref(),
-        spv.gs.as_ref().map(|v| v.as_ref()),
-        spv.tcs.as_ref().map(|v| v.as_ref()),
-        spv.tes.as_ref().map(|v| v.as_ref()),
-    );
-    if let Err(ShaderInterfaceVerificationError(ref errors)) = result {
-        for err in errors.iter() {
-            dump_error(err);
-            eprintln!();
-        }
-        panic!()
-    }
-}
-
-macro_rules! shader_skeleton {
-    ($src:expr) => {
-        concat!(
-            r#"#version 450
-#pragma stages(vertex,fragment)
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_shading_language_420pack : enable"#,
-            $src,
-            r#"
-#ifdef _VERTEX_
-// visible to this stage only
-layout(location=1) uniform float b;
-void main() {
-  gl_Position = vec4(0.0);
-}
-#endif
-#ifdef _FRAGMENT_
-layout(location = 0) out vec4 color;
-void main() {
-    color = vec4(0.0);
-}
-#endif
-"#
-        );
-    };
-}
 
 #[repr(C)]
 #[derive(Copy,Clone,BufferLayout)]
@@ -129,7 +32,7 @@ struct Interface0 {
 
 #[test]
 fn test_shader_interface_basic() {
-    load_pipeline_and_check_interface::<Interface0>(shader_skeleton! { r#"
+    load_pipeline_and_check_interface::<Interface0>(make_interface_test_shader! { r#"
 layout(location=0) uniform float A;
 layout(binding=0) uniform sampler2D tex;
 

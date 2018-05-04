@@ -1,12 +1,43 @@
 use cassowary::strength::{MEDIUM, REQUIRED, STRONG, WEAK};
 use cassowary::WeightedRelation::*;
-use cassowary::{Solver, Variable};
+use cassowary::{Solver, Variable, Constraint};
 use nvg;
 use petgraph::graphmap::DiGraphMap;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry, HashSet};
 use std::hash::{Hash, Hasher, SipHasher};
+use std::mem::replace;
+use diff;
+use indexmap::IndexMap;
+
+// Layout must be done once the full list of children is known
+// Detect differences in the list of children => produce diff
+// prev, next
+// on insertion at child index #n:
+// if prev[#n].id != id { add diff: Replace(#0 -> id) }
+// remaining indices { Remove(#n) }
+// new indices { Add(#n) }
+// process all diffs:
+// if replace or remove, remove all constraints from the removed items, move items in the garbage bin (or simply delete them)
+// perform layout with all added items
+//
+// Context for adding an element:
+// prev_list, diffs, elem_hash, child_index
+// prev_list: list of item IDs
+//
+// Context for layout:
+// - child_list: Vec<ID>
+// - added_items: Vec<ID>
+//
+// Issue: where to store the list of children for an item?
+// -> child list is borrowed during updates, which borrows the hashmap, which prevents mutation of the hashmap
+// -> this is safe however, since the item owning the list cannot be deleted
+// -> solutions: - hashmap lookup of the parent each time the child list needs to be accessed: costly
+//               - unsafe code**
+//               - Rc<Item>
+//               - each item has its own hashmap
+//               - move the boxed data outside, and put it back again
 
 pub struct FontId(u32);
 
@@ -68,42 +99,198 @@ pub enum Style {
 pub struct Item {
     /// Preferred size of the item
     /// They are automatically added as constraints, but you can add them manually.
-    pref_width: Option<f32>,
-    pref_height: Option<f32>,
+    //pref_width: Option<f32>,
+    //pref_height: Option<f32>,
     /// item bounds as cassowary variables
     bounds: ItemBounds,
+    /// cassowary constraints associated to this item
+    constraints: Vec<Constraint>,
     //state: Box<RefCell<Any>>,
+    children: IndexMap<ItemID, Item>,
+    /// Last update frame index
+    last_update: u64
+}
+
+impl Item
+{
+    pub fn new(cur_frame: u64) -> Item {
+        Item {
+            children: IndexMap::new(),
+            last_update: cur_frame,
+            bounds: ItemBounds::default(),
+            constraints: Vec::new()
+        }
+    }
+
+    pub fn replace_children(&mut self, new: IndexMap<ItemID, Item>) -> IndexMap<ItemID, Item> {
+        replace(&mut self.children, new)
+    }
+
+    pub fn add_constraint(&mut self, solver: &mut Solver, constraint: Constraint) {
+        self.constraints.push(constraint.clone());
+        solver.add_constraint(constraint);
+    }
+
+    pub fn add_constraints<'a, I: IntoIterator<Item = &'a Constraint>>(&mut self, solver: &mut Solver, constraints: I) {
+        for constraint in constraints {
+            self.add_constraint(solver, constraint.clone());
+        }
+    }
+
+    pub fn remove_all_constraints(&mut self, solver: &mut Solver) {
+        for c in self.constraints.drain(..) {
+            solver.remove_constraint(&c);
+        }
+    }
+}
+
+pub struct IdStack(Vec<ItemID>);
+
+impl IdStack
+{
+    pub fn new(root_id: ItemID) -> IdStack
+    {
+        IdStack(vec![root_id])
+    }
+
+    fn chain_hash<H: Hash>(&self, s: &H) -> ItemID {
+        let stacklen = self.0.len();
+        let key1 = if stacklen >= 2 {
+            self.0[stacklen - 2]
+        } else {
+            0
+        };
+        let key0 = if stacklen >= 1 {
+            self.0[stacklen - 1]
+        } else {
+            0
+        };
+        let mut sip = SipHasher::new_with_keys(key0, key1);
+        s.hash(&mut sip);
+        sip.finish()
+    }
+
+    pub fn push_id<H: Hash>(&mut self, s: &H) -> ItemID {
+        let id = self.chain_hash(s);
+        let parent_id = *self.0.last().unwrap();
+        self.0.push(id);
+        id
+    }
+
+    pub fn pop_id(&mut self) {
+        self.0.pop();
+    }
 }
 
 pub struct Ui {
-    //draw_items: Vec<DrawItem>,
-    items: HashMap<ItemID, Item>,
-    id_stack: Vec<ItemID>,
-    root: ItemID,
-    root_bounds: ItemBounds,
-    graph: DiGraphMap<ItemID, ()>,
+    id_stack: IdStack,
+    root: Item,
+    cur_frame: u64,
     solver: Solver,
 }
 
-pub struct UiContainer<'ui> {
-    ui: &'ui mut Ui,
-    bounds: ItemBounds,
+// - cannot have a mutable borrow of the Ui (for the ID stack and the solver) and a mutable borrow of
+//   one Item (borrows Ui indirectly) at the same time.
+//   -> separate the Item borrow chain from Ui
+
+pub struct UiContainer<'a> {
+    id_stack: &'a mut IdStack,
+    solver: &'a mut Solver,
+    item: &'a mut Item,
+    cur_frame: u64
 }
+
+impl<'a> UiContainer<'a>
+{
+    pub fn new(item: &'a mut Item, id_stack: &'a mut IdStack, solver: &'a mut Solver, cur_frame: u64) -> UiContainer<'a> {
+        UiContainer {
+            id_stack,
+            item,
+            solver,
+            cur_frame
+        }
+    }
+
+    pub fn new_item<'s, F: FnOnce()->Item>(&'s mut self, new_item_id: ItemID, f: F) -> UiContainer<'s>  {
+        let new_item = self.item.children.entry(new_item_id).or_insert_with(f);
+        UiContainer {
+            id_stack: self.id_stack,
+            solver: self.solver,
+            item: new_item,
+            cur_frame: self.cur_frame
+        }
+    }
+}
+
+// layout: list of insertion/removals
+//
+/*fn vertical_layout(items: &HashMap<ItemID, RefCell<Item>>, solver: &mut Solver, parent_bounds: &ItemBounds, diff: &[diff::Result<&ItemID>])
+{
+    // Left: removed, Both: Same, Right: added
+    // state: prev_vertical_var
+    let mut cur_y = parent_bounds.top;
+    let mut prev_item_changed = false;
+    for (i,d) in diff.iter().enumerate() {
+        let is_last = i == diff.len()-1;
+        match d {
+            diff::Result::Left(id_removed) => {
+                let mut item = items.get(id_removed).expect("id not found").borrow_mut();
+                debug!("Removing constraints for {}", id_removed);
+                // remove all constraints associated to this item
+                item.remove_all_constraints(solver);
+                // signal that the next item needs to update its constraints
+                prev_item_changed = true;
+            },
+            diff::Result::Both(id, _) => {
+                let mut item = items.get(id).expect("id not found").borrow_mut();
+                if prev_item_changed {
+                    debug!("Updating constraints for {}", id);
+                    // prev item changed, must relayout
+                    item.remove_all_constraints(solver);
+                    item.add_constraints(solver, &[
+                        item.bounds.top |EQ(STRONG)| cur_y,
+                        item.bounds.bottom - item.bounds.top |EQ(WEAK)| 70.0,
+                        item.bounds.left |EQ(STRONG)| parent_bounds.left,
+                        item.bounds.right |EQ(STRONG)| parent_bounds.right]);
+                }
+                cur_y = item.bounds.bottom;
+            },
+            diff::Result::Right(id_added) => {
+                let mut item = items.get(id_added).expect("id not found").borrow_mut();
+                debug!("Adding constraints for {}", id_added);
+                item.remove_all_constraints(solver);
+                item.add_constraints(solver, &[
+                    item.bounds.top |EQ(STRONG)| cur_y,
+                    item.bounds.bottom - item.bounds.top |EQ(WEAK)| 70.0,
+                    item.bounds.left |EQ(STRONG)| parent_bounds.left,
+                    item.bounds.right |EQ(STRONG)| parent_bounds.right]);
+                cur_y = item.bounds.bottom;
+                prev_item_changed = true;
+                if is_last {
+                    item.add_constraint(solver, item.bounds.bottom |EQ(WEAK)| parent_bounds.bottom);
+                }
+            }
+        }
+    }
+}*/
+
+
+
 
 /// A layouter automatically adds constraints to the solver
 /// as child items are added into a container
-pub trait Layouter {
+/*pub trait Layouter {
     // sometimes a layout can be calculated on-the-fly
     // returns none if cannot be computed now (deferred)
     // the item may not have a preferred size yet
-    fn layout(&mut self, ui: &Ui, solver: &mut Solver, item: &Item, child: &Item, child_index: u32);
+    //fn layout(&mut self, ui: &Ui, solver: &mut Solver, item: &Item, child: &Item, child_index: u32);
 
     // Needs access to all children
     // All children have a 'preferred size'
     // layouter mutates region.layout
     // it is only called if no explicit transform was specified
-    fn deferred_layout(&mut self, ui: &Ui, item: &Item);
-}
+    //fn deferred_layout(&mut self, ui: &Ui, item: &Item);
+}*/
 
 #[derive(Copy, Clone, Debug)]
 struct Padding {
@@ -113,7 +300,7 @@ struct Padding {
     bottom: f32,
 }
 
-struct VboxLayouter {
+/*struct VboxLayouter {
     padding: Padding, // top, right, bottom, left or whatever
     spacing: f32,
     last_y_pos: Variable,
@@ -187,7 +374,7 @@ impl Layouter for VboxLayouter {
     fn deferred_layout(&mut self, ui: &Ui, item: &Item) {
         // Nothing to do
     }
-}
+}*/
 
 // use cassowary for layout?
 // child.top = prev.bottom + spacing
@@ -203,178 +390,96 @@ impl Layouter for VboxLayouter {
 // Custom layouts: need to be called back
 impl Ui {
     pub fn new() -> Ui {
-        let root: ItemID = 0;
-        let mut graph = DiGraphMap::new();
-        graph.add_node(root);
-        let root_bounds = ItemBounds::default();
-        let mut solver = Solver::new();
-        solver.add_edit_variable(root_bounds.left, STRONG).unwrap();
-        solver.add_edit_variable(root_bounds.right, STRONG).unwrap();
-        solver.add_edit_variable(root_bounds.top, STRONG).unwrap();
-        solver
-            .add_edit_variable(root_bounds.bottom, STRONG)
-            .unwrap();
-        Ui {
-            //draw_items: Vec::new(),
-            items: HashMap::new(),
-            id_stack: vec![root],
-            root,
-            graph,
-            root_bounds,
-            solver,
-        }
+        let mut ui = Ui {
+            id_stack: IdStack::new(0),
+            root: Item::new(0),
+            cur_frame: 0,
+            solver: Solver::new()
+        };
+        ui
     }
 
-    pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F) {
-        let root_bounds = self.root_bounds;
-        let mut root_container = UiContainer {
-            ui: self,
-            bounds: root_bounds,
-        };
+    pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F)
+    {
+        let root = &mut self.root;
+        let solver = &mut self.solver;
+        let id_stack = &mut self.id_stack;
+        let mut root_container = UiContainer::new(root, id_stack, solver, self.cur_frame);
         f(&mut root_container);
-    }
-
-    fn chain_hash<H: Hash>(&self, s: &H) -> ItemID {
-        let stacklen = self.id_stack.len();
-        let key1 = if stacklen >= 2 {
-            self.id_stack[stacklen - 2]
-        } else {
-            0
-        };
-        let key0 = if stacklen >= 1 {
-            self.id_stack[stacklen - 1]
-        } else {
-            0
-        };
-        let mut sip = SipHasher::new_with_keys(key0, key1);
-        s.hash(&mut sip);
-        sip.finish()
-    }
-
-    pub fn push_id<H: Hash>(&mut self, s: &H) -> ItemID {
-        let id = self.chain_hash(s);
-        let parent_id = *self.id_stack.last().unwrap();
-        self.id_stack.push(id);
-        // add a new edge
-        // XXX should we always add a node here? what about dummy IDs in the stack?
-        // should probably be push_item or something like that
-        self.graph.add_node(id);
-        self.graph.add_edge(parent_id, id, ());
-        // debug!("ID stack -> {:?}", self.id_stack);
-        id
-    }
-
-    pub fn pop_id(&mut self) {
-        self.id_stack.pop();
-    }
-
-    /*pub fn button<S: Into<String>>(&mut self, label: S) -> ItemResult {
-        let label_str = label.into();
-        let id = self.push_id(&label_str);
-        struct ButtonState {}
-        self.items.entry(id).or_insert_with(|| Item {
-            pref_width: RefCell::new(None),
-            pref_height: RefCell::new(None),
-            bounds: Default::default(),
-            state: Box::new(RefCell::new(ButtonState)),
-        });
-
-        // create the text label
-        self.text(label_str);
-        let result = ItemResult {
-            clicked: false,
-            hover: false,
-        };
-        self.pop_id();
-        result
-    }*/
-
-    /*pub fn text<S: Into<String>>(&mut self, label: S) -> ItemResult {
-        let label_str = label.into();
-        let id = self.push_id(&label_str);
-        // create an item
-        self.items.insert(
-            id,
-            Item {
-                layout: Default::default(),
-                bounds: None,
-            },
-        );
-        let result = ItemResult {
-            clicked: false,
-            hover: false,
-        };
-        self.pop_id();
-        result
-    }*/
-
-    pub fn layout_and_render<'a>(&mut self, window_size: (u32, u32), frame: &nvg::Frame<'a>) {
-        self.solver
-            .suggest_value(self.root_bounds.left, 0.0)
-            .unwrap();
-        self.solver
-            .suggest_value(self.root_bounds.right, window_size.0 as f64)
-            .unwrap();
-        self.solver
-            .suggest_value(self.root_bounds.top, 0.0)
-            .unwrap();
-        self.solver
-            .suggest_value(self.root_bounds.bottom, window_size.1 as f64)
-            .unwrap();
-
-        let changes = self.solver.fetch_changes();
-        debug!("layout changes: {:?}", changes);
     }
 }
 
-impl<'a> UiContainer<'a> {
+impl<'a> UiContainer<'a>
+{
+    // Check if the item at the current index in the previous list corresponds to the given ItemID
+    // if not, the previous item is recycled (deleted or moved into the cache)
+    // and f is called to create a new item: the new item is placed into the hashmap
+    // Returns a reference to the item (locks the UiContainer).
+    /*pub fn update_child<'b:'a, F: Fn() -> Item>(&'b mut self, item_id: ItemID, f: F) -> &'b mut Item
+    {
+        // more items this time
+        if self.cur_index >= self.prev_list.len() {
+            match self.ui.items.entry(item_id) {
+                Entry::Occupied(ref mut entry) => {
+                    // item has moved in the list
+                    let item = entry.get_mut();
+                    item.last_update = self.ui.cur_frame;
+                    item
+                },
+                Entry::Vacant(ref mut entry) => {
+                    // new item
+                    let new = f();
+                    entry.insert(new)
+                }
+            }
+        }
+        else {
+            if self.prev_list[self.cur_index] != item_id {
+                // item ID does not match with the previous item at this position in the list:
+                // replace previous element
+                match self.ui.items.entry(item_id) {
+                    Entry::Occupied(ref mut entry) => {
+                        // item has moved in the list
+                        let item = entry.get_mut();
+                        item.last_update = self.ui.cur_frame;
+                        item
+                    },
+                    Entry::Vacant(ref mut entry) => {
+                        entry.insert(new)
+                    }
+                }
+            } else {
+                // previous item ID matches: no update!
+                let item = self.ui.items.get_mut(&item_id).expect("no matching item");
+                item.last_update = self.ui.cur_frame;
+                item
+            }
+        }
+    }*/
+
     pub fn vbox<S: Into<String>, F: FnOnce(&mut UiContainer)>(
         &mut self,
         id: S,
         f: F,
     ) -> ItemResult {
+        let cur_frame = self.cur_frame;
         // convert ID to string for later storage
         let id_str = id.into();
         // get numeric ID
-        let id = self.ui.push_id(&id_str);
+        let id = self.id_stack.push_id(&id_str);
 
-        // if item not present, create it
-
-        let bounds = {
-            let item = self.ui.items.entry(id).or_insert_with(|| {
-                Item {
-                    pref_width: None,
-                    pref_height: None,
-                    bounds: Default::default(),
-                    //state: Box::new(RefCell::new(VBoxState {})),
-                }
-            });
-            // cannot borrow solver here, as self.ui is already mutably borrowed
-
-            VBoxLayouter::new().layout(item);
-        };
-
-        // in-band layout? => too complicated
-        //
-
-        // add layout constraints
-        //
-        //VBoxLayouter::new().layout()
         // insert children
-
         {
-            let mut child_container = UiContainer {
-                ui: self.ui,
-                bounds,
-            };
-            f(&mut child_container);
+
+            let mut container = self.new_item(id, || { debug!("new item"); Item::new(cur_frame) } );
+            f(&mut container);
         }
 
         let result = ItemResult {
             clicked: false,
             hover: false,
         };
-        self.ui.pop_id();
+        self.id_stack.pop_id();
         result
     }
 }

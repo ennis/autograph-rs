@@ -16,6 +16,9 @@ gl = "*"
 failure = "*"
 petgraph="*"
 cassowary="*"
+diff="*"
+rand="*"
+indexmap="*"
 
 [dependencies.nanovg]
 path = "../ext/nanovg-rs"

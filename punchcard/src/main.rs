@@ -13,6 +13,9 @@ extern crate cassowary;
 extern crate gl;
 extern crate nanovg as nvg;
 extern crate petgraph;
+extern crate diff;
+extern crate rand;
+extern crate indexmap;
 
 use glutin::GlContext;
 use std::f32::consts::PI;
@@ -228,7 +231,7 @@ fn main() {
             );
 
             test_ui::make_ui(&mut ui, &mut data);
-            ui.layout_and_render((width as u32, height as u32), &frame);
+            //ui.layout_and_render((width as u32, height as u32), &frame);
         });
 
         gl_window.swap_buffers().unwrap();
