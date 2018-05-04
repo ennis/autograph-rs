@@ -4,12 +4,13 @@ use cassowary::{Solver, Variable, Constraint};
 use nvg;
 use petgraph::graphmap::DiGraphMap;
 use std::any::Any;
-use std::cell::RefCell;
-use std::collections::{HashMap, hash_map::Entry, HashSet};
+use std::cell::{Cell,RefCell};
+use std::collections::{hash_map, HashMap};
 use std::hash::{Hash, Hasher, SipHasher};
 use std::mem::replace;
 use diff;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, map::Entry, map::VacantEntry, map::OccupiedEntry};
+
 
 // Layout must be done once the full list of children is known
 // Detect differences in the list of children => produce diff
@@ -108,7 +109,8 @@ pub struct Item {
     //state: Box<RefCell<Any>>,
     children: IndexMap<ItemID, Item>,
     /// Last update frame index
-    last_update: u64
+    last_update: u64,
+    needs_relayout: Cell<bool>
 }
 
 impl Item
@@ -118,7 +120,8 @@ impl Item
             children: IndexMap::new(),
             last_update: cur_frame,
             bounds: ItemBounds::default(),
-            constraints: Vec::new()
+            constraints: Vec::new(),
+            needs_relayout: Cell::new(true)
         }
     }
 
@@ -187,6 +190,7 @@ pub struct Ui {
     root: Item,
     cur_frame: u64,
     solver: Solver,
+    calc_layout: HashMap<Variable, f32>
 }
 
 // - cannot have a mutable borrow of the Ui (for the ID stack and the solver) and a mutable borrow of
@@ -197,82 +201,124 @@ pub struct UiContainer<'a> {
     id_stack: &'a mut IdStack,
     solver: &'a mut Solver,
     item: &'a mut Item,
-    cur_frame: u64
+    cur_frame: u64,
+    cur_index: usize
 }
 
 impl<'a> UiContainer<'a>
 {
+    pub fn new_item<'s, F: FnOnce()->Item>(&'s mut self, new_item_id: ItemID, f: F) -> UiContainer<'s>  {
+
+        // when inserting a child item:
+        //      - if index matches: OK
+        //      - else: swap the item at the correct location, mark it for relayout
+        //              - insert item at the end, swap_remove item at index, put item back
+        let cur_index = self.cur_index;
+        let item_reinsert = {
+            let entry = self.item.children.entry(new_item_id);
+            // TODO accelerate common case (no change) by looking by index first
+            match entry {
+                Entry::Vacant(ref entry) => {
+                    // entry is vacant: must insert at current location
+                    Some(f())
+                },
+                Entry::Occupied(entry) => {
+                    let index = entry.index();
+                    // if the child item exists, see if its index corresponds
+                    if cur_index != index {
+                        // item has moved: extract the item from its previous position
+                        Some(entry.remove())
+                    } else {
+                        // child item exists and has not moved
+                        entry.get().needs_relayout.set(false);
+                        None
+                    }
+                }
+            }
+            // drop borrow by entry()
+        };
+
+        if let Some(item) = item_reinsert {
+            // must insert or reinsert an item at the correct index
+            // mark item for relayout
+            // insert last
+            item.needs_relayout.set(true);
+            let len = self.item.children.len();
+            self.item.children.insert(new_item_id, item);
+            if cur_index != len {
+                // we did not insert it at the correct position: need to swap the newly inserted element in place
+                // remove element at target position: last inserted item now in position
+                let kv = self.item.children.swap_remove_index(cur_index).unwrap();
+                // reinsert previous item
+                self.item.children.insert(kv.0, kv.1);
+                debug!("item {:016X} moved to {}", new_item_id, cur_index);
+            } else {
+                debug!("item {:016X} inserted at {}", new_item_id, cur_index);
+            }
+        } else {
+            //debug!("item {} at {} did not move", new_item_id, cur_index);
+        }
+
+        let new_item = self.item.children.get_index_mut(cur_index).unwrap().1;
+
+        self.cur_index += 1;
+
+        UiContainer {
+            id_stack: self.id_stack,
+            solver: self.solver,
+            item: new_item,
+            cur_frame: self.cur_frame,
+            cur_index: 0
+        }
+    }
+
+    /// Remove items that are not present anymore
+    /*pub fn finalize(&mut self)
+    {
+        let cur_index = self.cur_index;
+        //self.item.children.retain(|(i,| )
+    }*/
+
     pub fn new(item: &'a mut Item, id_stack: &'a mut IdStack, solver: &'a mut Solver, cur_frame: u64) -> UiContainer<'a> {
         UiContainer {
             id_stack,
             item,
             solver,
-            cur_frame
-        }
-    }
-
-    pub fn new_item<'s, F: FnOnce()->Item>(&'s mut self, new_item_id: ItemID, f: F) -> UiContainer<'s>  {
-        let new_item = self.item.children.entry(new_item_id).or_insert_with(f);
-        UiContainer {
-            id_stack: self.id_stack,
-            solver: self.solver,
-            item: new_item,
-            cur_frame: self.cur_frame
+            cur_frame,
+            cur_index: 0
         }
     }
 }
 
-// layout: list of insertion/removals
-//
-/*fn vertical_layout(items: &HashMap<ItemID, RefCell<Item>>, solver: &mut Solver, parent_bounds: &ItemBounds, diff: &[diff::Result<&ItemID>])
+
+fn vertical_layout(id: ItemID, item: &mut Item, solver: &mut Solver)
 {
-    // Left: removed, Both: Same, Right: added
-    // state: prev_vertical_var
-    let mut cur_y = parent_bounds.top;
-    let mut prev_item_changed = false;
-    for (i,d) in diff.iter().enumerate() {
-        let is_last = i == diff.len()-1;
-        match d {
-            diff::Result::Left(id_removed) => {
-                let mut item = items.get(id_removed).expect("id not found").borrow_mut();
-                debug!("Removing constraints for {}", id_removed);
-                // remove all constraints associated to this item
-                item.remove_all_constraints(solver);
-                // signal that the next item needs to update its constraints
-                prev_item_changed = true;
-            },
-            diff::Result::Both(id, _) => {
-                let mut item = items.get(id).expect("id not found").borrow_mut();
-                if prev_item_changed {
-                    debug!("Updating constraints for {}", id);
-                    // prev item changed, must relayout
-                    item.remove_all_constraints(solver);
-                    item.add_constraints(solver, &[
-                        item.bounds.top |EQ(STRONG)| cur_y,
-                        item.bounds.bottom - item.bounds.top |EQ(WEAK)| 70.0,
-                        item.bounds.left |EQ(STRONG)| parent_bounds.left,
-                        item.bounds.right |EQ(STRONG)| parent_bounds.right]);
-                }
-                cur_y = item.bounds.bottom;
-            },
-            diff::Result::Right(id_added) => {
-                let mut item = items.get(id_added).expect("id not found").borrow_mut();
-                debug!("Adding constraints for {}", id_added);
-                item.remove_all_constraints(solver);
-                item.add_constraints(solver, &[
-                    item.bounds.top |EQ(STRONG)| cur_y,
-                    item.bounds.bottom - item.bounds.top |EQ(WEAK)| 70.0,
-                    item.bounds.left |EQ(STRONG)| parent_bounds.left,
-                    item.bounds.right |EQ(STRONG)| parent_bounds.right]);
-                cur_y = item.bounds.bottom;
-                prev_item_changed = true;
-                if is_last {
-                    item.add_constraint(solver, item.bounds.bottom |EQ(WEAK)| parent_bounds.bottom);
-                }
-            }
+    // iterate over the child items
+    // can skip layout if no modification was made
+    let needs_relayout = item.children.values().any(|item| item.needs_relayout.get());
+    if !needs_relayout { return }
+
+    debug!("RELAYOUT {:016X}", id);
+    // do full relayout (could be optimized...)
+    let mut cur_y_pos = item.bounds.top;
+    let len = item.children.len();
+    let parent_bounds = item.bounds;
+    for (i,child) in item.children.values_mut().enumerate() {
+        let is_last = i == len-1;
+        let bounds = child.bounds;
+        child.remove_all_constraints(solver);
+        child.add_constraints(solver, &[
+            bounds.top |EQ(STRONG)| cur_y_pos,
+            bounds.bottom - bounds.top |EQ(WEAK)| 70.0,
+            bounds.left |EQ(STRONG)| parent_bounds.left,
+            bounds.right |EQ(STRONG)| parent_bounds.right]);
+        cur_y_pos = bounds.bottom;
+        // last element fills remaining available space
+        if is_last {
+            child.add_constraint(solver, bounds.bottom |EQ(STRONG)| parent_bounds.bottom);
         }
     }
-}*/
+}
 
 
 
@@ -390,11 +436,19 @@ impl Layouter for VboxLayouter {
 // Custom layouts: need to be called back
 impl Ui {
     pub fn new() -> Ui {
+        let mut solver = Solver::new();
+        let mut root = Item::new(0);
+        solver.add_edit_variable(root.bounds.bottom, STRONG).unwrap();
+        solver.add_edit_variable(root.bounds.top, STRONG).unwrap();
+        solver.add_edit_variable(root.bounds.left, STRONG).unwrap();
+        solver.add_edit_variable(root.bounds.right, STRONG).unwrap();
+
         let mut ui = Ui {
             id_stack: IdStack::new(0),
-            root: Item::new(0),
+            root,
             cur_frame: 0,
-            solver: Solver::new()
+            solver,
+            calc_layout: HashMap::new()
         };
         ui
     }
@@ -404,8 +458,63 @@ impl Ui {
         let root = &mut self.root;
         let solver = &mut self.solver;
         let id_stack = &mut self.id_stack;
-        let mut root_container = UiContainer::new(root, id_stack, solver, self.cur_frame);
-        f(&mut root_container);
+        let mut container = UiContainer::new(root, id_stack, solver, self.cur_frame);
+        f(&mut container);
+        vertical_layout(0, container.item, container.solver);
+    }
+
+    pub fn layout(&mut self, window_width: f32, window_height: f32) {
+        self.solver.suggest_value(self.root.bounds.top, 0.0).unwrap();
+        self.solver.suggest_value(self.root.bounds.bottom, window_height as f64).unwrap();
+        self.solver.suggest_value(self.root.bounds.left, 0.0).unwrap();
+        self.solver.suggest_value(self.root.bounds.right, window_width as f64).unwrap();
+
+        let mut changes = self.solver.fetch_changes();
+        if !changes.is_empty() {
+            debug!("layout changes: {:?}", changes);
+        }
+
+        for change in changes {
+            self.calc_layout.insert(change.0, change.1 as f32);
+        }
+    }
+
+    pub fn render(&self, frame: &nvg::Frame)
+    {
+        self.render_item(&self.root, frame);
+    }
+
+    pub fn render_item(&self, item: &Item, frame: &nvg::Frame)
+    {
+        let top = self.solver.get_value(item.bounds.top) as f32;
+        let bottom = self.solver.get_value(item.bounds.bottom) as f32;
+        let left = self.solver.get_value(item.bounds.left) as f32;
+        let right = self.solver.get_value(item.bounds.right) as f32;
+        let w = right-left;
+        let h = bottom-top;
+        frame.path(
+            |path| {
+                path.rect((top, left), (w, h));
+               /* path.fill(nvg::FillStyle {
+                    coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(
+                        0.2, 0.2, 0.2, 0.7,
+                    )),
+                    ..Default::default()
+                });*/
+                path.stroke(nvg::StrokeStyle {
+                    coloring_style: nvg::ColoringStyle::Color(nvg::Color::new(
+                        0.5, 0.5, 0.5, 1.0,
+                    )),
+                    width: 1.0,
+                    ..Default::default()
+                });
+            },
+            Default::default(),
+        );
+
+        for child in item.children.values() {
+            self.render_item(child, frame);
+        }
     }
 }
 
@@ -470,9 +579,10 @@ impl<'a> UiContainer<'a>
 
         // insert children
         {
-
-            let mut container = self.new_item(id, || { debug!("new item"); Item::new(cur_frame) } );
+            let mut container = self.new_item(id, || { Item::new(cur_frame) } );
             f(&mut container);
+            // apply layout
+            vertical_layout(id, container.item, container.solver);
         }
 
         let result = ItemResult {

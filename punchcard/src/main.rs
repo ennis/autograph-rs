@@ -27,7 +27,7 @@ mod ui;
 const INIT_WINDOW_SIZE: (u32, u32) = (1024, 720);
 
 fn main() {
-    pretty_env_logger::init().unwrap();
+    pretty_env_logger::init();
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new()
         .with_title("Glutin NanoVG")
@@ -231,6 +231,8 @@ fn main() {
             );
 
             test_ui::make_ui(&mut ui, &mut data);
+            ui.layout(width as f32, height as f32);
+            ui.render(&frame);
             //ui.layout_and_render((width as u32, height as u32), &frame);
         });
 
