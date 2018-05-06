@@ -19,7 +19,11 @@ cassowary="*"
 diff="*"
 rand="*"
 indexmap="*"
+time="*"
 
 [dependencies.nanovg]
 path = "../ext/nanovg-rs"
 features = ["gl3"]
+
+[dependencies.yoga]
+path = "../ext/yoga-rs"

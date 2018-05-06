@@ -1,3 +1,6 @@
 [submodule "nanovg-rs"]
 	path = ext/nanovg-rs
 	url = https://github.com/KevinKelley/nanovg-rs
+[submodule "ext/yoga-rs"]
+	path = ext/yoga-rs
+	url = https://github.com/ennis/yoga-rs
