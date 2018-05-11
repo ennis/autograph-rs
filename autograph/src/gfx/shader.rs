@@ -1,7 +1,7 @@
 use super::shader_interface::{InterfaceBinder, ShaderInterface, ShaderInterfaceDesc, TypeDesc,
                               VertexLayout};
 use failure::Error;
-use gfx::{Format, BufferSliceAny, Sampler, TextureAny};
+use gfx::{BufferSliceAny, Format, Sampler, TextureAny};
 use gl;
 use gl::types::*;
 

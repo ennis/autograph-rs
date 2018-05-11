@@ -1,5 +1,5 @@
-use gfx::{BufferData, Framebuffer, FramebufferObject, GraphicsPipeline, GraphicsShaderPipeline,
-          BufferSliceAny, Sampler, TextureAny};
+use gfx::{BufferData, BufferSliceAny, Framebuffer, FramebufferObject, GraphicsPipeline,
+          GraphicsShaderPipeline, Sampler, TextureAny};
 use gl;
 use gl::types::*;
 

@@ -44,13 +44,13 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
-use autograph::gfx::GraphicsPipelineBuilder;
 use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
 use autograph::gfx::DrawUtilsExt;
+use autograph::gfx::GraphicsPipelineBuilder;
 
+use failure::Error;
 use image::GenericImage;
 use main_loop::MainLoop;
-use failure::Error;
 
 const UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
@@ -71,7 +71,7 @@ struct CameraParameters {
 struct ObjectParameters {
     model_matrix: [[f32; 4]; 4],
     prev_model_matrix: [[f32; 4]; 4],
-    object_id: i32
+    object_id: i32,
 }
 
 #[repr(C)]
@@ -93,10 +93,10 @@ struct MeshShaderInterface {
     indices: gfx::BufferSlice<[u32]>,
     #[render_target(index = "0")]
     diffuse: gfx::SampledTexture2D,
-    #[uniform_buffer(index="0")]
+    #[uniform_buffer(index = "0")]
     camera_params: gfx::BufferSlice<CameraParameters>,
-    #[uniform_buffer(index="1")]
-    object_params: gfx::BufferSlice<ObjectParameters>
+    #[uniform_buffer(index = "1")]
+    object_params: gfx::BufferSlice<ObjectParameters>,
 }
 
 impl CameraParameters {
@@ -221,7 +221,7 @@ struct State<'c> {
     scene: Option<Scene>,
     camera_control: CameraControl,
     interpolation_mode: i32,
-    mesh_shader: Option<gfx::TypedGraphicsPipeline<MeshShaderInterface>>
+    mesh_shader: Option<gfx::TypedGraphicsPipeline<MeshShaderInterface>>,
 }
 
 impl<'c> State<'c> {
@@ -241,9 +241,11 @@ impl<'c> State<'c> {
             scene: None,
             camera_control: CameraControl::default(),
             interpolation_mode: 0,
-            mesh_shader: None
+            mesh_shader: None,
         };
-        state.reload_pipelines().map_err(|err| error!("Reload pipelines failed: {}", err));
+        state
+            .reload_pipelines()
+            .map_err(|err| error!("Reload pipelines failed: {}", err));
         state
     }
 
@@ -251,9 +253,9 @@ impl<'c> State<'c> {
         self.scene = Scene::load(&self.context, &self.cache, &self.scene_file).ok();
     }
 
-    fn reload_pipelines(&mut self) -> Result<(),Error>
-    {
-        let mesh_shader = GraphicsPipelineBuilder::new().with_glsl_file_via_spirv("data/shaders/deferred.glsl")?
+    fn reload_pipelines(&mut self) -> Result<(), Error> {
+        let mesh_shader = GraphicsPipelineBuilder::new()
+            .with_glsl_file_via_spirv("data/shaders/deferred.glsl")?
             .with_rasterizer_state(&gfx::RasterizerState {
                 fill_mode: gl::FILL,
                 ..Default::default()

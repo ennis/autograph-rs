@@ -10,12 +10,13 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 extern crate cassowary;
-extern crate gl;
-extern crate nanovg as nvg;
-extern crate petgraph;
 extern crate diff;
-extern crate rand;
+extern crate gl;
 extern crate indexmap;
+extern crate nanovg as nvg;
+extern crate num;
+extern crate petgraph;
+extern crate rand;
 extern crate time;
 #[macro_use]
 extern crate yoga;
@@ -62,17 +63,19 @@ fn main() {
     while running {
         events_loop.poll_events(|event| match event {
             glutin::Event::WindowEvent { event, .. } => {
-                ui.event(&event);
+                ui.dispatch_event(&event);
                 match event {
                     glutin::WindowEvent::Closed => running = false,
                     glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
                     _ => {}
                 }
-            },
+            }
             _ => {}
         });
 
-        if !running { break }
+        if !running {
+            break;
+        }
 
         let (width, height) = gl_window.get_inner_size().unwrap();
         let (width, height) = (width as i32, height as i32);
@@ -94,7 +97,7 @@ fn main() {
             let mut renderer = ui::NvgRenderer {
                 frame: frame,
                 default_font: iosevka_font,
-                default_font_size: 16.0
+                default_font_size: 16.0,
             };
 
             ui.render((width as f32, height as f32), &mut renderer);

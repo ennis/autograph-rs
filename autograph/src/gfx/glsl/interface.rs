@@ -491,8 +491,7 @@ impl ModuleWrapper {
                     }
                     if let Some(tydesc) = desc.tydesc {
                         self.compare_types(resource_ty_inst, tydesc)?;
-                    }
-                    else {
+                    } else {
                         warn!("No buffer layout provided for {:?}", desc);
                     }
                     return Ok(true);

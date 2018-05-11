@@ -3,11 +3,12 @@ extern crate autograph;
 #[macro_use]
 extern crate autograph_derive;
 
-#[macro_use] mod common;
+#[macro_use]
+mod common;
 use autograph::gfx;
 
 #[repr(C)]
-#[derive(Copy,Clone,BufferLayout)]
+#[derive(Copy, Clone, BufferLayout)]
 struct CameraParams {
     view_matrix: [[f32; 4]; 4],
     proj_matrix: [[f32; 3]; 3],

@@ -191,16 +191,17 @@ pub struct TypedGraphicsPipeline<T: ShaderInterface> {
     pub(super) pipeline: GraphicsPipeline,
 }
 
-impl GraphicsPipeline
-{
+impl GraphicsPipeline {
     /// Tries to bind a shader interface type to this pipeline.
     /// Fails if the given shader interface does not match.
-    pub fn into_typed<T:ShaderInterface>(self) -> Result<TypedGraphicsPipeline<T>, Error> {
-        self.0.shader_pipeline.is_compatible_with(<T as ShaderInterface>::get_description())?;
+    pub fn into_typed<T: ShaderInterface>(self) -> Result<TypedGraphicsPipeline<T>, Error> {
+        self.0
+            .shader_pipeline
+            .is_compatible_with(<T as ShaderInterface>::get_description())?;
         let binder = <T as ShaderInterface>::create_interface_binder(&self)?;
         Ok(TypedGraphicsPipeline {
             binder,
-            pipeline: self
+            pipeline: self,
         })
     }
 }

@@ -1,5 +1,5 @@
 use super::bind::{Scissors, StateCache, Uniforms, VertexInput};
-use super::buffer::{BufferSlice, BufferAny, BufferSliceAny};
+use super::buffer::{BufferAny, BufferSlice, BufferSliceAny};
 use super::buffer_data::BufferData;
 use super::fence::FenceValue;
 use super::framebuffer::{Framebuffer, FramebufferObject};
@@ -42,27 +42,23 @@ pub unsafe trait ToBufferSlice: ToBufferSliceAny {
     type Target: BufferData + ?Sized;
 }
 
-unsafe impl<'a, T: BufferData+?Sized> ToBufferSliceAny for TransientBufferSlice<'a,T>
-{
+unsafe impl<'a, T: BufferData + ?Sized> ToBufferSliceAny for TransientBufferSlice<'a, T> {
     unsafe fn to_slice_any(&self) -> BufferSliceAny {
         self.slice.to_slice_any()
     }
 }
 
-unsafe impl<'a, T: BufferData+?Sized> ToBufferSlice for TransientBufferSlice<'a, T>
-{
+unsafe impl<'a, T: BufferData + ?Sized> ToBufferSlice for TransientBufferSlice<'a, T> {
     type Target = T;
 }
 
-unsafe impl ToBufferSliceAny for BufferSliceAny
-{
+unsafe impl ToBufferSliceAny for BufferSliceAny {
     unsafe fn to_slice_any(&self) -> BufferSliceAny {
         self.clone()
     }
 }
 
-unsafe impl ToBufferSliceAny for BufferAny
-{
+unsafe impl ToBufferSliceAny for BufferAny {
     unsafe fn to_slice_any(&self) -> BufferSliceAny {
         self.get_full_slice()
     }
@@ -79,8 +75,8 @@ where
 }
 
 unsafe impl<T> ToBufferSlice for BufferSlice<T>
-    where
-        T: BufferData + ?Sized,
+where
+    T: BufferData + ?Sized,
 {
     type Target = T;
 }
@@ -96,14 +92,12 @@ pub struct Frame<'q> {
 }
 
 /// All resources needed for a frame
-pub struct ResourceTracker
-{
+pub struct ResourceTracker {
     ref_buffers: Vec<BufferAny>,
     ref_textures: Vec<TextureAny>,
 }
 
-impl ResourceTracker
-{
+impl ResourceTracker {
     fn new() -> ResourceTracker {
         ResourceTracker {
             ref_textures: Vec::new(),
@@ -119,7 +113,6 @@ impl ResourceTracker
         self.ref_buffers.push(buf);
     }
 }
-
 
 impl<'q> Frame<'q> {
     /// Creates a new frame, mut-borrows the queue

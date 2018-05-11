@@ -474,9 +474,7 @@ impl Texture2D {
     pub fn sampled(&self, sampler: &SamplerDesc) -> SampledTexture2D {
         SampledTexture2D(self.clone(), sampler.clone())
     }
-    pub fn into_texture_any(self) {
-
-    }
+    pub fn into_texture_any(self) {}
 }
 
 impl From<Texture2D> for TextureAny {

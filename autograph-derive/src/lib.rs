@@ -9,7 +9,6 @@ extern crate syn;
 #[macro_use]
 extern crate quote;
 
-
 use darling::FromField;
 use proc_macro::TokenStream;
 //use autograph::gfx::shader_interface::*;
@@ -432,14 +431,13 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens
         let index_tokens = make_option_tokens(&ub.index);
         let ty = &ub.ty;
 
-        uniform_buffer_items.push(
-            quote! {
-                ::autograph::gfx::shader_interface::UniformBufferDesc {
-                    name: Some(stringify!(#name).into()),
-                    index: #index_tokens,
-                    tydesc: <#ty as ::autograph::gfx::BufferInterface>::get_layout()
-                }
-            });
+        uniform_buffer_items.push(quote! {
+            ::autograph::gfx::shader_interface::UniformBufferDesc {
+                name: Some(stringify!(#name).into()),
+                index: #index_tokens,
+                tydesc: <#ty as ::autograph::gfx::BufferInterface>::get_layout()
+            }
+        });
         uniform_buffer_bind_statements.push(quote! {
             {
                 let slice_any = interface.#orig_name.to_slice_any();

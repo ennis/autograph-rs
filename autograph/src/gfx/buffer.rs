@@ -207,7 +207,7 @@ impl BufferAny {
         BufferSliceAny {
             owner: self.clone(),
             byte_size: self.byte_size(),
-            offset: 0
+            offset: 0,
         }
     }
 

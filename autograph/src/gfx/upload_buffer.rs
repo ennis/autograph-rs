@@ -1,4 +1,4 @@
-use super::buffer::{BufferSlice, BufferUsage, BufferAny, BufferSliceAny};
+use super::buffer::{BufferAny, BufferSlice, BufferSliceAny, BufferUsage};
 use super::buffer_data::BufferData;
 use super::context::Context;
 use super::fence::FenceValue;

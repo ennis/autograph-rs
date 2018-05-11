@@ -8,8 +8,8 @@ use gfx::shader_interface::ShaderInterface;
 use gfx::Frame;
 use gfx::Framebuffer;
 use gfx::TextureAny;
-use gfx::{ToBufferSlice, ToBufferSliceAny};
 use gfx::{BufferSlice, BufferSliceAny, SamplerDesc};
+use gfx::{ToBufferSlice, ToBufferSliceAny};
 use gl;
 use gl::types::*;
 
@@ -80,8 +80,8 @@ pub trait DrawExt<'queue> {
         interface: &T,
         cmd: DrawCmd,
     ) -> DrawCmdBuilder<'frame, 'queue, 'pipeline>
-        where
-            'queue: 'frame;
+    where
+        'queue: 'frame;
 }
 
 impl<'queue> DrawExt<'queue> for Frame<'queue> {
@@ -206,12 +206,14 @@ impl<'queue> DrawExt<'queue> for Frame<'queue> {
         interface: &T,
         cmd: DrawCmd,
     ) -> DrawCmdBuilder<'frame, 'queue, 'pipeline>
-        where
-            'queue: 'frame,
+    where
+        'queue: 'frame,
     {
         unsafe {
             let mut state_cache = self.state_cache.borrow_mut();
-            pipeline.binder.bind_unchecked(interface, self, &mut state_cache);
+            pipeline
+                .binder
+                .bind_unchecked(interface, self, &mut state_cache);
         }
 
         let mut state_cache = self.state_cache.borrow_mut();
@@ -247,7 +249,6 @@ pub struct DrawCmdBuilder<'frame, 'queue: 'frame, 'binder> {
     cmd: DrawCmd,
 }
 
-
 // Drop bomb
 impl<'frame, 'queue: 'frame, 'binder> Drop for DrawCmdBuilder<'frame, 'queue, 'binder> {
     fn drop(&mut self) {
@@ -270,11 +271,11 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
     }
 
     pub fn with_texture(mut self, slot: u32, tex: &TextureAny, sampler: &SamplerDesc) -> Self {
-            let gctx = self.frame.queue().context();
-            unsafe {
-                self.state_cache
-                    .set_texture(slot, tex, &gctx.get_sampler(sampler));
-            }
+        let gctx = self.frame.queue().context();
+        unsafe {
+            self.state_cache
+                .set_texture(slot, tex, &gctx.get_sampler(sampler));
+        }
 
         self.frame
             .resource_tracker
@@ -298,8 +299,7 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
 
     pub fn with_index_buffer<I: ToBufferSlice>(mut self, indices: &I) -> Self {
         let indices = unsafe { indices.to_slice_any() };
-        let index_stride =
-            mem::size_of::<<<I as ToBufferSlice>::Target as BufferData>::Element>();
+        let index_stride = mem::size_of::<<<I as ToBufferSlice>::Target as BufferData>::Element>();
         self.index_buffer_type = Some(match index_stride {
             4 => gl::UNSIGNED_INT,
             2 => gl::UNSIGNED_SHORT,
@@ -318,8 +318,7 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
         self
     }
 
-    pub fn submit(mut self)
-    {
+    pub fn submit(mut self) {
         unsafe {
             self.state_cache.commit();
         }
@@ -354,4 +353,3 @@ impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
         mem::forget(self);
     }
 }
-

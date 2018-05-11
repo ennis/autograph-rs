@@ -1,47 +1,47 @@
 extern crate autograph;
 extern crate failure;
 extern crate glutin;
-extern crate winit;
-extern crate time;
 extern crate image;
+extern crate time;
+extern crate winit;
 
 use self::autograph::gfx;
-use self::autograph::gl;
-use self::glutin;
-use self::glutin::GlContext;
-use std::os::raw::c_void;
-use self::time;
-use self::failure;
-use self::image;
-use std::path::Path;
-use self::autograph::gfx::glsl::interface::{verify_spirv_interface, ShaderInterfaceVerificationError};
+use self::autograph::gfx::glsl::interface::{verify_spirv_interface,
+                                            ShaderInterfaceVerificationError};
 use self::autograph::gfx::glsl::{compile_glsl_to_spirv, preprocess_combined_shader_source,
-                           SourceWithFileName, SpirvModules};
+                                 SourceWithFileName, SpirvModules};
 use self::autograph::gfx::shader_interface::{ShaderInterface, ShaderInterfaceDesc};
 use self::autograph::gfx::GraphicsShaderPipeline;
+use self::autograph::gl;
+use self::failure;
+use self::glutin;
+use self::glutin::GlContext;
+use self::image;
+use self::time;
 use std::fs::File;
 use std::io::Read;
+use std::os::raw::c_void;
+use std::path::Path;
 
-pub struct TestWindowConfig
-{
+pub struct TestWindowConfig {
     pub name: &'static str,
     pub width: u32,
-    pub height: u32
+    pub height: u32,
 }
 
-pub struct TestFrameInfo<'a, 'q:'a>
-{
+pub struct TestFrameInfo<'a, 'q: 'a> {
     pub frame: &'a mut gfx::Frame<'q>,
     pub framebuffer: &'a gfx::Framebuffer,
     pub width: u32,
     pub height: u32,
     pub aspect_ratio: f32,
     pub frame_index: u64,
-    pub delta_s: f32
+    pub delta_s: f32,
 }
 
-pub fn run_test<F>(config: &TestWindowConfig, mut body: F) where
-    F: FnMut(&mut TestFrameInfo) -> bool
+pub fn run_test<F>(config: &TestWindowConfig, mut body: F)
+where
+    F: FnMut(&mut TestFrameInfo) -> bool,
 {
     // Init logger
     //pretty_env_logger::init().unwrap();
@@ -57,13 +57,15 @@ pub fn run_test<F>(config: &TestWindowConfig, mut body: F) where
         .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 6)));
     let window = glutin::GlWindow::new(window_builder, context_builder, &event_loop).unwrap();
     // load GL function pointers
-    autograph::gl::load_with(|s| { window.get_proc_address(s) as *const std::os::raw::c_void });
+    autograph::gl::load_with(|s| window.get_proc_address(s) as *const std::os::raw::c_void);
     // Make current the OpenGL context associated to the window
     unsafe { window.make_current() }.unwrap();
     // Load OpenGL function pointers
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
     // create an instance of gfx::Context
-    let context = gfx::Context::new(&gfx::ContextConfig { max_frames_in_flight: 3 });
+    let context = gfx::Context::new(&gfx::ContextConfig {
+        max_frames_in_flight: 3,
+    });
     // create a queue
     let mut queue = gfx::Queue::new(&context);
     // timers
@@ -78,7 +80,7 @@ pub fn run_test<F>(config: &TestWindowConfig, mut body: F) where
         // create the frame
         let mut frame = gfx::Frame::new(&mut queue);
         // last frame time in seconds
-        let delta_s = 1.0/1_000_000_000.0 * frame_duration.num_nanoseconds().unwrap() as f32;
+        let delta_s = 1.0 / 1_000_000_000.0 * frame_duration.num_nanoseconds().unwrap() as f32;
         // get framebuffer dimensions and aspect ratio
         let (width, height) = framebuffer.size();
         let (fwidth, fheight) = (width as f32, height as f32);
@@ -92,7 +94,7 @@ pub fn run_test<F>(config: &TestWindowConfig, mut body: F) where
                 aspect_ratio,
                 width,
                 height,
-                delta_s
+                delta_s,
             };
             // poll events
             event_loop.poll_events(|event| {

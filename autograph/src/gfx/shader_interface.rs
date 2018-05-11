@@ -3,10 +3,10 @@ use super::buffer_data::BufferData;
 use super::format::Format;
 use super::pipeline::GraphicsPipeline;
 use super::texture::*;
-use super::{Frame, ResourceTracker};
 use super::upload_buffer::UploadBuffer;
-use gfx;
+use super::{Frame, ResourceTracker};
 use failure::Error;
+use gfx;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PrimitiveType {
@@ -135,21 +135,21 @@ impl TextureInterface for TextureAny {
     }
 }
 
-pub trait SampledTextureInterface
-{
+pub trait SampledTextureInterface {
     type TextureType: TextureInterface;
     //fn get_texture(&self) -> &Self::TextureType;
     fn get_sampler(&self) -> &gfx::SamplerDesc;
     fn into_texture_any(self) -> TextureAny;
 }
 
-impl SampledTextureInterface for SampledTexture2D
-{
+impl SampledTextureInterface for SampledTexture2D {
     type TextureType = Texture2D;
     fn into_texture_any(self) -> TextureAny {
         self.0.into()
     }
-    fn get_sampler(&self) -> &gfx::SamplerDesc { &self.1 }
+    fn get_sampler(&self) -> &gfx::SamplerDesc {
+        &self.1
+    }
 }
 
 /// Trait implemented by types that can serve as a vertex attribute.
@@ -218,7 +218,6 @@ pub unsafe trait UniformInterface {
     fn get_description() -> &'static TypeDesc;
 }
 
-
 macro_rules! impl_uniform_type {
     ($t:ty, $tydesc:expr) => {
         unsafe impl BufferLayout for $t {
@@ -269,8 +268,7 @@ unsafe impl BufferInterface for gfx::BufferAny
 }*/
 
 // impl for typed buffers
-unsafe impl<T: BufferData+BufferLayout> BufferInterface for gfx::BufferSlice<T>
-{
+unsafe impl<T: BufferData + BufferLayout> BufferInterface for gfx::BufferSlice<T> {
     fn get_layout() -> Option<&'static TypeDesc> {
         Some(<T as BufferLayout>::get_description())
     }
@@ -349,7 +347,7 @@ pub struct InterfaceBindingContext<'a> {
     pub gctx: &'a gfx::Context,
     pub tracker: &'a mut ResourceTracker,
     pub upload_buffer: &'a UploadBuffer,
-    pub state_cache: &'a mut StateCache
+    pub state_cache: &'a mut StateCache,
 }
 
 pub trait InterfaceBinder<T: ShaderInterface> {
