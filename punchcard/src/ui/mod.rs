@@ -21,12 +21,20 @@ use yoga::StyleUnit::{Auto, UndefinedValue};
 // - WIP split into modules
 //      mod.rs(->InputState,Ui), renderer, layout, style, item(event,input_state), container(ui_state)
 // - rework style!() macro
+// - default draw() callback (it's mostly the same each time)
+// - alternative callbacks (|ui,item,state| : more consistent with other callbacks, but more parameters)
 // - buttons
-// - sliders
+// - DONE sliders
 // - checkboxes
 // - hbox layout
 // - native window handling
-// - style computation
+// - WIP style computation
+
+// Alternative:
+// take closure with: |ui,item,state|
+// - ui handles adding children
+// - item is the actual item
+// - state is the item state (typed)
 
 mod container;
 mod item;
@@ -38,7 +46,7 @@ mod style;
 pub use self::container::{ScrollState, UiContainer};
 pub use self::item::Item;
 pub use self::layout::{ContentMeasurement, Layout};
-pub use self::renderer::{NvgRenderer, Renderer};
+pub use self::renderer::{NvgRenderer, Renderer, ImageCache};
 pub use self::style::{Background, Color, LinearGradient, RadialGradient, Style};
 pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
 

@@ -42,7 +42,7 @@ impl<'a, State: 'static> UiContainer<'a, State> {
 }
 
 /// Styling - rendering
-impl<'a, State: 'static> UiContainer<'a, State> {
+/*impl<'a, State: 'static> UiContainer<'a, State> {
     pub fn border_color(&mut self, rgba: Color) {
         self.item.style.border_color = Some(rgba);
     }
@@ -50,7 +50,7 @@ impl<'a, State: 'static> UiContainer<'a, State> {
     pub fn background_color(&mut self, rgba: Color) {
         self.item.style.background_color = Some(rgba);
     }
-}
+}*/
 
 impl<'a, State: 'static> UiContainer<'a, State> {
     pub(super) fn new_item<'s, U: 'static, F: FnOnce() -> Item>(
@@ -174,6 +174,12 @@ impl<'a, State: 'static> UiContainer<'a, State> {
                 item.with_extract_state(|item, state| f(item, state, event, input_state))
             })
         });
+    }
+
+    /// Returns a mutable reference to the style of the item.
+    /// Shorthand for `self.item.style`.
+    pub fn styles_mut(&mut self) -> &mut Style {
+        &mut self.item.style
     }
 }
 
@@ -341,7 +347,7 @@ impl<'a, State> UiContainer<'a, State> {
             ui.draw(|item, state, renderer| {
                 // draw the slider bar
                 // draw the knob
-                //renderer.draw_rect(Layout {  })
+                renderer.draw_rect(&item.layout, &item.calculated_style);
             });
 
             let itemid = ui.id;
@@ -385,28 +391,46 @@ impl<'a, State> UiContainer<'a, State> {
 
             style!(
                 ui.item,
-                FlexDirection(yoga::FlexDirection::Row),
-                AlignSelf(yoga::Align::Stretch),
+                FlexDirection(yoga::FlexDirection::Column),
+                JustifyContent(yoga::Justify::Center),
                 AlignItems(yoga::Align::Stretch),
-                Height(40.point())
+                Height(20.0 pt)
             );
 
-            // the knob
-            ui.item("knob", (), |knob| {
-                knob.draw(|item, state, renderer| {
-                    // draw the slider bar
-                    // draw the knob
-                    renderer.draw_rect(&item.layout, &item.style);
+            // the bar
+            ui.item("bar", (), |bar| {
+                bar.draw(|item, state, renderer| {
+                    renderer.draw_rect(&item.layout, &item.calculated_style);
                 });
 
-                style!(knob.item,
+                bar.item.style.set_background_color((0.3, 0.3, 0.3, 1.0));
+                bar.item.style.set_border_radius(2.0);
+
+                style!(
+                    bar.item,
                     FlexDirection(yoga::FlexDirection::Row),
-                    Position(yoga::PositionType::Relative),
-                    Width(5.0 pt),
-                    //AlignSelf(yoga::Align::Stretch),
-                    //Height(100.percent()),
-                    Left((100.0*knob_pos).percent()));
+                    AlignItems(yoga::Align::Center),
+                    Height(5.0 pt)
+                );
+
+                // the knob
+                bar.item("knob", (), |knob| {
+                    knob.draw(|item, state, renderer| {
+                        renderer.draw_rect(&item.layout, &item.calculated_style);
+                    });
+
+                    knob.item.style.set_background_color((0.0, 1.0, 0.0, 1.0));
+                    knob.item.style.set_border_radius(2.0);
+
+                    style!(knob.item,
+                        FlexDirection(yoga::FlexDirection::Row),
+                        Position(yoga::PositionType::Relative),
+                        Width(10.0 pt),
+                        Height(10.0 pt),
+                        Left((100.0*knob_pos).percent()));
+                });
             });
         });
+
     }
 }

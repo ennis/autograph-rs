@@ -30,6 +30,29 @@ mod ui;
 
 const INIT_WINDOW_SIZE: (u32, u32) = (1024, 720);
 
+/*struct ImageCache<'ctx>
+{
+    context: &'ctx nvg::Context
+}
+
+struct Renderer<'cache, 'ctx:'cache>
+{
+    cache: &'cache ImageCache<'ctx>,
+    font: nvg::Font<'ctx>,
+    frame: nvg::Frame<'ctx>
+}
+
+impl<'cache, 'ctx: 'cache> Renderer<'cache, 'ctx>
+{
+    pub fn new(frame: nvg::Frame<'ctx>, font: nvg::Font<'ctx>, cache: &'cache ImageCache<'ctx>) -> Renderer<'cache, 'ctx> {
+        Renderer {
+            frame,
+            font,
+            cache
+        }
+    }
+}*/
+
 fn main() {
     pretty_env_logger::init();
     let mut events_loop = glutin::EventsLoop::new();
@@ -59,6 +82,8 @@ fn main() {
     let mut running = true;
     let mut ui = ui::Ui::new();
     let mut data = 10i32;
+    //let image_cache = ImageCache { context: &context };
+    let image_cache = ui::ImageCache::new(&context);
 
     while running {
         events_loop.poll_events(|event| match event {
@@ -93,13 +118,8 @@ fn main() {
         // Let's draw a frame!
         context.frame((width, height), gl_window.hidpi_factor(), |frame| {
             test_ui::make_ui(&mut ui, &mut data);
-
-            let mut renderer = ui::NvgRenderer {
-                frame: frame,
-                default_font: iosevka_font,
-                default_font_size: 16.0,
-            };
-
+            //let mut renderer = Renderer::new(frame, iosevka_font, &image_cache);
+            let mut renderer = ui::NvgRenderer::new(frame, iosevka_font, 16.0, &image_cache);
             ui.render((width as f32, height as f32), &mut renderer);
             //ui.layout_and_render((width as u32, height as u32), &frame);
         });

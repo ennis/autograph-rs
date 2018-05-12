@@ -47,51 +47,98 @@ pub struct Style {
     pub font_size: Option<f32>,
     pub font_color: Option<Color>,
     pub background_color: Option<Color>,
-    pub border_color: Option<Color>,
+    pub border_bottom_color: Option<Color>,
+    pub border_left_color: Option<Color>,
+    pub border_right_color: Option<Color>,
+    pub border_top_color: Option<Color>,
+    pub border_bottom_width: Option<f32>,
+    pub border_left_width: Option<f32>,
+    pub border_right_width: Option<f32>,
+    pub border_top_width: Option<f32>,
     pub border_radius: Option<f32>,
     pub background: Option<Background>,
 }
 
+macro_rules! inherit_props {
+    ($left:expr, $parent:expr, $($prop:ident),*) => {
+        Style {
+            $($prop: $left.$prop.clone().or($parent.$prop.clone()),)*
+            .. $left.clone()
+        }
+    };
+}
+
 impl Style {
-    /// Return an empty style.
+    /// Returns the empty style.
     pub fn empty() -> Style {
         Style {
             font_family: None,
             font_size: None,
             font_color: None,
             background_color: None,
-            border_color: None,
+            border_bottom_color: None,
+            border_left_color: None,
+            border_right_color: None,
+            border_top_color: None,
+            border_bottom_width: None,
+            border_left_width: None,
+            border_right_width: None,
+            border_top_width: None,
             border_radius: None,
             background: None,
         }
     }
 
-    /// Compute inherited properties for this style.
+    /// Computes inherited properties for this style.
     pub fn inherit(&self, parent: &Style) -> Style {
-        // inherited properties:
-        // font-family
-        // font-size
-        // font-color
-        Style {
-            font_family: self.font_family.clone().or(parent.font_family.clone()),
-            font_size: self.font_size.clone().or(parent.font_size.clone()),
-            font_color: self.font_color.clone().or(parent.font_color.clone()),
-            ..self.clone()
-        }
+        inherit_props!(self, parent,
+            font_family,
+            font_size,
+            font_color)
     }
 
-    /// Set all undefined styles to the default values provided.
+    /// Sets all undefined styles to the default values provided.
     pub fn with_default(&self, parent: &Style) -> Style {
-        Style {
-            font_family: self.font_family.clone().or(parent.font_family.clone()),
-            font_size: self.font_size.clone().or(parent.font_size.clone()),
-            font_color: self.font_color.clone().or(parent.font_color.clone()),
-            background_color: self.background_color
-                .clone()
-                .or(parent.background_color.clone()),
-            border_color: self.border_color.clone().or(parent.border_color.clone()),
-            border_radius: self.border_radius.clone().or(parent.border_radius.clone()),
-            background: self.background.clone().or(parent.background.clone()),
-        }
+        inherit_props!(self, parent,
+            font_family,
+            font_size,
+            font_color,
+            background_color,
+            border_bottom_color,
+            border_left_color,
+            border_right_color,
+            border_top_color,
+            border_radius,
+            border_bottom_width,
+            border_left_width,
+            border_right_width,
+            border_top_width,
+            background)
+    }
+
+    /// Sets the border color.
+    pub fn set_border_color(&mut self, color: Color) {
+        self.border_bottom_color = Some(color);
+        self.border_left_color = Some(color);
+        self.border_right_color = Some(color);
+        self.border_top_color = Some(color);
+    }
+
+    /// Sets the width of the border.
+    pub fn set_border_width(&mut self, width: f32) {
+        self.border_bottom_width = Some(width);
+        self.border_left_width = Some(width);
+        self.border_right_width = Some(width);
+        self.border_top_width = Some(width);
+    }
+
+    /// Sets the border radius.
+    pub fn set_border_radius(&mut self, radius: f32) {
+        self.border_radius = Some(radius);
+    }
+
+    /// Sets the background color.
+    pub fn set_background_color(&mut self, color: Color) {
+        self.background_color = Some(color);
     }
 }
