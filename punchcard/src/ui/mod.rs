@@ -22,11 +22,11 @@ use yoga::StyleUnit::{Auto, UndefinedValue};
 //      mod.rs(->InputState,Ui), renderer, layout, style, item(event,input_state), container(ui_state)
 // - rework style!() macro
 // - default draw() callback (it's mostly the same each time)
-// - alternative callbacks (|ui,item,state| : more consistent with other callbacks, but more parameters)
+// - DONE alternative callbacks (|ui,item,state| : more consistent with other callbacks, but more parameters)
 // - buttons
 // - DONE sliders
 // - checkboxes
-// - hbox layout
+// - DONE hbox layout
 // - native window handling
 // - WIP style computation
 
@@ -36,6 +36,18 @@ use yoga::StyleUnit::{Auto, UndefinedValue};
 // - item is the actual item
 // - state is the item state (typed)
 
+// Proposing a more radical change:
+// - now: all callbacks have a 'static bound (draw, input, measure)
+// - replace with a single trait, that encapsulates the widget state and deferred behavior
+// - trait ItemBehavior (draw, input, measure)
+// - can impl a trait inside a function
+// - ItemNode = Item(layout, styles, etc.) + Behavior(draw, input, measure)
+// - Behavior contains internal state, knows the type
+// - UiContainer: &mut behavior (correct type), &mut Item (styles, etc), flexbox, children (invisible)
+//          -> both are disjoint
+// - maybe harder to create one-shot behaviors?
+//          -> compensate by improving the immediate path
+
 mod container;
 mod item;
 mod layout;
@@ -44,9 +56,10 @@ mod style;
 
 // Reexports
 pub use self::container::{ScrollState, UiContainer};
-pub use self::item::Item;
+use self::item::ItemNode;
+pub use self::item::{DummyBehavior, Item, ItemBehavior};
 pub use self::layout::{ContentMeasurement, Layout};
-pub use self::renderer::{NvgRenderer, Renderer, ImageCache};
+pub use self::renderer::{ImageCache, NvgRenderer, Renderer};
 pub use self::style::{Background, Color, LinearGradient, RadialGradient, Style};
 pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
 
@@ -73,16 +86,11 @@ macro_rules! unwrap_enum {
     };
 }
 
-// Q: determination of the event propagation path:
-// Mouse (no capture): from root to element that passes the hit-test
-// Mouse (with capture): from root to element that captures pointer input
-// Keyboard: from root to element with focus
-//
-// Q: how to set the focus?
-
+/// The ID stack. Each level corresponds to a parent ItemNode.
 pub struct IdStack(Vec<ItemID>);
 
 impl IdStack {
+    /// Creates a new IdStack and push the specified ID onto it.
     pub fn new(root_id: ItemID) -> IdStack {
         IdStack(vec![root_id])
     }
@@ -104,6 +112,9 @@ impl IdStack {
         sip.finish()
     }
 
+    /// Hashes the given data, initializing the hasher with the items currently on the stack.
+    /// Pushes the result on the stack and returns it.
+    /// This is used to generate a unique ID per item path in the hierarchy.
     pub fn push_id<H: Hash>(&mut self, s: &H) -> ItemID {
         let id = self.chain_hash(s);
         let parent_id = *self.0.last().unwrap();
@@ -111,11 +122,13 @@ impl IdStack {
         id
     }
 
+    /// Pops the ID at the top of the stack.
     pub fn pop_id(&mut self) {
         self.0.pop();
     }
 }
 
+/// Struct containing information about a pointer capture.
 #[derive(Clone)]
 pub struct PointerCapture {
     /// Where the mouse button was at capture.
@@ -124,11 +137,14 @@ pub struct PointerCapture {
     id_path: Vec<ItemID>,
 }
 
-///
+/// Describes the nature of the target of a dispatch chain.
 #[derive(Copy, Clone, Debug)]
-enum DispatchReason {
-    Captured,
-    Focused,
+enum DispatchTarget {
+    /// The dispatch chain targets a captured item.
+    Capture,
+    /// The dispatch chain targets a focused item.
+    Focus,
+    /// The dispatch chain targets a leaf item that passed the cursor hit-test.
     HitTest,
 }
 
@@ -140,7 +156,7 @@ struct DispatchChain<'a> {
     /// current position in the chain
     current: usize,
     /// reason for dispatch
-    reason: DispatchReason,
+    target: DispatchTarget,
 }
 
 impl<'a> DispatchChain<'a> {
@@ -150,7 +166,7 @@ impl<'a> DispatchChain<'a> {
             Some(DispatchChain {
                 items: self.items,
                 current: self.current + 1,
-                reason: self.reason,
+                target: self.target,
             })
         } else {
             None
@@ -175,12 +191,13 @@ impl<'a> DispatchChain<'a> {
 
 /// Struct passed to event handlers.
 pub struct InputState<'a> {
+    /// TODO document
     state: &'a mut UiState,
-    /// dispatch chain
+    /// Dispatch chain that the event is travelling along.
     dispatch_chain: DispatchChain<'a>,
-    /// Whether the item received this event because it has been captured
+    /// Whether the item received this event because it has been captured.
     capturing: bool,
-    /// Whether the item received this event because it has focus
+    /// Whether the item received this event because it has focus.
     focused: bool,
 }
 
@@ -212,7 +229,7 @@ impl<'a> InputState<'a> {
     }
 
     /// Release the capture. This fails (silently) if the current item is not
-    /// capturing events
+    /// capturing events.
     pub fn release_capture(&mut self) {
         // check that we are capturing
         if self.capturing {
@@ -222,12 +239,13 @@ impl<'a> InputState<'a> {
         }
     }
 
-    /// Get the current cursor position
+    /// Get the current cursor position.
     pub fn cursor_pos(&self) -> (f32, f32) {
         self.state.cursor_pos
     }
 }
 
+/// Various global UI states.
 pub struct UiState {
     id_stack: IdStack,
     cur_frame: u64,
@@ -237,7 +255,7 @@ pub struct UiState {
 }
 
 impl UiState {
-    pub fn new() -> UiState {
+    fn new() -> UiState {
         UiState {
             id_stack: IdStack::new(0),
             cur_frame: 0,
@@ -247,15 +265,15 @@ impl UiState {
         }
     }
 
-    pub fn set_focus(&mut self, path: Vec<ItemID>) {
+    fn set_focus(&mut self, path: Vec<ItemID>) {
         self.focus_path = Some(path);
     }
 
-    pub fn release_focus(&mut self) {
+    fn release_focus(&mut self) {
         self.focus_path = None;
     }
 
-    pub fn set_capture(&mut self, path: Vec<ItemID>) {
+    fn set_capture(&mut self, path: Vec<ItemID>) {
         debug!("set capture {:?}", &path[..]);
         self.capture = Some(PointerCapture {
             id_path: path,
@@ -263,13 +281,13 @@ impl UiState {
         });
     }
 
-    pub fn release_capture(&mut self) {
+    fn release_capture(&mut self) {
         debug!("release capture");
         self.capture = None;
     }
 
     /// Check if the given item is capturing pointer events.
-    pub fn is_item_capturing(&self, id: ItemID) -> bool {
+    fn is_item_capturing(&self, id: ItemID) -> bool {
         if let Some(ref capture) = self.capture {
             *capture.id_path.last().expect("path was empty") == id
         } else {
@@ -277,17 +295,11 @@ impl UiState {
         }
     }
 
-    pub fn hit_test(
-        &self,
-        pos: (f32, f32),
-        item_id: ItemID,
-        item: &Item,
-        chain: &mut Vec<ItemID>,
-    ) -> bool {
-        if item.hit_test(pos) {
-            chain.push(item_id);
-            for (&id, child) in item.children.iter() {
-                if self.hit_test(pos, id, child, chain) {
+    fn hit_test(&self, pos: (f32, f32), node: &ItemNode, chain: &mut Vec<ItemID>) -> bool {
+        if node.hit_test(pos) {
+            chain.push(node.item.id);
+            for (_, child) in node.children.iter() {
+                if self.hit_test(pos, child, chain) {
                     break;
                 }
             }
@@ -297,12 +309,7 @@ impl UiState {
         }
     }
 
-    pub fn dispatch_event(
-        &mut self,
-        root_item_id: ItemID,
-        root_item: &mut Item,
-        event: &WindowEvent,
-    ) {
+    fn dispatch_event(&mut self, root_node: &mut ItemNode, event: &WindowEvent) {
         // update state
         match event {
             &WindowEvent::CursorMoved { position, .. } => {
@@ -324,20 +331,15 @@ impl UiState {
         };
 
         // build dispatch chain
-        let (dispatch_items, reason) = if let Some(ref capture) = self.capture {
-            (capture.id_path.clone(), DispatchReason::Captured)
+        let (dispatch_items, target) = if let Some(ref capture) = self.capture {
+            (capture.id_path.clone(), DispatchTarget::Capture)
         } else if let Some(ref focus) = self.focus_path {
-            (focus.clone(), DispatchReason::Focused)
+            (focus.clone(), DispatchTarget::Focus)
         } else {
             // TODO hit-test
             let mut hit_test_chain = Vec::new();
-            self.hit_test(
-                self.cursor_pos,
-                root_item_id,
-                root_item,
-                &mut hit_test_chain,
-            );
-            (hit_test_chain, DispatchReason::HitTest)
+            self.hit_test(self.cursor_pos, root_node, &mut hit_test_chain);
+            (hit_test_chain, DispatchTarget::HitTest)
         };
 
         /*debug!("dispatch chain: ");
@@ -348,52 +350,41 @@ impl UiState {
         if !dispatch_items.is_empty() {
             let dispatch_chain = DispatchChain {
                 items: &dispatch_items[..],
-                reason,
+                target,
                 current: 0,
             };
-            root_item.propagate_event(event, self, dispatch_chain);
+            root_node.propagate_event(event, self, dispatch_chain);
         }
     }
 
-    pub fn calculate_style(
-        &mut self,
-        id: ItemID,
-        item: &mut Item,
-        renderer: &Renderer,
-        parent: &Style,
-    ) {
-        // TODO
-        let style = item.style.inherit(parent).with_default(parent);
-        item.calculated_style = style.clone();
+    fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &Style) {
+        let style = node.item.style.inherit(parent).with_default(parent);
+        node.item.calculated_style = style.clone();
         // measure item
-        let m = item.measure(renderer);
+        let m = node.behavior.measure(&mut node.item, renderer);
         if let Some(width) = m.width {
-            style!(item.flexbox, Width(width.point()))
+            style!(node.flexbox, Width(width.point()))
         }
         if let Some(height) = m.height {
-            style!(item.flexbox, Height(height.point()))
+            style!(node.flexbox, Height(height.point()))
         }
 
-        for (&id, child) in item.children.iter_mut() {
-            self.calculate_style(id, child, renderer, &style);
+        for (_, child) in node.children.iter_mut() {
+            self.calculate_style(child, renderer, &style);
         }
     }
 
-    pub fn render_item(
+    fn render_item(
         &mut self,
-        id: ItemID,
-        item: &mut Item,
+        node: &mut ItemNode,
         parent_layout: &Layout,
         renderer: &mut Renderer,
     ) {
-        let flex_layout = item.flexbox.get_layout();
-        let layout = Layout::from_yoga_layout(parent_layout, item.flexbox.get_layout());
-        item.layout = layout;
-
-        item.draw(renderer);
-
-        for (&id, child) in item.children.iter_mut() {
-            self.render_item(id, child, &layout, renderer);
+        let layout = Layout::from_yoga_layout(parent_layout, node.flexbox.get_layout());
+        node.item.layout = layout;
+        node.behavior.draw(&mut node.item, renderer);
+        for (_, child) in node.children.iter_mut() {
+            self.render_item(child, &layout, renderer);
         }
     }
 }
@@ -405,15 +396,17 @@ fn measure_time<F: FnOnce()>(f: F) -> u64 {
     duration.num_microseconds().unwrap() as u64
 }
 
+/// The UI.
+/// Call root() to get a UiContainer that allows adding child items to the UI root.
 pub struct Ui {
-    root: Item,
+    root: ItemNode,
     state: UiState,
 }
 
 impl Ui {
+    /// Creates a new Ui object.
     pub fn new() -> Ui {
-        let mut root = Item::new();
-        root.state = Cell::new(Some(Box::<()>::new(())));
+        let mut root = ItemNode::new(0, Box::new(DummyBehavior));
 
         let mut ui = Ui {
             root,
@@ -422,14 +415,23 @@ impl Ui {
         ui
     }
 
+    /// Dispatches a `WindowEvent` to items.
+    /// First, the function determines the chain of items that will receive the event
+    /// (the `DispatchChain`).
+    /// Then, the capture event handler for each item in the chain is called, in order,
+    /// starting from root until the event is captured, or the item preceding the target is reached.
+    /// (capture phase).
+    /// If the event is not captured, then the bubble event handlers are called,
+    /// in reverse order from the target to the root, until the event is captured (bubble phase).
     pub fn dispatch_event(&mut self, event: &WindowEvent) {
         let event_dispatch_time = measure_time(|| {
-            self.state.dispatch_event(0, &mut self.root, event);
+            self.state.dispatch_event(&mut self.root, event);
         });
         //debug!("event dispatch took {}us", event_dispatch_time);
     }
 
-    pub fn root<F: FnOnce(&mut UiContainer<()>)>(&mut self, f: F) {
+    /// TODO document.
+    pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F) {
         let spec_time = measure_time(|| {
             let mut ui = UiContainer::new_root(0, &mut self.root, &mut self.state);
             f(&mut ui);
@@ -438,12 +440,15 @@ impl Ui {
         //debug!("ui specification took {}us", spec_time);
     }
 
+    /// Renders the UI to the given renderer.
+    /// This function first calculates the styles, then performs layout,
+    /// and finally calls the draw() function of each ItemBehavior in the hierarchy.
     pub fn render(&mut self, size: (f32, f32), renderer: &mut Renderer) {
         // measure contents pass
         let style_calculation_time = measure_time(|| {
             let root_style = Style::empty();
             self.state
-                .calculate_style(0, &mut self.root, renderer, &root_style);
+                .calculate_style(&mut self.root, renderer, &root_style);
         });
         let layout_time = measure_time(|| {
             self.root
@@ -458,7 +463,7 @@ impl Ui {
         };
         let render_time = measure_time(|| {
             self.state
-                .render_item(0, &mut self.root, &root_layout, renderer);
+                .render_item(&mut self.root, &root_layout, renderer);
         });
 
         // debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);

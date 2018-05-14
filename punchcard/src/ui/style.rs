@@ -91,15 +91,14 @@ impl Style {
 
     /// Computes inherited properties for this style.
     pub fn inherit(&self, parent: &Style) -> Style {
-        inherit_props!(self, parent,
-            font_family,
-            font_size,
-            font_color)
+        inherit_props!(self, parent, font_family, font_size, font_color)
     }
 
     /// Sets all undefined styles to the default values provided.
     pub fn with_default(&self, parent: &Style) -> Style {
-        inherit_props!(self, parent,
+        inherit_props!(
+            self,
+            parent,
             font_family,
             font_size,
             font_color,
@@ -113,7 +112,8 @@ impl Style {
             border_left_width,
             border_right_width,
             border_top_width,
-            background)
+            background
+        )
     }
 
     /// Sets the border color.

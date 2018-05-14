@@ -1,7 +1,7 @@
 use super::layout::{ContentMeasurement, Layout};
 use super::renderer::Renderer;
 use super::style::Style;
-use super::{DispatchChain, DispatchReason, InputState, ItemID, UiState};
+use super::{DispatchChain, DispatchTarget, InputState, ItemID, UiState};
 
 use glutin::{KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
 use indexmap::IndexMap;
@@ -11,66 +11,235 @@ use std::any::Any;
 use std::cell::Cell;
 use std::mem;
 
-/// A widget.
-pub struct Item {
-    pub(super) flexbox: yoga::Node,
-    pub layout: Layout,
-    pub(super) children: IndexMap<ItemID, Item>,
-    /// Callback that allows an item to capture an event in its propagation path.
-    //capture_event: Option<Box<Fn(&mut Item, &InputState)>>,
-    /// Custom state (default is Box<()>).
-    /// The value is wrapped in cell to allow temporarily moving the state out
-    /// and to avoid mut-borrowing the whole item.
-    pub(super) state: Cell<Option<Box<Any>>>,
-    /// Non-layout styles associated to this widget
-    pub style: Style,
-    /// Cached calculated styles
-    pub calculated_style: Style,
-    /// Optional callback for measuring the content
-    pub(super) measure: Option<Box<Fn(&mut Item, &Renderer) -> ContentMeasurement>>,
-    /// The draw callback, to draw stuff
-    pub(super) draw: Option<Box<Fn(&mut Item, &mut Renderer)>>,
-    /// is the mouse hovering the element?
-    pub(super) hovering: bool,
-    /// is the item capturing pointer events?
-    pub(super) capturing_pointer: bool,
-    /// Callback to handle events.
-    pub(super) capture_event_handler:
-        Option<Box<Fn(&mut Item, &WindowEvent, &mut InputState) -> bool>>,
-    /// Callback to handle events.
-    pub(super) event_handler: Option<Box<Fn(&mut Item, &WindowEvent, &mut InputState) -> bool>>,
-}
+/// A set of callbacks that describes the behavior of an item for all deferred processing:
+/// i.e., processing that happens outside the scope of the function calls that create or
+/// update the item (the _immediate path_).
+/// Typically, implementors of this trait are also used to store persistent internal state inside
+/// items.
+pub trait ItemBehavior: Any {
+    /// Draw the item to the specified renderer.
+    fn draw(&mut self, item: &mut Item, renderer: &mut Renderer) {
+        renderer.draw_rect(&item.layout, &item.calculated_style);
+    }
 
-// event dispatch:
-// 1. build route
-//    1.1. if capture in progress, get route from capture
-//    1.2. if focus, and event is not a pointer event, get route from focus
-//    1.3. otherwise, perform hit-test to get route to hit-test target
-// 2. dispatch event to all items along the route
-//
-// Q: how to specify that the item has focus?
-//   -> input_state.set_focus() // set focus on current item
-//   -> input_state.set_capture()
-
-impl Item {
-    pub fn new() -> Item {
-        Item {
-            children: IndexMap::new(),
-            flexbox: yoga::Node::new(),
-            state: Cell::new(None),
-            layout: Layout::default(),
-            style: Style::empty(),
-            calculated_style: Style::empty(),
-            measure: None,
-            draw: None,
-            hovering: false,
-            capturing_pointer: true,
-            capture_event_handler: None,
-            event_handler: None,
+    /// Measure the given item using the specified renderer.
+    fn measure(&mut self, item: &mut Item, renderer: &Renderer) -> ContentMeasurement {
+        ContentMeasurement {
+            width: None,
+            height: None,
         }
     }
 
-    pub fn with_measure<F: Fn(&mut Item, &Renderer) -> ContentMeasurement + 'static>(
+    /// Callback to handle an event passed to the item during the capturing phase.
+    fn capture_event(
+        &mut self,
+        item: &mut Item,
+        event: &WindowEvent,
+        input_state: &mut InputState,
+    ) -> bool {
+        false
+    }
+
+    /// Callback to handle an event during bubbling phase.
+    fn event(
+        &mut self,
+        item: &mut Item,
+        event: &WindowEvent,
+        input_state: &mut InputState,
+    ) -> bool {
+        false
+    }
+}
+
+/// A wrapper around ItemBehavior and Any traits. See:
+/// https://github.com/rust-lang/rfcs/issues/2035
+/// https://stackoverflow.com/questions/26983355
+pub(super) trait ItemBehaviorAny: ItemBehavior + Any {
+    fn as_mut_behavior(&mut self) -> &mut ItemBehavior;
+    fn as_mut_any(&mut self) -> &mut Any;
+}
+
+impl<T> ItemBehaviorAny for T
+where
+    T: ItemBehavior + Any,
+{
+    fn as_mut_behavior(&mut self) -> &mut ItemBehavior {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut Any {
+        self
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct DummyBehavior;
+
+impl ItemBehavior for DummyBehavior {
+    fn draw(&mut self, item: &mut Item, renderer: &mut Renderer) {}
+
+    fn measure(&mut self, item: &mut Item, renderer: &Renderer) -> ContentMeasurement {
+        ContentMeasurement {
+            width: None,
+            height: None,
+        }
+    }
+
+    fn capture_event(
+        &mut self,
+        item: &mut Item,
+        event: &WindowEvent,
+        input_state: &mut InputState,
+    ) -> bool {
+        // capture nothing
+        false
+    }
+
+    /// Callback to handle an event during bubbling phase.
+    fn event(
+        &mut self,
+        item: &mut Item,
+        event: &WindowEvent,
+        input_state: &mut InputState,
+    ) -> bool {
+        // always bubble
+        false
+    }
+}
+
+/// Represents a node in the item hierarchy.
+pub(super) struct ItemNode {
+    /// The corresponding node in the flexbox layout hierarchy.
+    pub(super) flexbox: yoga::Node,
+    /// Child nodes of this item.
+    pub(super) children: IndexMap<ItemID, ItemNode>,
+    /// A set of callbacks describing the behavior of the item during deferred processing.
+    /// Each widget has its own implementation of ItemBehavior that also stores
+    /// internal state specific to the widget.
+    /// See `ItemBehavior` for more information.
+    pub(super) behavior: Box<ItemBehaviorAny>,
+    /// User-facing properties of the item.
+    pub(super) item: Item,
+}
+
+impl ItemNode {
+    pub fn new(id: ItemID, behavior: Box<ItemBehaviorAny>) -> ItemNode {
+        ItemNode {
+            children: IndexMap::new(),
+            flexbox: yoga::Node::new(),
+            behavior,
+            item: Item::new(id),
+        }
+    }
+
+    pub fn measure(&mut self, renderer: &Renderer) -> ContentMeasurement {
+        self.behavior.measure(&mut self.item, renderer)
+    }
+
+    pub fn draw(&mut self, renderer: &mut Renderer) {
+        self.behavior.draw(&mut self.item, renderer)
+    }
+
+    pub fn hit_test(&self, pos: (f32, f32)) -> bool {
+        self.item.layout.is_point_inside(pos)
+    }
+
+    fn handle_event(
+        &mut self,
+        event: &WindowEvent,
+        state: &mut UiState,
+        dispatch_chain: DispatchChain,
+    ) -> bool {
+        let capturing = state.is_item_capturing(dispatch_chain.current_id());
+        let mut input_state = InputState {
+            state,
+            dispatch_chain,
+            capturing,
+            focused: false,
+        };
+        self.behavior.event(&mut self.item, event, &mut input_state)
+    }
+
+    fn capture_event(
+        &mut self,
+        event: &WindowEvent,
+        state: &mut UiState,
+        dispatch_chain: DispatchChain,
+    ) -> bool {
+        let capturing = state.is_item_capturing(dispatch_chain.current_id());
+        let mut input_state = InputState {
+            state,
+            dispatch_chain,
+            capturing,
+            focused: false,
+        };
+        self.behavior.event(&mut self.item, event, &mut input_state)
+    }
+
+    /// Propagate an event.
+    pub(super) fn propagate_event(
+        &mut self,
+        event: &WindowEvent,
+        state: &mut UiState,
+        dispatch_chain: DispatchChain,
+    ) -> bool {
+        // capture stage.
+        if self.capture_event(event, state, dispatch_chain) {
+            // event was consumed, stop propagation
+            return true;
+        }
+
+        // pass the event down the chain, and handle it if it bubbles up.
+        if let Some(next_dispatch) = dispatch_chain.next() {
+            let consumed = {
+                // TODO: verify that the dispatch chain is still valid before propagating an event.
+                // The dispatch chain of the focused (or capturing) item is invalid if an item of
+                // the chain is deleted between the time of the creation of chain and the time of
+                // event propagation.
+                let next = self.children
+                    .get_mut(&next_dispatch.current_id())
+                    .expect("item deleted");
+                next.propagate_event(event, state, next_dispatch)
+            };
+
+            if !consumed {
+                // event was not consumed lower in the chain and is bubbling up to us.
+                self.handle_event(event, state, dispatch_chain)
+            } else {
+                // consumed
+                true
+            }
+        } else {
+            self.handle_event(event, state, dispatch_chain)
+        }
+    }
+}
+
+/// Represents the user-accessible properties of an item in the hierarchy.
+/// This is separated from the rest of the item data (children, behavior)
+/// to allow multiple mutable borrows of different aspects of an item.
+pub struct Item {
+    /// The ID of the item. Unique among all nodes within an instance of `Ui`.
+    pub id: ItemID,
+    /// The calculated bounds of the item.
+    pub layout: Layout,
+    /// Non-layout styles associated to this item.
+    pub style: Style,
+    /// Cached calculated styles.
+    pub calculated_style: Style,
+}
+
+impl Item {
+    pub fn new(id: ItemID) -> Item {
+        Item {
+            id,
+            layout: Layout::default(),
+            style: Style::empty(),
+            calculated_style: Style::empty(),
+        }
+    }
+
+    /*pub fn with_measure<F: Fn(&mut Item, &Renderer) -> ContentMeasurement + 'static>(
         &mut self,
         f: F,
     ) {
@@ -109,7 +278,7 @@ impl Item {
         let result = f(self, &mut *state);
         self.replace_state(state);
         result
-    }
+    }*/
 
     /*pub fn get_custom_data<D: Any>(&self) -> &D {
         self.custom_data.as_ref().unwrap().downcast_ref::<D>().unwrap()
@@ -119,117 +288,10 @@ impl Item {
         self.custom_data.as_mut().unwrap().downcast_mut::<D>().unwrap()
     }*/
 
-    pub fn apply_styles<'b, I>(&mut self, styles: I)
+    /*pub fn apply_styles<'b, I>(&mut self, styles: I)
     where
         I: IntoIterator<Item = &'b yoga::FlexStyle>,
     {
         self.flexbox.apply_styles(styles);
-    }
-
-    pub fn measure(&mut self, renderer: &Renderer) -> ContentMeasurement {
-        // move the closure outside the item so we don't hold a borrow
-        let measure = mem::replace(&mut self.measure, None);
-        let result = if let Some(ref measure) = measure {
-            measure(self, renderer)
-        } else {
-            ContentMeasurement {
-                width: None,
-                height: None,
-            }
-        };
-        // move the closure back inside
-        mem::replace(&mut self.measure, measure);
-        result
-    }
-
-    pub fn draw(&mut self, renderer: &mut Renderer) {
-        let draw = mem::replace(&mut self.draw, None);
-        if let Some(ref draw) = draw {
-            draw(self, renderer);
-        }
-        mem::replace(&mut self.draw, draw);
-    }
-
-    pub fn hit_test(&self, pos: (f32, f32)) -> bool {
-        return self.layout.is_point_inside(pos);
-    }
-
-    fn handle_event(
-        &mut self,
-        event: &WindowEvent,
-        state: &mut UiState,
-        dispatch_chain: DispatchChain,
-    ) -> bool {
-        let handler = mem::replace(&mut self.event_handler, None);
-        let consumed = if let Some(ref handler) = handler {
-            let capturing = state.is_item_capturing(dispatch_chain.current_id());
-            let mut input_state = InputState {
-                state,
-                dispatch_chain,
-                capturing,
-                focused: false,
-            };
-            handler(self, event, &mut input_state)
-        } else {
-            false
-        };
-        mem::replace(&mut self.event_handler, handler);
-        consumed
-    }
-
-    fn capture_event(
-        &mut self,
-        event: &WindowEvent,
-        state: &mut UiState,
-        dispatch_chain: DispatchChain,
-    ) -> bool {
-        let handler = mem::replace(&mut self.capture_event_handler, None);
-        let consumed = if let Some(ref handler) = handler {
-            let capturing = state.is_item_capturing(dispatch_chain.current_id());
-            let mut input_state = InputState {
-                state,
-                dispatch_chain,
-                capturing,
-                focused: false,
-            };
-            handler(self, event, &mut input_state)
-        } else {
-            false
-        };
-        mem::replace(&mut self.capture_event_handler, handler);
-        consumed
-    }
-
-    /// Propagate an event (capture phase).
-    pub(super) fn propagate_event(
-        &mut self,
-        event: &WindowEvent,
-        state: &mut UiState,
-        dispatch_chain: DispatchChain,
-    ) -> bool {
-        if self.capture_event(event, state, dispatch_chain) {
-            // event was consumed, stop propagation
-            return true;
-        }
-
-        // follow the rest of the path
-        if let Some(next_dispatch) = dispatch_chain.next() {
-            let consumed = {
-                let next = self.children
-                    .get_mut(&next_dispatch.current_id())
-                    .expect("item deleted");
-                next.propagate_event(event, state, next_dispatch)
-            };
-
-            if !consumed {
-                // not consumed, bubble up
-                self.handle_event(event, state, dispatch_chain)
-            } else {
-                // consumed
-                true
-            }
-        } else {
-            self.handle_event(event, state, dispatch_chain)
-        }
-    }
+    }*/
 }
