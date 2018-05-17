@@ -117,7 +117,7 @@ fn main() {
         } as f32;
 
         // Let's draw a frame!
-        context.frame((width, height), gl_window.hidpi_factor(), |frame| {
+        context.frame((width as f32, height as f32), gl_window.hidpi_factor(), |frame| {
             test_ui::make_ui(&mut ui, &mut data);
             //let mut renderer = Renderer::new(frame, iosevka_font, &image_cache);
             let mut renderer = ui::NvgRenderer::new(frame, iosevka_font, 16.0, &image_cache);

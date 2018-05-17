@@ -124,33 +124,26 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
     fn draw_rect(&mut self, layout: &Layout, style: &Style) {
         // convert style to nvg styles
 
-        let fill_style = nvg::FillStyle {
-            coloring_style: match style.background {
+
+        let fill_paint = match style.background {
                 Some(Background::RadialGradient(ref gradient)) => unimplemented!(),
                 Some(Background::LinearGradient(ref gradient)) => unimplemented!(),
                 None => match style.background_color {
-                    Some((r, g, b, a)) => nvg::ColoringStyle::Color(nvg::Color::new(r, g, b, a)),
+                    Some((r, g, b, a)) => nvg::Color::new(r, g, b, a),
                     None => {
                         warn!("empty style property: background color");
-                        nvg::ColoringStyle::Color(nvg::Color::new(0.0, 0.0, 0.0, 0.0))
+                        nvg::Color::new(0.0, 0.0, 0.0, 0.0)
                     }
                 },
-            },
-            antialias: true,
-        };
+        	};
 
-        let stroke_style = nvg::StrokeStyle {
-            // TODO per-edge colors
-            coloring_style: match style.border_top_color {
-                Some((r, g, b, a)) => nvg::ColoringStyle::Color(nvg::Color::new(r, g, b, a)),
+        let stroke_paint = match style.border_top_color {
+                Some((r, g, b, a)) => nvg::Color::new(r, g, b, a),
                 None => {
                     warn!("empty style property: border color");
-                    nvg::ColoringStyle::Color(nvg::Color::new(0.0, 0.0, 0.0, 0.0))
+                    nvg::Color::new(0.0, 0.0, 0.0, 0.0)
                 }
-            },
-            width: 1.0,
-            ..Default::default()
-        };
+            };
 
         self.frame.path(
             |path| {
@@ -163,8 +156,8 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
                 } else {
                     path.rect((layout.left, layout.top), (layout.width(), layout.height()));
                 }
-                path.stroke(stroke_style);
-                path.fill(fill_style);
+                path.stroke(stroke_paint, Default::default());
+                path.fill(fill_paint, Default::default());
             },
             Default::default(),
         );
@@ -177,16 +170,14 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
                 |path| {
                     let (w, h) = (layout.width(), layout.height());
                     path.rect((layout.left, layout.top), (layout.width(), layout.height()));
-                    path.fill(nvg::FillStyle {
-                        antialias: false,
-                        coloring_style: nvg::ColoringStyle::Paint(nvg::Paint::with_image_pattern(
-                            img.as_ref(),
-                            (0.0, 0.0),
-                            (w, h),
-                            0.0,
-                            1.0,
-                        )),
-                    });
+                    let pattern = nvg::ImagePattern {
+                        image: img.as_ref(),
+                        origin: (0.0, 0.0),
+                        size: (w, h),
+                        angle: 0.0,
+                        alpha: 1.0,
+                    };
+                    path.fill(pattern, Default::default());
                 },
                 Default::default(),
             );
