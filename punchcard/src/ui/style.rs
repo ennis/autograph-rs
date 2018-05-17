@@ -6,12 +6,20 @@ pub type Color = (f32, f32, f32, f32);
 
 /// Style.
 #[derive(Clone, Debug)]
-pub enum StyleE {
+pub enum StyleRule {
     FontFace(String),
     FontHeight(f32),
+    Background(Background),
     BackgroundColor(Color),
     BorderColor(Color),
     BorderRadius(Color),
+}
+
+/// Border style
+#[derive(Copy, Clone, Debug)]
+pub enum BorderStyle
+{
+    Default
 }
 
 /// Gradient stop.

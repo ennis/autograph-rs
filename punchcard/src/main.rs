@@ -20,6 +20,7 @@ extern crate rand;
 extern crate time;
 #[macro_use]
 extern crate yoga;
+extern crate cssparser;
 
 use glutin::GlContext;
 use std::f32::consts::PI;

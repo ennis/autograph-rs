@@ -6,6 +6,7 @@ use indexmap::{map::{Entry, OccupiedEntry, VacantEntry},
 use yoga;
 use yoga::prelude::*;
 
+use std::fmt::Display;
 use std::cell::Cell;
 
 /// A helper type for the construction of item hierarchies.
@@ -198,6 +199,47 @@ pub struct ItemResult {
     pub hover: bool,
 }
 
+
+pub trait Interpolable: Copy+'static
+{
+    fn lerp(a: Self, b: Self, t: f32) -> Self;
+    fn ratio(a: Self, b: Self, t: Self) -> f32;
+}
+
+impl Interpolable for f32 {
+    fn lerp(a: f32, b: f32, t: f32) -> f32 {
+        //assert!(b > a);
+        t * (b - a) + a
+    }
+
+    fn ratio(a: f32, b: f32, t: f32) -> f32 {
+        (t - a) / (b - a)
+    }
+}
+
+impl Interpolable for i32 {
+    fn lerp(a: i32, b: i32, t: f32) -> i32 {
+        //assert!(b > a);
+        (t * (b - a) as f32 + a as f32).round() as i32
+    }
+
+    fn ratio(a: i32, b: i32, t: i32) -> f32 {
+        (t - a) as f32 / (b - a) as f32
+    }
+}
+
+impl Interpolable for u32 {
+    fn lerp(a: u32, b: u32, t: f32) -> u32 {
+        //assert!(b > a);
+        (t as f64 * (b - a) as f64 + a as f64).round() as u32
+    }
+
+    fn ratio(a: u32, b: u32, t: u32) -> f32 {
+        (t - a) as f32 / (b - a) as f32
+    }
+}
+
+
 impl<'a> UiContainer<'a> {
     ///
     /// Vertical layout box.
@@ -339,16 +381,12 @@ impl<'a> UiContainer<'a> {
         }
     }
 
+
+
     ///
     /// Slider with a f32 backing value.
     ///
-    /// Unresolved issue: synchronization of the value with the internal state?
-    ///
-    /// if nothing happened: state <- value.
-    ///
-    /// if state has changed: state -> value.
-    ///
-    pub fn slider_f32<S>(&mut self, label: S, value: &mut f32, min: f32, max: f32)
+    pub fn slider<S, T: Interpolable+Display>(&mut self, label: S, value: &mut T, min: T, max: T)
     where
         S: Into<String>,
     {
@@ -356,12 +394,39 @@ impl<'a> UiContainer<'a> {
 
         //=====================================
         // slider
-        struct Slider {
-            pos: f32,
-            min: f32,
-            max: f32,
+        struct Slider<T: Interpolable> {
+            value: T,
+            min: T,
+            max: T,
+            dirty: bool
         };
-        impl ItemBehavior for Slider {
+
+        impl<T: Interpolable> Slider<T> {
+            fn sync(&mut self, value: &mut T) {
+                if self.dirty {
+                    *value = self.value;
+                } else {
+                    self.value = *value;
+                }
+                self.dirty = false;
+            }
+
+            fn set_ratio(&mut self, ratio: f32) {
+                let value = <T as Interpolable>::lerp(self.min, self.max, ratio);
+                self.set_value(value);
+            }
+
+            fn set_value(&mut self, value: T) {
+                self.value = value;
+                self.dirty = true;
+            }
+
+            fn ratio(&self) -> f32 {
+                <T as Interpolable>::ratio(self.min, self.max, self.value)
+            }
+        }
+
+        impl<T: Interpolable+Display> ItemBehavior for Slider<T> {
             fn event(
                 &mut self,
                 item: &mut Item,
@@ -371,10 +436,8 @@ impl<'a> UiContainer<'a> {
                 // update the slider current value from the current cursor position
                 let mut update_slider_pos = |layout: &Layout, cursor_pos: (f32, f32)| {
                     let (cx, _) = cursor_pos;
-                    let off = (cx - layout.left) / layout.width() * (self.max - self.min);
-                    let off = clamp(off, self.min, self.max);
-                    self.pos = off;
-                    debug!("slider pos={}", self.pos);
+                    self.set_ratio(clamp((cx - layout.left) / layout.width(),0.0,1.0));
+                    debug!("slider pos={}", self.value);
                 };
 
                 // debug!("Slider capture {:016X} {:?}", itemid, event);
@@ -416,12 +479,13 @@ impl<'a> UiContainer<'a> {
 
         //=====================================
         // hierarchy
-        self.item(label, Slider { pos: *value, min, max }, |ui, item, slider| {
+        self.item(label, Slider { value: *value, min, max, dirty: false }, |ui, item, slider| {
             use std::mem::swap;
             slider.min = min;
             slider.max = max;
-            //swap(value, &mut slider.pos);
-            let knob_pos = slider.pos;
+            slider.sync(value);
+
+            let knob_pos = slider.ratio();
 
             style!(
                 ui.flexbox,

@@ -21,6 +21,7 @@ rand="*"
 indexmap="*"
 time="*"
 num="*"
+cssparser="*"
 
 [dependencies.nanovg]
 path = "../ext/nanovg-rs"
