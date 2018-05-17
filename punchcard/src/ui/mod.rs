@@ -5,8 +5,10 @@ use diff;
 use indexmap::{map::Entry, map::OccupiedEntry, map::VacantEntry, IndexMap};
 use nvg;
 use std::any::Any;
+use std::fs;
 use std::cell::{Cell, RefCell};
 use std::collections::{hash_map, HashMap};
+use std::path::{Path,PathBuf};
 use std::hash::{Hash, Hasher, SipHasher};
 use std::marker::PhantomData;
 use std::mem;
@@ -15,6 +17,7 @@ use yoga;
 use yoga::prelude::*;
 use yoga::FlexStyle::*;
 use yoga::StyleUnit::{Auto, UndefinedValue};
+use failure::Error;
 
 // Top priority:
 // - DONE deferred event propagation (with capture and bubble stages)
@@ -253,6 +256,7 @@ pub struct UiState {
     cursor_pos: (f32, f32),
     capture: Option<PointerCapture>,
     focus_path: Option<Vec<ItemID>>,
+    stylesheets: Vec<css::Stylesheet>
 }
 
 impl UiState {
@@ -263,8 +267,19 @@ impl UiState {
             cursor_pos: (0.0, 0.0),
             capture: None,
             focus_path: None,
+            stylesheets: Vec::new()
         }
     }
+
+    fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error>
+    {
+        let src = fs::read_to_string(path)?;
+        let stylesheet = css::parse_stylesheet(&src)?;
+        debug!("loaded stylesheet: {:#?}", stylesheet);
+        self.stylesheets.push(stylesheet);
+        Ok(())
+    }
+
 
     fn set_focus(&mut self, path: Vec<ItemID>) {
         self.focus_path = Some(path);
@@ -414,6 +429,11 @@ impl Ui {
             state: UiState::new(),
         };
         ui
+    }
+
+    /// Loads a CSS stylesheet from the specified path.
+    pub fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(),Error> {
+        self.state.load_stylesheet(path)
     }
 
     /// Dispatches a `WindowEvent` to items.

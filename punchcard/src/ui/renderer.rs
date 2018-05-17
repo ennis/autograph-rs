@@ -131,7 +131,7 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
                 None => match style.background_color {
                     Some((r, g, b, a)) => nvg::Color::new(r, g, b, a),
                     None => {
-                        warn!("empty style property: background color");
+                        //warn!("empty style property: background color");
                         nvg::Color::new(0.0, 0.0, 0.0, 0.0)
                     }
                 },
@@ -140,7 +140,7 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
         let stroke_paint = match style.border_top_color {
                 Some((r, g, b, a)) => nvg::Color::new(r, g, b, a),
                 None => {
-                    warn!("empty style property: border color");
+                    //warn!("empty style property: border color");
                     nvg::Color::new(0.0, 0.0, 0.0, 0.0)
                 }
             };

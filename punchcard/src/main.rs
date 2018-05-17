@@ -85,6 +85,7 @@ fn main() {
     let mut data = 10i32;
     //let image_cache = ImageCache { context: &context };
     let image_cache = ui::ImageCache::new(&context);
+    ui.load_stylesheet("data/css/default.css");
 
     while running {
         events_loop.poll_events(|event| match event {
