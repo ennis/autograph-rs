@@ -2,6 +2,7 @@ use super::layout::{ContentMeasurement, Layout};
 use super::renderer::Renderer;
 use super::style::Style;
 use super::{DispatchChain, DispatchTarget, InputState, ItemID, UiState};
+use super::ResourceStore;
 
 use glutin::{KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
 use indexmap::IndexMap;
@@ -17,9 +18,12 @@ use std::mem;
 /// Typically, implementors of this trait are also used to store persistent internal state inside
 /// items.
 pub trait ItemBehavior: Any {
+    /// One-time initialization.
+    fn init(&mut self, item: &mut Item) {}
+
     /// Draw the item to the specified renderer.
     fn draw(&mut self, item: &mut Item, renderer: &mut Renderer) {
-        renderer.draw_rect(&item.layout, &item.calculated_style);
+        renderer.draw_rect(&item.layout, &item.style);
     }
 
     /// Measure the given item using the specified renderer.
@@ -76,9 +80,9 @@ where
 pub struct DummyBehavior;
 
 impl ItemBehavior for DummyBehavior {
-    fn draw(&mut self, item: &mut Item, renderer: &mut Renderer) {}
+    fn draw(&mut self, _item: &mut Item, _renderer: &mut Renderer) {}
 
-    fn measure(&mut self, item: &mut Item, renderer: &Renderer) -> ContentMeasurement {
+    fn measure(&mut self, _item: &mut Item, _renderer: &Renderer) -> ContentMeasurement {
         ContentMeasurement {
             width: None,
             height: None,
@@ -124,12 +128,14 @@ pub(super) struct ItemNode {
 
 impl ItemNode {
     pub fn new(id: ItemID, behavior: Box<ItemBehaviorAny>) -> ItemNode {
-        ItemNode {
+        let mut n = ItemNode {
             children: IndexMap::new(),
             flexbox: yoga::Node::new(),
             behavior,
             item: Item::new(id),
-        }
+        };
+        n.behavior.init(&mut n.item);
+        n
     }
 
     pub fn measure(&mut self, renderer: &Renderer) -> ContentMeasurement {
@@ -223,10 +229,12 @@ pub struct Item {
     pub id: ItemID,
     /// The calculated bounds of the item.
     pub layout: Layout,
-    /// Non-layout styles associated to this item.
-    pub style: Style,
+    // Non-layout styles associated to this item.
+    //pub style: Style,
     /// Cached calculated styles.
-    pub calculated_style: Style,
+    pub style: Style,
+    /// CSS classes.
+    pub css_classes: Vec<String>,
 }
 
 impl Item {
@@ -234,9 +242,13 @@ impl Item {
         Item {
             id,
             layout: Layout::default(),
-            style: Style::empty(),
-            calculated_style: Style::empty(),
+            style: Style::default(),
+            css_classes: Vec::new()
         }
+    }
+
+    pub fn add_class(&mut self, class: &str) {
+        self.css_classes.push(class.to_owned());
     }
 
     /*pub fn with_measure<F: Fn(&mut Item, &Renderer) -> ContentMeasurement + 'static>(

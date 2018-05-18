@@ -10,3 +10,21 @@ hbox {
     border-color: blue;
     background-color: black;
 }
+
+slider {
+    background-color: #47474755;
+}
+
+slider-bar {
+    background-color: #474747;
+}
+
+slider-knob {
+    background-color: #fff211;
+    border-radius: 3.0px;
+}
+
+scroll {
+    border-width: 1.0px;
+    border-color: azure;
+}

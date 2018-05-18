@@ -1,5 +1,6 @@
 use super::layout::Layout;
 use super::style::{Background, Color, GradientStop, LinearGradient, RadialGradient, Style};
+use super::ResourceStore;
 
 use std::cell::RefCell;
 use std::collections::{hash_map::{Entry, OccupiedEntry, VacantEntry},
@@ -23,6 +24,9 @@ pub trait Renderer {
     fn measure_image(&self, image_path: &str) -> Option<(f32, f32)>;
 
     //fn draw_item(&mut self, item: &DrawItem, layout: &Layout, style: &ComputedStyle);
+    // issue: draw_text should have access to the store, because
+    // it may possibly load a font?
+    // => the renderer should use its own store.
     fn draw_text(&mut self, text: &str, layout: &Layout, style: &Style);
     fn draw_rect(&mut self, layout: &Layout, style: &Style);
     fn draw_image(&mut self, image_path: &str, layout: &Layout);
@@ -128,35 +132,34 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
         let fill_paint = match style.background {
                 Some(Background::RadialGradient(ref gradient)) => unimplemented!(),
                 Some(Background::LinearGradient(ref gradient)) => unimplemented!(),
-                None => match style.background_color {
-                    Some((r, g, b, a)) => nvg::Color::new(r, g, b, a),
-                    None => {
-                        //warn!("empty style property: background color");
-                        nvg::Color::new(0.0, 0.0, 0.0, 0.0)
-                    }
-                },
+                None => {
+                    let (r, g, b, a) = style.background_color;
+                    nvg::Color::new(r, g, b, a)
+                }
         	};
 
-        let stroke_paint = match style.border_top_color {
-                Some((r, g, b, a)) => nvg::Color::new(r, g, b, a),
-                None => {
-                    //warn!("empty style property: border color");
-                    nvg::Color::new(0.0, 0.0, 0.0, 0.0)
-                }
-            };
+        let stroke_paint = {
+            let (r, g, b, a) = style.border_top_color;
+            nvg::Color::new(r, g, b, a)
+        };
+
+        let stroke_opts = nvg::StrokeOptions {
+            width: style.border_top_width,
+            .. Default::default()
+        };
 
         self.frame.path(
             |path| {
-                if let Some(border_radius) = style.border_radius {
+                if style.border_radius != 0.0 {
                     path.rounded_rect(
                         (layout.left, layout.top),
                         (layout.width(), layout.height()),
-                        border_radius,
+                        style.border_radius,
                     );
                 } else {
                     path.rect((layout.left, layout.top), (layout.width(), layout.height()));
                 }
-                path.stroke(stroke_paint, Default::default());
+                path.stroke(stroke_paint, stroke_opts);
                 path.fill(fill_paint, Default::default());
             },
             Default::default(),

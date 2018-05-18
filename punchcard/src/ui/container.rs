@@ -63,11 +63,13 @@ impl<'a> UiContainer<'a> {
     /// - a UIContainer for the newly created child item
     /// - a mutable reference to the item properties `&'mut Item`
     /// - a mutable reference to the `ItemBehavior`
-    pub(super) fn new_item<'b>(
+    pub(super) fn new_item<'b, F>(
         &'b mut self,
         new_item_id: ItemID,
-        init_behavior: Box<ItemBehaviorAny>,
-    ) -> (UiContainer<'b>, &'b mut Item, &'b mut ItemBehaviorAny) {
+        f: F
+    ) -> (UiContainer<'b>, &'b mut Item, &'b mut ItemBehaviorAny)
+    where F: FnOnce(ItemID) -> ItemNode
+    {
         // when inserting a child item:
         //      - if index matches: OK
         //      - else: swap the item at the correct location, mark it for relayout
@@ -79,7 +81,7 @@ impl<'a> UiContainer<'a> {
             match entry {
                 Entry::Vacant(ref entry) => {
                     // entry is vacant: must insert at current location
-                    Some(ItemNode::new(new_item_id, init_behavior))
+                    Some(f(new_item_id))
                 }
                 Entry::Occupied(mut entry) => {
                     let index = entry.index();
@@ -158,7 +160,7 @@ impl<'a> UiContainer<'a> {
     }
 
     /// TODO document.
-    pub fn item<S, Behavior, F>(&mut self, id: S, init: Behavior, f: F)
+    pub fn item<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
     where
         S: Into<String>,
         Behavior: ItemBehavior,
@@ -171,7 +173,11 @@ impl<'a> UiContainer<'a> {
 
         {
             use std::any::Any;
-            let (mut ui, item, behavior) = self.new_item(id, Box::new(init));
+            let (mut ui, item, behavior) = self.new_item(id, move |id| {
+                let mut node = ItemNode::new(id, Box::new(init));
+                node.item.add_class(class);
+                node
+            });
             let behavior = behavior
                 .as_mut_any()
                 .downcast_mut()
@@ -250,9 +256,10 @@ impl<'a> UiContainer<'a> {
         F: FnOnce(&mut UiContainer),
     {
         struct VBox;
-        impl ItemBehavior for VBox {}
+        impl ItemBehavior for VBox {
+        }
 
-        self.item(id, VBox, |mut ui, item, _| {
+        self.item(id, "vbox", VBox, |ui, item, _| {
             style!(ui.flexbox,
                 FlexDirection(yoga::FlexDirection::Column),
                 Margin(2.0 pt)
@@ -277,7 +284,7 @@ impl<'a> UiContainer<'a> {
         struct HBox;
         impl ItemBehavior for HBox {}
 
-        self.item(id, HBox, |mut ui, item, _| {
+        self.item(id, "hbox", HBox, |ui, item, _| {
             style!(ui.flexbox,
                 FlexDirection(yoga::FlexDirection::Row),
                 Margin(2.0 pt)
@@ -332,7 +339,7 @@ impl<'a> UiContainer<'a> {
 
         //=====================================
         // hierarchy
-        self.item(id, ScrollState { pos: 0.0 }, |mut ui, item, scroll| {
+        self.item(id, "scroll", ScrollState { pos: 0.0 }, |mut ui, item, scroll| {
             let top = -scroll.pos;
             style!(ui.flexbox,
                 FlexDirection(yoga::FlexDirection::Column),
@@ -357,21 +364,21 @@ impl<'a> UiContainer<'a> {
         struct Text(String);
         impl ItemBehavior for Text {
             fn draw(&mut self, item: &mut Item, renderer: &mut Renderer) {
-                renderer.draw_text(&self.0, &item.layout, &item.calculated_style);
+                renderer.draw_text(&self.0, &item.layout, &item.style);
             }
 
             fn measure(&mut self, item: &mut Item, renderer: &Renderer) -> ContentMeasurement {
-                let m = renderer.measure_text(&self.0, &item.calculated_style);
+                let m = renderer.measure_text(&self.0, &item.style);
                 ContentMeasurement {
                     width: Some(m),
-                    height: item.calculated_style.font_size,
+                    height: Some(item.style.font_size),
                 }
             }
         }
 
         //=====================================
         // hierarchy
-        self.item(text.clone(), Text(text.into()), |_, _, _| {});
+        self.item(text.clone(), "text", Text(text.into()), |_, _, _| {});
 
         //=====================================
         // result
@@ -479,7 +486,7 @@ impl<'a> UiContainer<'a> {
 
         //=====================================
         // hierarchy
-        self.item(label, Slider { value: *value, min, max, dirty: false }, |ui, item, slider| {
+        self.item(label, "slider", Slider { value: *value, min, max, dirty: false }, |ui, item, slider| {
             use std::mem::swap;
             slider.min = min;
             slider.max = max;
@@ -495,9 +502,9 @@ impl<'a> UiContainer<'a> {
                 Height(20.0 pt)
             );
 
-            ui.item("bar", Bar, |ui, item, _| {
-                item.style.set_background_color((0.3, 0.3, 0.3, 1.0));
-                item.style.set_border_radius(2.0);
+            ui.item("bar", "slider-bar", Bar, |ui, item, _| {
+                //item.style.set_background_color((0.3, 0.3, 0.3, 1.0));
+                //item.style.set_border_radius(2.0);
 
                 style!(
                     ui.flexbox,
@@ -507,9 +514,9 @@ impl<'a> UiContainer<'a> {
                 );
 
                 // the knob
-                ui.item("knob", Knob, |ui, item, _| {
-                    item.style.set_background_color((0.0, 1.0, 0.0, 1.0));
-                    item.style.set_border_radius(2.0);
+                ui.item("knob", "slider-knob", Knob, |ui, item, _| {
+                    //item.style.set_background_color((0.0, 1.0, 0.0, 1.0));
+                    //item.style.set_border_radius(2.0);
 
                     style!(ui.flexbox,
                         FlexDirection(yoga::FlexDirection::Row),

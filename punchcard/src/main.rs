@@ -21,10 +21,12 @@ extern crate time;
 #[macro_use]
 extern crate yoga;
 extern crate cssparser;
+extern crate warmy;
 
 use glutin::GlContext;
 use std::f32::consts::PI;
 use std::time::Instant;
+use warmy::{Store,StoreOpt};
 
 mod test_ui;
 mod ui;

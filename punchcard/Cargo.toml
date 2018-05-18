@@ -22,6 +22,7 @@ indexmap="*"
 time="*"
 num="*"
 cssparser="*"
+warmy="*"
 
 [dependencies.nanovg]
 path = "../ext/nanovg-rs"

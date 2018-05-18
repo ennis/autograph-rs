@@ -1,8 +1,10 @@
 use cssparser::{Parser,ParserInput,DeclarationListParser,DeclarationParser,RuleListParser,QualifiedRuleParser,CowRcStr,ParseError,AtRuleParser};
 use cssparser::Color as CssColor;
 use cssparser::{Token,RGBA};
-use failure::Error;
+use failure::{Fail,Error,Compat};
 use yoga::FlexStyle;
+use warmy::{Load, FSKey, Storage, Loaded};
+use std::io;
 
 use super::style::*;
 
@@ -50,9 +52,9 @@ pub struct Selector
 pub struct Rule
 {
     /// Selector.
-    selector: Selector,
+    pub(super) selector: Selector,
     /// List of CSS declarations.
-    declarations: Vec<PropertyDeclaration>
+    pub(super) declarations: Vec<PropertyDeclaration>
 }
 
 /// A stylesheet.
@@ -61,6 +63,37 @@ pub struct Stylesheet
 {
     /// List of rule-sets.
     rules: Vec<Rule>
+}
+
+impl Stylesheet
+{
+    pub fn match_class(&self, class: &str) -> Option<&Rule> {
+        // TODO
+        self.rules.iter().filter(|rule| rule.selector.class == class).next()
+    }
+}
+
+#[derive(Debug,Fail)]
+pub enum StylesheetLoadError
+{
+    #[fail(display = "io error")]
+    IoError(io::Error),
+    #[fail(display = "parse error")]
+    ParseError(Compat<Error>)
+}
+
+/// Hot-reloadable impl.
+impl<C> Load<C> for Stylesheet {
+    type Key = FSKey;
+    type Error = Compat<Error>;
+
+    fn load(key: Self::Key, storage: &mut Storage<C>, ctx: &mut C) -> Result<Loaded<Self>, Self::Error> {
+        use std::fs;
+        let src = fs::read_to_string(key.as_path()).map_err(|e| Error::from(e).compat())?;
+        let stylesheet = parse_stylesheet(&src).map_err(|e| e.compat())?;
+        debug!("(re)-loaded stylesheet `{}`", key.as_path().display());
+        Ok(stylesheet.into())
+    }
 }
 
 ////////////////////////////////////////////////////////////////
@@ -224,7 +257,7 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
             "border-right-width" => { self.declarations.push(PropertyDeclaration::BorderRightWidth(Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
             "border-radius" => { self.declarations.push(PropertyDeclaration::BorderRadius(Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
             "background-color" => {
-                self.declarations.push(PropertyDeclaration::Color(CssColor::parse(parser)?.to_color()));
+                self.declarations.push(PropertyDeclaration::BackgroundColor(CssColor::parse(parser)?.to_color()));
                 Ok(())
             },
             _ => Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))

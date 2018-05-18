@@ -1,3 +1,5 @@
+use super::css;
+
 /// Font description
 #[derive(Clone, Debug)]
 pub struct FontDesc(String);
@@ -49,7 +51,7 @@ pub enum Background {
 }
 
 /// Visual style
-#[derive(Clone, Debug)]
+/*#[derive(Clone, Debug)]
 pub struct Style {
     pub font_family: Option<String>,
     pub font_size: Option<f32>,
@@ -65,18 +67,19 @@ pub struct Style {
     pub border_top_width: Option<f32>,
     pub border_radius: Option<f32>,
     pub background: Option<Background>,
-}
+}*/
 
-macro_rules! inherit_props {
+/*macro_rules! inherit_props {
     ($left:expr, $parent:expr, $($prop:ident),*) => {
         Style {
             $($prop: $left.$prop.clone().or($parent.$prop.clone()),)*
             .. $left.clone()
         }
     };
-}
+}*/
 
-impl Style {
+
+/*impl Style {
     /// Returns the empty style.
     pub fn empty() -> Style {
         Style {
@@ -149,4 +152,81 @@ impl Style {
     pub fn set_background_color(&mut self, color: Color) {
         self.background_color = Some(color);
     }
+}*/
+
+
+/// Visual style
+#[derive(Clone, Debug)]
+pub struct Style {
+    pub font_family: String,
+    pub font_size: f32,
+    pub font_color: Color,
+    pub background_color: Color,
+    pub border_bottom_color: Color,
+    pub border_left_color: Color,
+    pub border_right_color: Color,
+    pub border_top_color: Color,
+    pub border_bottom_width: f32,
+    pub border_left_width: f32,
+    pub border_right_width: f32,
+    pub border_top_width: f32,
+    pub border_radius: f32,
+    pub background: Option<Background>,
+}
+
+impl Default for Style
+{
+    fn default() -> Self {
+        Style {
+            font_family: "monospace".to_owned(),
+            font_size: 12.0,
+            font_color: (0.0,0.0,0.0,0.0),
+            background_color: (0.0,0.0,0.0,0.0),
+            border_bottom_color: (0.0,0.0,0.0,0.0),
+            border_left_color: (0.0,0.0,0.0,0.0),
+            border_right_color: (0.0,0.0,0.0,0.0),
+            border_top_color: (0.0,0.0,0.0,0.0),
+            border_bottom_width: 0.0,
+            border_left_width: 0.0,
+            border_right_width: 0.0,
+            border_top_width: 0.0,
+            border_radius: 0.0,
+            background: None,
+        }
+    }
+}
+
+macro_rules! inherit_props_2 {
+    ($to:expr, $from:expr, $($prop:ident),*) => {
+        $($to.$prop = $from.$prop.clone();)*
+    };
+}
+
+impl Style
+{
+    pub fn apply(&mut self, properties: &[css::PropertyDeclaration]) -> &mut Self {
+        for prop in properties.iter() {
+            match prop {
+                css::PropertyDeclaration::Color(c) => { unimplemented!() },
+                css::PropertyDeclaration::BackgroundColor(c) => { self.background_color = *c; },
+                css::PropertyDeclaration::BorderBottomColor(c) => { self.border_bottom_color = *c; },
+                css::PropertyDeclaration::BorderLeftColor(c) => { self.border_left_color = *c; },
+                css::PropertyDeclaration::BorderRightColor(c) => { self.border_right_color = *c; },
+                css::PropertyDeclaration::BorderTopColor(c) => { self.border_top_color = *c; },
+                css::PropertyDeclaration::BorderBottomWidth(w) => { self.border_bottom_width = *w; },
+                css::PropertyDeclaration::BorderLeftWidth(w) => { self.border_left_width = *w; },
+                css::PropertyDeclaration::BorderRightWidth(w) => { self.border_right_width = *w; },
+                css::PropertyDeclaration::BorderTopWidth(w) => { self.border_top_width = *w; },
+                css::PropertyDeclaration::BorderRadius(radius) => { self.border_radius = *radius; },
+                css::PropertyDeclaration::Flexbox(style) => { unimplemented!() }
+            }
+        }
+        self
+    }
+
+    pub fn inherit(&mut self, from: &Style) -> &mut Self {
+        inherit_props_2!(self, from, font_family, font_size, font_color);
+        self
+    }
+
 }

@@ -19,38 +19,6 @@ use yoga::FlexStyle::*;
 use yoga::StyleUnit::{Auto, UndefinedValue};
 use failure::Error;
 
-// Top priority:
-// - DONE deferred event propagation (with capture and bubble stages)
-// - WIP split into modules
-//      mod.rs(->InputState,Ui), renderer, layout, style, item(event,input_state), container(ui_state)
-// - rework style!() macro
-// - default draw() callback (it's mostly the same each time)
-// - DONE alternative callbacks (|ui,item,state| : more consistent with other callbacks, but more parameters)
-// - buttons
-// - DONE sliders
-// - checkboxes
-// - DONE hbox layout
-// - native window handling
-// - WIP style computation
-
-// Alternative:
-// take closure with: |ui,item,state|
-// - ui handles adding children
-// - item is the actual item
-// - state is the item state (typed)
-
-// Proposing a more radical change:
-// - now: all callbacks have a 'static bound (draw, input, measure)
-// - replace with a single trait, that encapsulates the widget state and deferred behavior
-// - trait ItemBehavior (draw, input, measure)
-// - can impl a trait inside a function
-// - ItemNode = Item(layout, styles, etc.) + Behavior(draw, input, measure)
-// - Behavior contains internal state, knows the type
-// - UiContainer: &mut behavior (correct type), &mut Item (styles, etc), flexbox, children (invisible)
-//          -> both are disjoint
-// - maybe harder to create one-shot behaviors?
-//          -> compensate by improving the immediate path
-
 mod container;
 mod item;
 mod layout;
@@ -66,6 +34,8 @@ pub use self::layout::{ContentMeasurement, Layout};
 pub use self::renderer::{ImageCache, NvgRenderer, Renderer};
 pub use self::style::{Background, Color, LinearGradient, RadialGradient, Style};
 pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
+pub use self::css::Stylesheet;
+pub use warmy::{Store, StoreOpt, FSKey, Res};
 
 type ItemID = u64;
 
@@ -249,6 +219,9 @@ impl<'a> InputState<'a> {
     }
 }
 
+/// The resource store type for all UI stuff (images, etc.)
+pub type ResourceStore = Store<()>;
+
 /// Various global UI states.
 pub struct UiState {
     id_stack: IdStack,
@@ -256,7 +229,8 @@ pub struct UiState {
     cursor_pos: (f32, f32),
     capture: Option<PointerCapture>,
     focus_path: Option<Vec<ItemID>>,
-    stylesheets: Vec<css::Stylesheet>
+    stylesheets: Vec<Res<css::Stylesheet>>,
+    store: ResourceStore
 }
 
 impl UiState {
@@ -267,19 +241,18 @@ impl UiState {
             cursor_pos: (0.0, 0.0),
             capture: None,
             focus_path: None,
-            stylesheets: Vec::new()
+            stylesheets: Vec::new(),
+            store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store")
         }
     }
 
     fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error>
     {
-        let src = fs::read_to_string(path)?;
-        let stylesheet = css::parse_stylesheet(&src)?;
-        debug!("loaded stylesheet: {:#?}", stylesheet);
+        let mut ctx = ();
+        let stylesheet = self.store.get::<_, Stylesheet>(&FSKey::new(path), &mut ctx)?;
         self.stylesheets.push(stylesheet);
         Ok(())
     }
-
 
     fn set_focus(&mut self, path: Vec<ItemID>) {
         self.focus_path = Some(path);
@@ -374,8 +347,28 @@ impl UiState {
     }
 
     fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &Style) {
-        let style = node.item.style.inherit(parent).with_default(parent);
-        node.item.calculated_style = style.clone();
+        // issue: how to select the stylesheet?
+        // from the ItemBehavior type?
+        // item.class("")
+
+        // TODO recompute style only if dirty
+        // TODO proper cascading
+        // init style from default
+        let mut style = Style::default();
+        style.inherit(parent);
+        // apply all matching rules, in order of stylesheets
+        for stylesheet in self.stylesheets.iter() {
+            let stylesheet = stylesheet.borrow();
+            // TODO more than one class.
+            if let Some(first) = node.item.css_classes.first() {
+                let class_rule = stylesheet.match_class(first);
+                if let Some(class_rule) = class_rule {
+                    style.apply(&class_rule.declarations[..]);
+                }
+            }
+        }
+
+        node.item.style = style.clone();
         // measure item
         let m = node.behavior.measure(&mut node.item, renderer);
         if let Some(width) = m.width {
@@ -422,9 +415,9 @@ pub struct Ui {
 impl Ui {
     /// Creates a new Ui object.
     pub fn new() -> Ui {
-        let mut root = ItemNode::new(0, Box::new(DummyBehavior));
+        let root = ItemNode::new(0, Box::new(DummyBehavior));
 
-        let mut ui = Ui {
+        let ui = Ui {
             root,
             state: UiState::new(),
         };
@@ -453,6 +446,9 @@ impl Ui {
 
     /// TODO document.
     pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F) {
+        let mut ctx = ();
+        // this should probably be done in its own function.
+        self.state.store.sync(&mut ctx);
         let spec_time = measure_time(|| {
             let mut ui = UiContainer::new_root(0, &mut self.root, &mut self.state);
             f(&mut ui);
@@ -467,7 +463,7 @@ impl Ui {
     pub fn render(&mut self, size: (f32, f32), renderer: &mut Renderer) {
         // measure contents pass
         let style_calculation_time = measure_time(|| {
-            let root_style = Style::empty();
+            let root_style = Style::default();
             self.state
                 .calculate_style(&mut self.root, renderer, &root_style);
         });
@@ -487,6 +483,6 @@ impl Ui {
                 .render_item(&mut self.root, &root_layout, renderer);
         });
 
-        // debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);
+        //debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);
     }
 }
