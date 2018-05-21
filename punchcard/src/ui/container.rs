@@ -1,6 +1,6 @@
 use super::item::{ItemBehaviorAny, ItemNode};
 use super::{Color, ContentMeasurement, DummyBehavior, ElementState, InputState, Item,
-            ItemBehavior, ItemID, Layout, Renderer, Style, UiState, VirtualKeyCode, WindowEvent};
+            ItemBehavior, ItemID, Layout, Renderer, ComputedStyle, UiState, VirtualKeyCode, WindowEvent};
 use indexmap::{map::{Entry, OccupiedEntry, VacantEntry},
                IndexMap};
 use yoga;
@@ -122,6 +122,9 @@ impl<'a> UiContainer<'a> {
 
         let item_node = self.children.get_index_mut(cur_index).unwrap().1;
         self.cur_index += 1;
+
+        // clear inline CSS styles (they are respecified each frame)
+        item_node.item.inline_styles.clear();
 
         // 'deconstruct' the node into non-aliasing mutable borrows of its components.
         // This prevents headaches with the borrow checker down the line.
@@ -260,10 +263,6 @@ impl<'a> UiContainer<'a> {
         }
 
         self.item(id, "vbox", VBox, |ui, item, _| {
-            style!(ui.flexbox,
-                FlexDirection(yoga::FlexDirection::Column),
-                Margin(2.0 pt)
-            );
             f(ui);
         });
 
@@ -285,10 +284,6 @@ impl<'a> UiContainer<'a> {
         impl ItemBehavior for HBox {}
 
         self.item(id, "hbox", HBox, |ui, item, _| {
-            style!(ui.flexbox,
-                FlexDirection(yoga::FlexDirection::Row),
-                Margin(2.0 pt)
-            );
             f(ui);
         });
 
@@ -353,11 +348,11 @@ impl<'a> UiContainer<'a> {
     }
 
     ///
-    /// Text.
+    /// Text with class.
     ///
-    pub fn text<S>(&mut self, text: S) -> ItemResult
-    where
-        S: Into<String> + Clone,
+    pub fn text_class<S>(&mut self, text: S, class: &str) -> ItemResult
+        where
+            S: Into<String> + Clone,
     {
         //=====================================
         // behavior
@@ -378,7 +373,7 @@ impl<'a> UiContainer<'a> {
 
         //=====================================
         // hierarchy
-        self.item(text.clone(), "text", Text(text.into()), |_, _, _| {});
+        self.item(text.clone(), class, Text(text.into()), |_, _, _| {});
 
         //=====================================
         // result
@@ -388,6 +383,30 @@ impl<'a> UiContainer<'a> {
         }
     }
 
+    ///
+    /// Text.
+    ///
+    pub fn text<S>(&mut self, text: S) -> ItemResult
+    where
+        S: Into<String> + Clone,
+    {
+        self.text_class(text, "text")
+    }
+
+    ///
+    /// Button.
+    ///
+    pub fn button<S>(&mut self, label: S)
+        where
+            S: Into<String>
+    {
+        let label = label.into();
+        struct Button;
+        impl ItemBehavior for Button {}
+        self.item(label.clone(), "button", Button, |ui,_,_| {
+            ui.text_class(label, "button-label");
+        });
+    }
 
 
     ///
@@ -492,38 +511,19 @@ impl<'a> UiContainer<'a> {
             slider.max = max;
             slider.sync(value);
 
+           // debug!("slider layout: {:?}", item.layout);
+
             let knob_pos = slider.ratio();
 
-            style!(
-                ui.flexbox,
-                FlexDirection(yoga::FlexDirection::Column),
-                JustifyContent(yoga::Justify::Center),
-                AlignItems(yoga::Align::Stretch),
-                Height(20.0 pt)
-            );
-
             ui.item("bar", "slider-bar", Bar, |ui, item, _| {
-                //item.style.set_background_color((0.3, 0.3, 0.3, 1.0));
-                //item.style.set_border_radius(2.0);
-
-                style!(
-                    ui.flexbox,
-                    FlexDirection(yoga::FlexDirection::Row),
-                    AlignItems(yoga::Align::Center),
-                    Height(5.0 pt)
-                );
-
+                //debug!("slider-bar layout: {:?}", item.layout);
                 // the knob
                 ui.item("knob", "slider-knob", Knob, |ui, item, _| {
+                    //debug!("slider-knob layout: {:?}", item.layout);
                     //item.style.set_background_color((0.0, 1.0, 0.0, 1.0));
                     //item.style.set_border_radius(2.0);
-
-                    style!(ui.flexbox,
-                        FlexDirection(yoga::FlexDirection::Row),
-                        Position(yoga::PositionType::Relative),
-                        Width(10.0 pt),
-                        Height(10.0 pt),
-                        Left((100.0*knob_pos).percent()));
+                    item.style.position = yoga::PositionType::Relative;
+                    item.style.left = (100.0*knob_pos).percent();
                 });
             });
         });

@@ -88,6 +88,7 @@ fn main() {
     //let image_cache = ImageCache { context: &context };
     let image_cache = ui::ImageCache::new(&context);
     ui.load_stylesheet("data/css/default.css");
+    debug!("HiDPI factor is {}", gl_window.hidpi_factor());
 
     while running {
         events_loop.poll_events(|event| match event {
@@ -107,10 +108,9 @@ fn main() {
         }
 
         let (width, height) = gl_window.get_inner_size().unwrap();
-        let (width, height) = (width as i32, height as i32);
 
         unsafe {
-            gl::Viewport(0, 0, width, height);
+            gl::Viewport(0, 0, width as i32, height as i32);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
         }
 
@@ -125,7 +125,6 @@ fn main() {
             //let mut renderer = Renderer::new(frame, iosevka_font, &image_cache);
             let mut renderer = ui::NvgRenderer::new(frame, iosevka_font, 16.0, &image_cache);
             ui.render((width as f32, height as f32), &mut renderer);
-            //ui.layout_and_render((width as u32, height as u32), &frame);
         });
 
         gl_window.swap_buffers().unwrap();

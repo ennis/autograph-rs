@@ -25,6 +25,63 @@ mod layout;
 mod renderer;
 mod style;
 mod css;
+mod sizer;
+
+// New style system:
+// - target: one million items
+// - minimize updates to the layout tree (yoga)
+//
+// - track dirty styles
+// - static style properties (global stylesheets and item stylesheets)
+// - dynamic style properties (cleared each frame)
+//      ! dynamic properties should not trigger a full relayout!
+//
+// Recomputation:
+// - on stylesheet reload
+//
+// Respec of layout tree:
+// - on stylesheet reload
+// - only spec changed styles
+//
+// Style caching:
+// - cache only style attributes (border, colors)
+// - no need to cache layout
+//
+// Issue:
+// - dynamic layout (e.g. relative position)
+// - dynamic proper
+//
+// algorithm:
+//
+// IF a stylesheet been changed / added? THEN
+//      cascade(root, full=true)
+//
+// cascade(item, parent, full):
+//      if full==false
+//          no global stylesheet update
+//          issue: for inheritable properties, the prio is:
+//              inline styles -> stylesheet -> parent
+//             if no inline style is specified, must re-query the stylesheet (with selectors)
+//
+//          just update dynamic styles, assume that we inherit nothing from the parent
+//          load cached draw styles
+//          apply dynamic styles to cached draw style and flexbox
+//          if any inheritable property has changed
+//              cascade(children, inherit=true)*
+//      else
+//          do full style calculation
+//          find all applicable classes
+//          get all applicable properties
+//          apply properties to draw style and flexbox
+//
+// The issue is inheritance:
+// - cannot track what properties have changed, so must update all of them
+// - may inherit values, but overwrite them just after
+//
+// In any case:
+// - prefer building a list of changes instead of recalculating everything
+//
+
 
 // Reexports
 pub use self::container::{ScrollState, UiContainer};
@@ -32,10 +89,11 @@ use self::item::ItemNode;
 pub use self::item::{DummyBehavior, Item, ItemBehavior};
 pub use self::layout::{ContentMeasurement, Layout};
 pub use self::renderer::{ImageCache, NvgRenderer, Renderer};
-pub use self::style::{Background, Color, LinearGradient, RadialGradient, Style};
+pub use self::style::{Background, Color, LinearGradient, RadialGradient, ComputedStyle};
 pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
 pub use self::css::Stylesheet;
 pub use warmy::{Store, StoreOpt, FSKey, Res};
+use self::style::apply_to_flex_node;
 
 type ItemID = u64;
 
@@ -125,11 +183,11 @@ enum DispatchTarget {
 /// Represent a dispatch chain: a chain of items that should receive an event.
 #[derive(Copy, Clone)]
 struct DispatchChain<'a> {
-    /// the items in the chain
+    /// The items in the chain.
     items: &'a [ItemID],
-    /// current position in the chain
+    /// Current position in the chain.
     current: usize,
-    /// reason for dispatch
+    /// Reason for dispatch.
     target: DispatchTarget,
 }
 
@@ -346,15 +404,18 @@ impl UiState {
         }
     }
 
-    fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &Style) {
+    fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &ComputedStyle) {
         // issue: how to select the stylesheet?
         // from the ItemBehavior type?
         // item.class("")
 
         // TODO recompute style only if dirty
         // TODO proper cascading
+        // TODO caching the full computed style in each individual item is super expensive (in CPU and memory)
+        //  => store only modifications
         // init style from default
-        let mut style = Style::default();
+        let mut style = ComputedStyle::default();
+        let mut should_relayout = false;
         style.inherit(parent);
         // apply all matching rules, in order of stylesheets
         for stylesheet in self.stylesheets.iter() {
@@ -363,19 +424,25 @@ impl UiState {
             if let Some(first) = node.item.css_classes.first() {
                 let class_rule = stylesheet.match_class(first);
                 if let Some(class_rule) = class_rule {
-                    style.apply(&class_rule.declarations[..]);
+                    style.apply(&class_rule.declarations[..], &mut should_relayout);
                 }
             }
+        }
+
+        // TODO apply inline declarations
+
+        if should_relayout {
+            apply_to_flex_node(&mut node.flexbox, &style);
         }
 
         node.item.style = style.clone();
         // measure item
         let m = node.behavior.measure(&mut node.item, renderer);
         if let Some(width) = m.width {
-            style!(node.flexbox, Width(width.point()))
+            node.flexbox.set_width(width.point());
         }
         if let Some(height) = m.height {
-            style!(node.flexbox, Height(height.point()))
+            node.flexbox.set_height(height.point());
         }
 
         for (_, child) in node.children.iter_mut() {
@@ -391,6 +458,7 @@ impl UiState {
     ) {
         let layout = Layout::from_yoga_layout(parent_layout, node.flexbox.get_layout());
         node.item.layout = layout;
+        //debug!("layout {:?}", layout);
         node.behavior.draw(&mut node.item, renderer);
         for (_, child) in node.children.iter_mut() {
             self.render_item(child, &layout, renderer);
@@ -463,7 +531,7 @@ impl Ui {
     pub fn render(&mut self, size: (f32, f32), renderer: &mut Renderer) {
         // measure contents pass
         let style_calculation_time = measure_time(|| {
-            let root_style = Style::default();
+            let root_style = ComputedStyle::default();
             self.state
                 .calculate_style(&mut self.root, renderer, &root_style);
         });
@@ -483,6 +551,6 @@ impl Ui {
                 .render_item(&mut self.root, &root_layout, renderer);
         });
 
-        //debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);
+        debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);
     }
 }

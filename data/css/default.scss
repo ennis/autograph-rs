@@ -1,0 +1,90 @@
+
+$highlight-background: #c1ff54;
+$highlight-text: #282828;
+$accent-1: #6abe37;
+$accent-2: #c12727;
+$text: #eaeaea;
+$text-disabled: #898989;
+// panel header color
+$panel-header: #86a2a2;
+$panel-header-alt: #9da28e;
+// default background of panels
+$panel-background: #202020;
+$panel-background-alt: #202020;
+$panel-border: #3e3e3e;
+// the void
+$canvas-background: #000000;
+// hovered element background (menu item, etc)
+$hover-background: #ddedeb;
+// hovered text
+$hover-text: invert($hover-background);
+// background of button items
+$button-background: #474747;
+// background of editable elements
+$edit-background: $button-background;
+
+vbox {
+    flex-direction: column;
+    margin: 2px;
+
+    border-color: $panel-border;
+    background-color: $panel-background-alt;
+    border-width: 1px;
+}
+
+hbox {
+    flex-direction: row;
+    margin: 2px;
+
+    border-color: #c12727;
+    border-width: 1px;
+    background-color: $panel-background-alt;
+}
+
+slider {
+    flex-grow: 1.0;
+    height: 20px;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+
+    border-width: 1px;
+    border-color: aquamarine;
+
+    margin: 2px;
+    padding: 2px 4px 2px;
+}
+
+slider-bar {
+    flex-direction: row;
+    align-items: center;
+    height: 5px;
+
+    background-color: #474747;
+}
+
+slider-knob {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    background-color: $accent-1;
+    //border-radius: 0.0px;
+}
+
+button {
+    background-color: $button-background;
+    //border-width: 2px;
+    height: 20px;
+    //border-color: #848484;
+    padding: 2px;
+}
+
+scroll {
+    flex-direction: column;
+    flex-grow: 1.0;
+    align-items: stretch;
+
+    background-color: $panel-background;
+    border-width: 1px;
+    border-color: azure;
+}

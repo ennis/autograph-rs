@@ -1,8 +1,9 @@
 use super::layout::{ContentMeasurement, Layout};
 use super::renderer::Renderer;
-use super::style::Style;
+use super::style::ComputedStyle;
 use super::{DispatchChain, DispatchTarget, InputState, ItemID, UiState};
 use super::ResourceStore;
+use super::css;
 
 use glutin::{KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
 use indexmap::IndexMap;
@@ -219,6 +220,11 @@ impl ItemNode {
             self.handle_event(event, state, dispatch_chain)
         }
     }
+
+    /// Add a flexbox layout style.
+    pub fn apply_flex_style(&mut self, flex_style: &yoga::FlexStyle) {
+        self.flexbox.apply_style(flex_style);
+    }
 }
 
 /// Represents the user-accessible properties of an item in the hierarchy.
@@ -232,9 +238,11 @@ pub struct Item {
     // Non-layout styles associated to this item.
     //pub style: Style,
     /// Cached calculated styles.
-    pub style: Style,
+    pub style: ComputedStyle,
     /// CSS classes.
     pub css_classes: Vec<String>,
+    /// Additional inline CSS properties.
+    pub inline_styles: Vec<css::PropertyDeclaration>
 }
 
 impl Item {
@@ -242,8 +250,9 @@ impl Item {
         Item {
             id,
             layout: Layout::default(),
-            style: Style::default(),
-            css_classes: Vec::new()
+            style: ComputedStyle::default(),
+            css_classes: Vec::new(),
+            inline_styles: Vec::new()
         }
     }
 

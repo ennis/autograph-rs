@@ -2,7 +2,8 @@ use cssparser::{Parser,ParserInput,DeclarationListParser,DeclarationParser,RuleL
 use cssparser::Color as CssColor;
 use cssparser::{Token,RGBA};
 use failure::{Fail,Error,Compat};
-use yoga::FlexStyle;
+use yoga;
+use yoga::prelude::*;
 use warmy::{Load, FSKey, Storage, Loaded};
 use std::io;
 
@@ -34,8 +35,51 @@ pub enum PropertyDeclaration
     BorderTopWidth(f32),
     /// Borders.
     BorderRadius(f32),
-    /// Flexbox styles.
-    Flexbox(FlexStyle)
+    /// Flex styles.
+    AlignContent(yoga::Align),
+    AlignItems(yoga::Align),
+    AlignSelf(yoga::Align),
+    AspectRatio(f32),
+    BorderEnd(f32),
+    Bottom(yoga::StyleUnit),
+    Display(yoga::Display),
+    End(yoga::StyleUnit),
+    Flex(f32),
+    FlexBasis(yoga::StyleUnit),
+    FlexDirection(yoga::FlexDirection),
+    FlexGrow(f32),
+    FlexShrink(f32),
+    FlexWrap(yoga::Wrap),
+    Height(yoga::StyleUnit),
+    JustifyContent(yoga::Justify),
+    Left(yoga::StyleUnit),
+    MarginBottom(yoga::StyleUnit),
+    MarginEnd(yoga::StyleUnit),
+    MarginHorizontal(yoga::StyleUnit),
+    MarginLeft(yoga::StyleUnit),
+    MarginRight(yoga::StyleUnit),
+    MarginStart(yoga::StyleUnit),
+    MarginTop(yoga::StyleUnit),
+    MarginVertical(yoga::StyleUnit),
+    MaxHeight(yoga::StyleUnit),
+    MaxWidth(yoga::StyleUnit),
+    MinHeight(yoga::StyleUnit),
+    MinWidth(yoga::StyleUnit),
+    Overflow(yoga::Overflow),
+    PaddingBottom(yoga::StyleUnit),
+    PaddingEnd(yoga::StyleUnit),
+    PaddingHorizontal(yoga::StyleUnit),
+    PaddingLeft(yoga::StyleUnit),
+    PaddingRight(yoga::StyleUnit),
+    PaddingStart(yoga::StyleUnit),
+    PaddingTop(yoga::StyleUnit),
+    PaddingVertical(yoga::StyleUnit),
+    Position(yoga::PositionType),
+    Right(yoga::StyleUnit),
+    Start(yoga::StyleUnit),
+    Top(yoga::StyleUnit),
+    Width(yoga::StyleUnit),
+
 }
 
 
@@ -176,8 +220,25 @@ enum PropertyParseErrorKind<'i> {
 }
 
 /// Length values.
+#[derive(Copy,Clone,Debug)]
 enum Length {
     Px(f32)
+}
+
+trait ToPx
+{
+    fn to_px<'i>(&self) -> Option<f32>;
+}
+
+impl ToPx for yoga::StyleUnit
+{
+
+    fn to_px<'i>(&self) -> Option<f32> {
+        match self {
+            &yoga::StyleUnit::Point(px) => Some(px.into()),
+            _ => { None }
+        }
+    }
 }
 
 impl Length
@@ -193,11 +254,38 @@ impl Length
         Err(parser.new_custom_error(PropertyParseErrorKind::Other))
     }
 
-    fn to_px<'i>(&self) -> Option<f32> {
-        match self {
-            &Length::Px(px) => Some(px),
-            _ => { None }
-        }
+}
+
+fn parse_style_unit<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<yoga::StyleUnit, ParseError<'i, PropertyParseErrorKind<'i>>> {
+    match parser.next()?.clone() {
+        Token::Dimension { value, ref unit, .. } => match unit.as_ref() {
+            "px" => Ok(value.point()),
+            "pt" => Ok(value.point()),
+            _ => { Err(parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit)) }
+        },
+        Token::Percentage { unit_value, .. } => {
+            Ok(unit_value.percent())
+        },
+        _ => { Err(parser.new_custom_error(PropertyParseErrorKind::Other)) }
+    }
+}
+
+/// Box property parser (e.g. border-width: 5px 10px 5px).
+/// Result is top, right, bottom, left
+fn parse_box_width<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<(yoga::StyleUnit,yoga::StyleUnit,yoga::StyleUnit,yoga::StyleUnit), ParseError<'i, PropertyParseErrorKind<'i>>>
+{
+    let a0 = parse_style_unit(parser)?;
+    // the others may fail
+    let a1 = parse_style_unit(parser).ok();
+    let a2 = parse_style_unit(parser).ok();
+    let a3 = parse_style_unit(parser).ok();
+
+    match (a1,a2,a3) {
+        (None, None, None) => Ok((a0,a0,a0,a0)),
+        (Some(b1), None, None) => Ok((a0, b1, a0, b1)),
+        (Some(b1), Some(b2), None) => Ok((a0, b1, b2, b1)),
+        (Some(b1), Some(b2), Some(b3)) => Ok((a0, b1, b2, b3)),
+        _ => { unreachable!() }
     }
 }
 
@@ -244,20 +332,117 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
                 Ok(())
             },
             "border-width" => {
-                let width = Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
-                self.declarations.push(PropertyDeclaration::BorderBottomWidth(width));
-                self.declarations.push(PropertyDeclaration::BorderTopWidth(width));
-                self.declarations.push(PropertyDeclaration::BorderRightWidth(width));
-                self.declarations.push(PropertyDeclaration::BorderLeftWidth(width));
+                let (top, right, bottom, left) = parse_box_width(parser)?;
+                //let width = Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
+                self.declarations.push(PropertyDeclaration::BorderBottomWidth(bottom.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?));
+                self.declarations.push(PropertyDeclaration::BorderTopWidth(top.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?));
+                self.declarations.push(PropertyDeclaration::BorderRightWidth(right.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?));
+                self.declarations.push(PropertyDeclaration::BorderLeftWidth(left.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?));
                 Ok(())
             },
-            "border-bottom-width" => { self.declarations.push(PropertyDeclaration::BorderBottomWidth(Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
-            "border-top-width" => { self.declarations.push(PropertyDeclaration::BorderTopWidth(Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
-            "border-left-width" => { self.declarations.push(PropertyDeclaration::BorderLeftWidth(Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
-            "border-right-width" => { self.declarations.push(PropertyDeclaration::BorderRightWidth(Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
-            "border-radius" => { self.declarations.push(PropertyDeclaration::BorderRadius(Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
+            "margin" => {
+                let (top, right, bottom, left) = parse_box_width(parser)?;
+                //let width = Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
+                self.declarations.push(PropertyDeclaration::MarginBottom(bottom));
+                self.declarations.push(PropertyDeclaration::MarginTop(top));
+                self.declarations.push(PropertyDeclaration::MarginRight(right));
+                self.declarations.push(PropertyDeclaration::MarginLeft(left));
+                Ok(())
+            },
+            "padding" => {
+                let (top, right, bottom, left) = parse_box_width(parser)?;
+                //let width = Length::parse(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
+                self.declarations.push(PropertyDeclaration::PaddingBottom(bottom));
+                self.declarations.push(PropertyDeclaration::PaddingTop(top));
+                self.declarations.push(PropertyDeclaration::PaddingRight(right));
+                self.declarations.push(PropertyDeclaration::PaddingLeft(left));
+                Ok(())
+            },
+            "border-bottom-width" => { self.declarations.push(PropertyDeclaration::BorderBottomWidth(parse_style_unit(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
+            "border-top-width" => { self.declarations.push(PropertyDeclaration::BorderTopWidth(parse_style_unit(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
+            "border-left-width" => { self.declarations.push(PropertyDeclaration::BorderLeftWidth(parse_style_unit(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
+            "border-right-width" => { self.declarations.push(PropertyDeclaration::BorderRightWidth(parse_style_unit(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
+            "border-radius" => { self.declarations.push(PropertyDeclaration::BorderRadius(parse_style_unit(parser)?.to_px().ok_or_else(|| parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?)); Ok(()) },
             "background-color" => {
                 self.declarations.push(PropertyDeclaration::BackgroundColor(CssColor::parse(parser)?.to_color()));
+                Ok(())
+            },
+            // flexbox properties
+            "flex-direction" => {
+                let ident = parser.expect_ident_cloned()?;
+                let dir = match ident.as_ref() {
+                    "row" => { yoga::FlexDirection::Row },
+                    "row-reverse" => { yoga::FlexDirection::RowReverse },
+                    "column" => { yoga::FlexDirection::Column },
+                    "column-reverse" => { yoga::FlexDirection::ColumnReverse },
+                    _ => return Err(parser.new_custom_error(PropertyParseErrorKind::Other))
+                };
+                self.declarations.push(PropertyDeclaration::FlexDirection(dir));
+                Ok(())
+            },
+            "justify-content" => {
+                let ident = parser.expect_ident_cloned()?;
+                let justify = match ident.as_ref() {
+                    "flex-start" => { yoga::Justify::FlexStart },
+                    "flex-end" => { yoga::Justify::FlexEnd },
+                    "center" => { yoga::Justify::Center },
+                    "space-between" => { yoga::Justify::SpaceBetween },
+                    "space-around" => { yoga::Justify::SpaceAround },
+                    _ => return Err(parser.new_custom_error(PropertyParseErrorKind::Other))
+                };
+                self.declarations.push(PropertyDeclaration::JustifyContent(justify));
+                Ok(())
+            },
+            "align-items" | "align-self" | "align-content" => {
+                let ident = parser.expect_ident_cloned()?;
+                let align = match ident.as_ref() {
+                    "flex-start" => { yoga::Align::FlexStart },
+                    "flex-end" => { yoga::Align::FlexEnd },
+                    "center" => { yoga::Align::Center },
+                    "baseline" => { yoga::Align::Baseline },
+                    "stretch" => { yoga::Align::Stretch },
+                    _ => return Err(parser.new_custom_error(PropertyParseErrorKind::Other))
+                };
+                match name.as_ref() {
+                    "align-items" => {self.declarations.push(PropertyDeclaration::AlignItems(align));},
+                    "align-self" => {self.declarations.push(PropertyDeclaration::AlignSelf(align));},
+                    "align-content" => {self.declarations.push(PropertyDeclaration::AlignContent(align));},
+                    _ => unreachable!()
+                }
+                Ok(())
+            },
+            "flex-grow" => {
+                let grow = parser.expect_number()?;
+                self.declarations.push(PropertyDeclaration::FlexGrow(grow.into()));
+                debug!("flex-grow {}", grow);
+                Ok(())
+            },
+            "flex-shrink" => {
+                let shrink = parser.expect_number()?;
+                self.declarations.push(PropertyDeclaration::FlexShrink(shrink.into()));
+                Ok(())
+            },
+            "flex-basis" => {
+                unimplemented!()
+            },
+            "position" => {
+                let ident = parser.expect_ident_cloned()?;
+                let pos = match ident.as_ref() {
+                    "absolute" => { yoga::PositionType::Absolute },
+                    "relative" => { yoga::PositionType::Relative },
+                    _ => return Err(parser.new_custom_error(PropertyParseErrorKind::Other))
+                };
+                self.declarations.push(PropertyDeclaration::Position(pos));
+                Ok(())
+            },
+            "width" => {
+                let w = parse_style_unit(parser)?;
+                self.declarations.push(PropertyDeclaration::Width(w));
+                Ok(())
+            },
+            "height" => {
+                let h = parse_style_unit(parser)?;
+                self.declarations.push(PropertyDeclaration::Height(h));
                 Ok(())
             },
             _ => Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))

@@ -3,6 +3,9 @@ name = "punchcard"
 version = "0.1.0"
 authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
+[build-dependencies]
+embed-resource = "*"
+
 [dependencies]
 bitflags = "*"
 lazy_static = "*"
@@ -30,3 +33,4 @@ features = ["gl3"]
 
 [dependencies.yoga]
 path = "../ext/yoga-rs"
+
