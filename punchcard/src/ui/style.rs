@@ -8,8 +8,8 @@ use std::rc::Rc;
 // Borders, Background fill, Font (all inheritable), Layout properties, dynamic layout properties (left, right, etc.) that do not required full relayout.
 //
 // Issue: layout prop removed in inline CSS
-// - never remove: set to undefined
 // - recalc
+// - update
 
 
 /// Font description
@@ -18,11 +18,10 @@ pub struct FontDesc(String);
 
 pub type Color = (f32, f32, f32, f32);
 
-
 /// Calculated border and background style.
 /// Changing these should not trigger a full relayout.
-#[derive(Clone, Debug)]
-pub struct BoxStyle
+#[derive(Clone, Debug, PartialEq)]
+pub struct NonLayoutStyles
 {
     pub background_color: Color,
     pub border_color: BoxProperty<Color>,
@@ -30,37 +29,30 @@ pub struct BoxStyle
     pub border_radius: f32,
 }
 
-fn compare_and_set<T: Clone+Eq>(target: &mut T, new: &T) -> bool
+impl Default for NonLayoutStyles
 {
-    if target != new {
-        *target = new.clone();
-        true
-    } else {
-        false
+    fn default() -> NonLayoutStyles
+    {
+        NonLayoutStyles {
+            background_color: (0.0, 0.0, 0.0, 0.0),
+            border_color: BoxProperty::all((0.0,0.0,0.0,0.0)),
+            border_width: BoxProperty::all(0.0),
+            border_radius: 0.0,
+        }
     }
 }
 
-
 /// Calculated layout properties.
 /// These properties can trigger a relayout when changed and are not meant to change frequently.
-#[derive(Clone, Debug)]
-pub struct CalculatedLayoutProperties
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutStyles
 {
     pub display: yoga::Display,
     pub align_content: yoga::Align,
     pub align_items: yoga::Align,
     pub align_self: yoga::Align,
     pub aspect_ratio: f32,
-    //pub border_end: f32,
     pub position: yoga::PositionType,
-    //pub left: yoga::StyleUnit,
-    //pub right: yoga::StyleUnit,
-    //pub top: yoga::StyleUnit,
-    //pub bottom: yoga::StyleUnit,
-    //pub width: yoga::StyleUnit,
-    //pub height: yoga::StyleUnit,
-    //pub start: yoga::StyleUnit,
-    //pub end: yoga::StyleUnit,
     pub flex_basis: yoga::StyleUnit,
     pub flex_direction: yoga::FlexDirection,
     pub flex_grow: f32,
@@ -68,28 +60,47 @@ pub struct CalculatedLayoutProperties
     pub flex_wrap: yoga::Wrap,
     pub justify_content: yoga::Justify,
     pub margin: BoxProperty<yoga::StyleUnit>,
-    pub margin_end: yoga::StyleUnit,
-    //pub margin_horizontal: yoga::StyleUnit,
-    pub margin_start: yoga::StyleUnit,
-    //pub margin_vertical: yoga::StyleUnit,
     pub max_height: yoga::StyleUnit,
     pub max_width: yoga::StyleUnit,
     pub min_height: yoga::StyleUnit,
     pub min_width: yoga::StyleUnit,
     pub overflow: yoga::Overflow,
     pub padding: BoxProperty<yoga::StyleUnit>,
-    //pub padding_end: yoga::StyleUnit,
-    //pub padding_horizontal: yoga::StyleUnit,
-    //pub padding_start: yoga::StyleUnit,
-    //pub padding_vertical: yoga::StyleUnit
+}
+
+impl Default for LayoutStyles
+{
+    fn default() -> LayoutStyles {
+        LayoutStyles {
+            display: yoga::Display::Flex,
+            align_content: yoga::Align::Auto,
+            align_items: yoga::Align::Auto,
+            align_self: yoga::Align::Auto,
+            aspect_ratio: yoga::Undefined,
+            position: yoga::PositionType::Relative,
+            flex_basis: yoga::StyleUnit::UndefinedValue,
+            flex_direction: yoga::FlexDirection::Column,
+            flex_grow: 0.0,
+            flex_shrink: 0.0,
+            flex_wrap: yoga::Wrap::NoWrap,
+            justify_content: yoga::Justify::FlexStart,
+            margin: BoxProperty::all(yoga::StyleUnit::UndefinedValue),
+            max_height: yoga::StyleUnit::UndefinedValue,
+            max_width: yoga::StyleUnit::UndefinedValue,
+            min_height: yoga::StyleUnit::UndefinedValue,
+            min_width: yoga::StyleUnit::UndefinedValue,
+            overflow: yoga::Overflow::Visible,
+            padding: BoxProperty::all(yoga::StyleUnit::UndefinedValue),
+        }
+    }
 }
 
 
 /// Dynamic layout properties.
 /// These are expected to change more frequently than the other layout properties,
 /// but they do not trigger a full relayout.
-#[derive(Copy, Clone, Debug)]
-pub struct DynamicLayoutProperties
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct DynamicLayoutStyles
 {
     pub left: yoga::StyleUnit,
     pub right: yoga::StyleUnit,
@@ -99,18 +110,130 @@ pub struct DynamicLayoutProperties
     pub height: yoga::StyleUnit,
 }
 
+impl Default for DynamicLayoutStyles
+{
+    fn default() -> DynamicLayoutStyles
+    {
+        DynamicLayoutStyles {
+            left: yoga::StyleUnit::UndefinedValue,
+            right: yoga::StyleUnit::UndefinedValue,
+            top: yoga::StyleUnit::UndefinedValue,
+            bottom: yoga::StyleUnit::UndefinedValue,
+            width: yoga::StyleUnit::UndefinedValue,
+            height: yoga::StyleUnit::UndefinedValue,
+        }
+    }
+}
+
+pub struct ComputedStyle2
+{
+    pub non_layout: NonLayoutStyles,
+    pub layout: LayoutStyles,
+    pub dyn_layout: DynamicLayoutStyles,
+}
+
+impl Default for ComputedStyle2
+{
+    fn default() -> ComputedStyle2 {
+        ComputedStyle2 {
+            non_layout: Default::default(),
+            layout: Default::default(),
+            dyn_layout: Default::default()
+        }
+    }
+}
+
+impl ComputedStyle2
+{
+    /// Apply CSS property.
+    pub(super) fn apply_property(&mut self, prop: &css::PropertyDeclaration) {
+        match prop {
+            // Non-layout styles
+            css::PropertyDeclaration::Color(c) => { unimplemented!() },
+            css::PropertyDeclaration::BackgroundColor(c) => { self.non_layout.background_color = *c; },
+            css::PropertyDeclaration::BorderBottomColor(c) => { self.non_layout.border_color.bottom = *c; },
+            css::PropertyDeclaration::BorderLeftColor(c) => { self.non_layout.border_color.left = *c; },
+            css::PropertyDeclaration::BorderRightColor(c) => { self.non_layout.border_color.right = *c; },
+            css::PropertyDeclaration::BorderTopColor(c) => { self.non_layout.border_color.top = *c; },
+            css::PropertyDeclaration::BorderBottomWidth(w) => { self.non_layout.border_width.bottom = *w; },
+            css::PropertyDeclaration::BorderLeftWidth(w) => { self.non_layout.border_width.left = *w; },
+            css::PropertyDeclaration::BorderRightWidth(w) => { self.non_layout.border_width.right = *w; },
+            css::PropertyDeclaration::BorderTopWidth(w) => { self.non_layout.border_width.top = *w; },
+            css::PropertyDeclaration::BorderRadius(radius) => { self.non_layout.border_radius = *radius; },
+
+            // Layout-altering styles
+            css::PropertyDeclaration::AlignContent(v) => { self.layout.align_content = *v; },
+            css::PropertyDeclaration::AlignItems(v) => { self.layout.align_items = *v; },
+            css::PropertyDeclaration::AlignSelf(v) => { self.layout.align_self = *v; },
+            css::PropertyDeclaration::Display(v) => { self.layout.display = *v; },
+            css::PropertyDeclaration::FlexBasis(v) => { self.layout.flex_basis = *v; },
+            css::PropertyDeclaration::FlexDirection(v) => { self.layout.flex_direction = *v; },
+            css::PropertyDeclaration::FlexGrow(v) => { self.layout.flex_grow = *v; },
+            css::PropertyDeclaration::FlexShrink(v) => {  self.layout.flex_shrink = *v; },
+            css::PropertyDeclaration::FlexWrap(v) => {  self.layout.flex_wrap = *v; },
+            css::PropertyDeclaration::JustifyContent(v) => {  self.layout.justify_content = *v; },
+            css::PropertyDeclaration::MarginLeft(v) => {  self.layout.margin.left = *v; },
+            css::PropertyDeclaration::MarginRight(v) => {  self.layout.margin.right = *v; },
+            css::PropertyDeclaration::MarginTop(v) => {  self.layout.margin.top = *v; },
+            css::PropertyDeclaration::MarginBottom(v) => {  self.layout.margin.bottom = *v; },
+            css::PropertyDeclaration::MaxHeight(v) => {  self.layout.max_height = *v; },
+            css::PropertyDeclaration::MaxWidth(v) => {  self.layout.max_width = *v; },
+            css::PropertyDeclaration::MinHeight(v) => {  self.layout.min_height = *v; },
+            css::PropertyDeclaration::MinWidth(v) => {  self.layout.min_width = *v; },
+            css::PropertyDeclaration::Overflow(v) => {  self.layout.overflow = *v; },
+            css::PropertyDeclaration::PaddingLeft(v) => {  self.layout.padding.left = *v; },
+            css::PropertyDeclaration::PaddingRight(v) => {  self.layout.padding.right = *v; },
+            css::PropertyDeclaration::PaddingTop(v) => {  self.layout.padding.top = *v; },
+            css::PropertyDeclaration::PaddingBottom(v) => {  self.layout.padding.bottom = *v; },
+            css::PropertyDeclaration::Position(v) => {  self.layout.position = *v; },
+
+            // Dynamic layout
+            css::PropertyDeclaration::Bottom(v) => { self.dyn_layout.bottom = *v; },
+            css::PropertyDeclaration::Left(v) => {  self.dyn_layout.left = *v; },
+            css::PropertyDeclaration::Right(v) => {  self.dyn_layout.right = *v; },
+            css::PropertyDeclaration::Top(v) => {  self.dyn_layout.top = *v; },
+            css::PropertyDeclaration::Width(v) => {  self.dyn_layout.width = *v; },
+            css::PropertyDeclaration::Height(v) => {  self.dyn_layout.height = *v; },
+
+            // Other
+            _ => { unimplemented!() }
+        }
+    }
+
+
+}
+
 /// Calculated style.
 /// Some components of style may be shared between items to reduce memory usage.
 #[derive(Clone,Debug)]
-pub struct ComputedStyle2
+pub struct CachedStyle
 {
-    pub box_style: Rc<BoxStyle>,
-    pub box_style_dirty: bool,
-    pub layout: Rc<CalculatedLayoutProperties>,
+    pub non_layout: Rc<NonLayoutStyles>,
+    pub non_layout_dirty: bool,
+    pub layout: Rc<LayoutStyles>,
     /// Whether the layout has changed since last time.
     pub layout_dirty: bool,
     /// Not Rc since they vary often among elements.
-    pub dynamic_layout: DynamicLayoutProperties
+    pub dyn_layout: DynamicLayoutStyles
+}
+
+impl CachedStyle
+{
+    /// Update from a calculated style.
+    pub fn update(&mut self, computed: &ComputedStyle2) {
+
+        if &*self.non_layout != &computed.non_layout {
+            // TODO fetch style block from a cache
+            *Rc::make_mut(&mut self.non_layout) = computed.non_layout.clone();
+            self.non_layout_dirty = true;
+        }
+        if &*self.layout != &computed.layout {
+            *Rc::make_mut(&mut self.layout) = computed.layout.clone();
+            self.layout_dirty = true;
+        }
+        // update dyn layout unconditionally
+        self.dyn_layout = computed.dyn_layout.clone();
+    }
 }
 
 /*
@@ -134,157 +257,7 @@ macro_rules! impl_property_setter_2 {
 
 /*impl ComputedStyle2
 {
-    // apply css prop
-    pub(super) fn apply_property(&mut self, prop: css::PropertyDeclaration) {
-        match prop {
-            ///////////////////////////////////////////////////////////////
-            // Color?
-            css::PropertyDeclaration::Color(c) => { unimplemented!() },
 
-            ///////////////////////////////////////////////////////////////
-            // Background colors
-            css::PropertyDeclaration::BackgroundColor(c) => {
-                impl_property_setter!(box_style, box_style_dirty, background_color, *c);
-            },
-
-            ///////////////////////////////////////////////////////////////
-            // Border colors
-            css::PropertyDeclaration::BorderBottomColor(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_color.bottom, *c);
-            },
-            css::PropertyDeclaration::BorderLeftColor(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_color.left, *c);
-            },
-            css::PropertyDeclaration::BorderRightColor(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_color.right, *c);
-            },
-            css::PropertyDeclaration::BorderTopColor(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_color.top, *c);
-            },
-
-            ///////////////////////////////////////////////////////////////
-            // Border widths
-            css::PropertyDeclaration::BorderBottomWidth(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_width.bottom, *c);
-            },
-            css::PropertyDeclaration::BorderLeftWidth(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_width.left, *c);
-            },
-            css::PropertyDeclaration::BorderRightWidth(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_width.right, *c);
-            },
-            css::PropertyDeclaration::BorderTopWidth(c) => {
-                impl_property_setter_2!(box_style, box_style_dirty, border_width.top, *c);
-            },
-            css::PropertyDeclaration::BorderRadius(c) => {
-                impl_property_setter!(box_style, box_style_dirty, border_radius, *c);
-            },
-
-            ///////////////////////////////////////////////////////////////
-            // Layout (flexbox)
-            css::PropertyDeclaration::AlignContent(c) => {
-                impl_property_setter!(layout, layout_dirty, align_content, *c);
-            },
-            css::PropertyDeclaration::AlignSelf(c) => {
-                impl_property_setter!(layout, layout_dirty, align_self, *c);
-            },
-            css::PropertyDeclaration::AlignItems(c) => {
-                impl_property_setter!(layout, layout_dirty, align_items, *c);
-            },
-            css::PropertyDeclaration::FlexBasis(c) => {
-                impl_property_setter!(layout, layout_dirty, flex_basis, *c);
-            },
-            css::PropertyDeclaration::FlexDirection(c) => {
-                impl_property_setter!(layout, layout_dirty, flex_direction, *c);
-            },
-            css::PropertyDeclaration::FlexGrow(c) => {
-                impl_property_setter!(layout, layout_dirty, flex_grow, *c);
-            },
-            css::PropertyDeclaration::FlexShrink(c) => {
-                impl_property_setter!(layout, layout_dirty, flew_shrink, *c);
-            },
-            css::PropertyDeclaration::FlexWrap(c) => {
-                impl_property_setter!(layout, layout_dirty, flex_wrap, *c);
-            },
-            css::PropertyDeclaration::JustifyContent(c) => {
-                impl_property_setter!(layout, layout_dirty, justify_content, *c);
-            },
-            css::PropertyDeclaration::Display(c) => {
-                impl_property_setter!(layout, layout_dirty, display, *c);
-            },
-            css::PropertyDeclaration::Overflow(c) => {
-                impl_property_setter!(layout, layout_dirty, overflow, *c);
-            },
-            css::PropertyDeclaration::MaxHeight(c) => {
-                impl_property_setter!(layout, layout_dirty, max_height, *c);
-            },
-            css::PropertyDeclaration::MaxWidth(c) => {
-                impl_property_setter!(layout, layout_dirty, max_width, *c);
-            },
-            css::PropertyDeclaration::MinHeight(c) => {
-                impl_property_setter!(layout, layout_dirty, min_height, *c);
-            },
-            css::PropertyDeclaration::MinWidth(c) => {
-                impl_property_setter!(layout, layout_dirty, min_width, *c);
-            },
-            css::PropertyDeclaration::Position(c) => {
-                impl_property_setter!(layout, layout_dirty, position, *c);
-            },
-
-            ///////////////////////////////////////////////////////////////
-            // Padding & margins
-            css::PropertyDeclaration::PaddingLeft(c) => {
-                impl_property_setter_2!(layout, layout_dirty, padding.left, *c);
-            },
-            css::PropertyDeclaration::PaddingRight(c) => {
-                impl_property_setter_2!(layout, layout_dirty, padding.right, *c);
-            },
-            css::PropertyDeclaration::PaddingTop(c) => {
-                impl_property_setter_2!(layout, layout_dirty, padding.top, *c);
-            },
-            css::PropertyDeclaration::PaddingBottom(c) => {
-                impl_property_setter_2!(layout, layout_dirty, padding.bottom, *c);
-            },
-            css::PropertyDeclaration::MarginLeft(c) => {
-                impl_property_setter_2!(layout, layout_dirty, margin.left, *c);
-            },
-            css::PropertyDeclaration::MarginRight(c) => {
-                impl_property_setter_2!(layout, layout_dirty, margin.right, *c);
-            },
-            css::PropertyDeclaration::MarginTop(c) => {
-                impl_property_setter_2!(layout, layout_dirty, margin.top, *c);
-            },
-            css::PropertyDeclaration::MarginBottom(c) => {
-                impl_property_setter_2!(layout, layout_dirty, margin.bottom, *c);
-            },
-
-            ///////////////////////////////////////////////////////////////
-            // Dynamic layout
-            css::PropertyDeclaration::Left(c) => {
-                self.dynamic_layout.left = *v;
-            },
-            css::PropertyDeclaration::Right(c) => {
-                self.dynamic_layout.right = *v;
-            },
-            //css::PropertyDeclaration::Start(c) => {
-            //    self.start = *v;
-            //},
-            css::PropertyDeclaration::Top(c) => {
-                self.dynamic_layout.top = *v;
-            },
-            css::PropertyDeclaration::Top(c) => {
-                self.dynamic_layout.bottom = *v;
-            },
-            css::PropertyDeclaration::Width(c) => {
-                self.dynamic_layout.width = *v;
-            },
-            css::PropertyDeclaration::Height(c) => {
-                self.dynamic_layout.height = *v;
-            },
-
-            _ => { unimplemented!() }
-        }
-    }
 
     //
 }*/
@@ -425,8 +398,8 @@ pub struct Style {
     }
 }*/
 
-#[derive(Clone,Debug)]
-pub struct BoxProperty<T: Clone>
+#[derive(Clone,Debug, PartialEq)]
+pub struct BoxProperty<T: Clone+PartialEq>
 {
     pub top: T,
     pub right: T,
@@ -434,7 +407,7 @@ pub struct BoxProperty<T: Clone>
     pub left: T
 }
 
-impl<T: Clone> BoxProperty<T>
+impl<T: Clone+PartialEq> BoxProperty<T>
 {
     pub fn all(val: T) -> BoxProperty<T> {
         BoxProperty {
