@@ -1,6 +1,6 @@
 use super::layout::{ContentMeasurement, Layout};
 use super::renderer::Renderer;
-use super::style::ComputedStyle;
+use super::style::{ComputedStyle, CachedStyle};
 use super::{DispatchChain, DispatchTarget, InputState, ItemID, UiState};
 use super::ResourceStore;
 use super::css;
@@ -227,6 +227,17 @@ impl ItemNode {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct LayoutOverrides
+{
+    pub left: Option<yoga::StyleUnit>,
+    pub right: Option<yoga::StyleUnit>,
+    pub top: Option<yoga::StyleUnit>,
+    pub bottom: Option<yoga::StyleUnit>,
+    pub width: Option<yoga::StyleUnit>,
+    pub height: Option<yoga::StyleUnit>,
+}
+
 /// Represents the user-accessible properties of an item in the hierarchy.
 /// This is separated from the rest of the item data (children, behavior)
 /// to allow multiple mutable borrows of different aspects of an item.
@@ -238,11 +249,17 @@ pub struct Item {
     // Non-layout styles associated to this item.
     //pub style: Style,
     /// Cached calculated styles.
-    pub style: ComputedStyle,
+    pub style: CachedStyle,
     /// CSS classes.
-    pub css_classes: Vec<String>,
+    pub(super) css_classes: Vec<String>,
+    /// Whether the CSS classes have changed since last style calculation.
+    pub(super) css_classes_dirty: bool,
     /// Additional inline CSS properties.
-    pub inline_styles: Vec<css::PropertyDeclaration>
+    //inline_styles: Vec<css::PropertyDeclaration>,
+    /// Whether the additional inline CSS properties have changed since last style calculation.
+    //inline_styles_dirty: bool,
+    /// Dynamic layout overrides.
+    pub(super) layout_overrides: LayoutOverrides,
 }
 
 impl Item {
@@ -250,14 +267,28 @@ impl Item {
         Item {
             id,
             layout: Layout::default(),
-            style: ComputedStyle::default(),
+            style: CachedStyle::default(),
             css_classes: Vec::new(),
-            inline_styles: Vec::new()
+            css_classes_dirty: true,
+            layout_overrides: LayoutOverrides::default(),
         }
     }
 
     pub fn add_class(&mut self, class: &str) {
         self.css_classes.push(class.to_owned());
+    }
+
+    /// Overrides the position of the widget.
+    /// Pass None to let the layout decide.
+    pub fn set_position(&mut self, x: Option<yoga::StyleUnit>, y: Option<yoga::StyleUnit>) {
+        self.layout_overrides.left = x;
+        self.layout_overrides.top = y;
+    }
+
+    /// Overrides the measured width & height of the widget.
+    pub fn set_size(&mut self, width: Option<yoga::StyleUnit>, height: Option<yoga::StyleUnit>) {
+        self.layout_overrides.width = width;
+        self.layout_overrides.height = height;
     }
 
     /*pub fn with_measure<F: Fn(&mut Item, &Renderer) -> ContentMeasurement + 'static>(

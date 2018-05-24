@@ -24,38 +24,6 @@ pub struct UiContainer<'a> {
     cur_index: usize,
 }
 
-// Styling/layout:
-// - align_item(f32)
-// - left(f32)
-// - right(f32)
-// - top(f32)
-// - bottom(f32)
-//
-
-/// Styling - layout
-/*impl<'a, State: 'static> UiContainer<'a, State> {
-    pub fn align_item(&mut self, align: yoga::Align) {
-        self.item.flexbox.set_align_items(align);
-    }
-    pub fn align_content(&mut self, align: yoga::Align) {
-        self.item.flexbox.set_align_content(align);
-    }
-    pub fn align_self(&mut self, align: yoga::Align) {
-        self.item.flexbox.set_align_self(align);
-    }
-}*/
-
-/// Styling - rendering
-/*impl<'a, State: 'static> UiContainer<'a, State> {
-    pub fn border_color(&mut self, rgba: Color) {
-        self.item.style.border_color = Some(rgba);
-    }
-
-    pub fn background_color(&mut self, rgba: Color) {
-        self.item.style.background_color = Some(rgba);
-    }
-}*/
-
 impl<'a> UiContainer<'a> {
     /// Gets the child item with the specified item ID, or create a new child with this ID if it
     /// doesn't exist.

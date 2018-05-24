@@ -405,15 +405,58 @@ impl UiState {
     }
 
     fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &ComputedStyle) {
-        // issue: how to select the stylesheet?
-        // from the ItemBehavior type?
-        // item.class("")
-
-        // TODO recompute style only if dirty
-        // TODO proper cascading
         // TODO caching the full computed style in each individual item is super expensive (in CPU and memory)
-        //  => store only modifications
-        // init style from default
+
+
+        // recompute from stylesheet if classes have changed
+        if node.item.css_classes_dirty {
+
+            // initiate a full recalculation.
+            let mut style = ComputedStyle::default();
+
+            for stylesheet in self.stylesheets.iter() {
+                let stylesheet = stylesheet.borrow();
+                // TODO more than one class.
+                if let Some(first) = node.item.css_classes.first() {
+                    // 1. fetch all applicable rules
+                    // TODO actually fetch all rules.
+                    let class_rule = stylesheet.match_class(first);
+                    if let Some(class_rule) = class_rule {
+
+                        // apply rule
+                        style.apply(&class_rule.declarations[..]);
+                    }
+                }
+            }
+        }
+
+        // measure item
+        let m = node.behavior.measure(&mut node.item, renderer);
+        if let Some(width) = m.width {
+            style.apply_property(&css::PropertyDeclaration::Width(width.point()));
+        }
+        if let Some(height) = m.height {
+            style.apply_property(&css::PropertyDeclaration::Height(height.point()));
+        }
+
+        // apply layout overrides
+        // issue: I actually have to recompute everything even if only the layout overrides
+        // have changed!
+        // if a layout override become None
+        node.item.layout_overrides.left.map(|v| style.apply_property(&css::PropertyDeclaration::Left(v)));
+        node.item.layout_overrides.top.map(|v| style.apply_property(&css::PropertyDeclaration::Top(v)));
+        node.item.layout_overrides.width.map(|v| style.apply_property(&css::PropertyDeclaration::Width(v)));
+        node.item.layout_overrides.height.map(|v| style.apply_property(&css::PropertyDeclaration::Height(v)));
+
+        // update cached style
+        let layout_damaged = node.item.style.update(&style);
+
+        if layout_damaged {
+            // must update flexbox properties of the layout tree
+            apply_to_flex_node(&mut node.flexbox, &style);
+        }
+
+
         let mut style = ComputedStyle::default();
         let mut should_relayout = false;
         style.inherit(parent);
@@ -429,21 +472,6 @@ impl UiState {
             }
         }
 
-        // TODO apply inline declarations
-
-        if should_relayout {
-            apply_to_flex_node(&mut node.flexbox, &style);
-        }
-
-        node.item.style = style.clone();
-        // measure item
-        let m = node.behavior.measure(&mut node.item, renderer);
-        if let Some(width) = m.width {
-            node.flexbox.set_width(width.point());
-        }
-        if let Some(height) = m.height {
-            node.flexbox.set_height(height.point());
-        }
 
         for (_, child) in node.children.iter_mut() {
             self.calculate_style(child, renderer, &style);

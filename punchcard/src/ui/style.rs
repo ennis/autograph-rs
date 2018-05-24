@@ -110,6 +110,7 @@ pub struct DynamicLayoutStyles
     pub height: yoga::StyleUnit,
 }
 
+
 impl Default for DynamicLayoutStyles
 {
     fn default() -> DynamicLayoutStyles
@@ -125,17 +126,40 @@ impl Default for DynamicLayoutStyles
     }
 }
 
-pub struct ComputedStyle2
+/// Inherited font styles.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FontStyles
 {
+    pub font_family: String,
+    pub font_size: f32,
+    pub font_color: Color,
+}
+
+impl Default for FontStyles
+{
+    fn default() -> FontStyles
+    {
+        FontStyles {
+            font_family: "monospace".to_owned(),
+            font_size: 12.0,
+            font_color: (0.0,0.0,0.0,0.0),
+        }
+    }
+}
+
+pub struct ComputedStyle
+{
+    pub font: FontStyles,
     pub non_layout: NonLayoutStyles,
     pub layout: LayoutStyles,
     pub dyn_layout: DynamicLayoutStyles,
 }
 
-impl Default for ComputedStyle2
+impl Default for ComputedStyle
 {
-    fn default() -> ComputedStyle2 {
-        ComputedStyle2 {
+    fn default() -> ComputedStyle {
+        ComputedStyle {
+            font: Default::default(),
             non_layout: Default::default(),
             layout: Default::default(),
             dyn_layout: Default::default()
@@ -143,7 +167,7 @@ impl Default for ComputedStyle2
     }
 }
 
-impl ComputedStyle2
+impl ComputedStyle
 {
     /// Apply CSS property.
     pub(super) fn apply_property(&mut self, prop: &css::PropertyDeclaration) {
@@ -203,36 +227,48 @@ impl ComputedStyle2
 
 }
 
+
 /// Calculated style.
 /// Some components of style may be shared between items to reduce memory usage.
 #[derive(Clone,Debug)]
 pub struct CachedStyle
 {
+    pub font: Rc<FontStyles>,
     pub non_layout: Rc<NonLayoutStyles>,
-    pub non_layout_dirty: bool,
     pub layout: Rc<LayoutStyles>,
-    /// Whether the layout has changed since last time.
-    pub layout_dirty: bool,
     /// Not Rc since they vary often among elements.
     pub dyn_layout: DynamicLayoutStyles
 }
 
+impl Default for CachedStyle
+{
+    fn default() -> CachedStyle {
+        CachedStyle {
+            font: Rc::new(Default::default()),
+            non_layout: Rc::new(Default::default()),
+            layout: Rc::new(Default::default()),
+            dyn_layout: Rc::new(Default::default()),
+        }
+    }
+}
+
 impl CachedStyle
 {
-    /// Update from a calculated style.
-    pub fn update(&mut self, computed: &ComputedStyle2) {
-
+    /// Updates from a calculated style.
+    /// Returns true if the flexbox layout was damaged.
+    pub fn update(&mut self, computed: &ComputedStyle) -> bool {
+        let mut layout_damaged = false;
         if &*self.non_layout != &computed.non_layout {
             // TODO fetch style block from a cache
             *Rc::make_mut(&mut self.non_layout) = computed.non_layout.clone();
-            self.non_layout_dirty = true;
         }
         if &*self.layout != &computed.layout {
             *Rc::make_mut(&mut self.layout) = computed.layout.clone();
-            self.layout_dirty = true;
+            layout_damaged = true;
         }
         // update dyn layout unconditionally
         self.dyn_layout = computed.dyn_layout.clone();
+        layout_damaged
     }
 }
 
@@ -420,7 +456,7 @@ impl<T: Clone+PartialEq> BoxProperty<T>
 }
 
 /// Visual style
-#[derive(Clone, Debug)]
+/*#[derive(Clone, Debug)]
 pub struct ComputedStyle {
     pub font_family: String,
     pub font_size: f32,
@@ -467,9 +503,9 @@ pub struct ComputedStyle {
     //pub padding_horizontal: yoga::StyleUnit,
     pub padding_start: yoga::StyleUnit,
     //pub padding_vertical: yoga::StyleUnit,
-}
+}*/
 
-impl Default for ComputedStyle
+/*impl Default for ComputedStyle
 {
     fn default() -> Self {
         ComputedStyle {
@@ -519,7 +555,7 @@ impl Default for ComputedStyle
             width: yoga::StyleUnit::UndefinedValue,
         }
     }
-}
+}*/
 
 macro_rules! inherit_props_2 {
     ($to:expr, $from:expr, $($prop:ident),*) => {
@@ -527,7 +563,7 @@ macro_rules! inherit_props_2 {
     };
 }
 
-impl ComputedStyle
+/*impl ComputedStyle
 {
     pub fn apply(&mut self, properties: &[css::PropertyDeclaration], should_relayout: &mut bool) {
         for prop in properties.iter() {
@@ -595,7 +631,7 @@ impl ComputedStyle
         inherit_props_2!(self, from, font_family, font_size, font_color);
         self
     }
-}
+}*/
 
 pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &ComputedStyle)
 {
