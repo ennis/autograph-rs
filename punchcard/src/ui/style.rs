@@ -73,8 +73,8 @@ impl Default for LayoutStyles
     fn default() -> LayoutStyles {
         LayoutStyles {
             display: yoga::Display::Flex,
-            align_content: yoga::Align::Auto,
-            align_items: yoga::Align::Auto,
+            align_content: yoga::Align::FlexStart,
+            align_items: yoga::Align::Stretch,
             align_self: yoga::Align::Auto,
             aspect_ratio: yoga::Undefined,
             position: yoga::PositionType::Relative,
@@ -89,7 +89,7 @@ impl Default for LayoutStyles
             max_width: yoga::StyleUnit::UndefinedValue,
             min_height: yoga::StyleUnit::UndefinedValue,
             min_width: yoga::StyleUnit::UndefinedValue,
-            overflow: yoga::Overflow::Visible,
+            overflow: yoga::Overflow::Hidden,
             padding: BoxProperty::all(yoga::StyleUnit::UndefinedValue),
         }
     }
@@ -147,6 +147,7 @@ impl Default for FontStyles
     }
 }
 
+#[derive(Debug)]
 pub struct ComputedStyle
 {
     pub font: FontStyles,
@@ -247,7 +248,7 @@ impl Default for CachedStyle
             font: Rc::new(Default::default()),
             non_layout: Rc::new(Default::default()),
             layout: Rc::new(Default::default()),
-            dyn_layout: Rc::new(Default::default()),
+            dyn_layout: Default::default(),
         }
     }
 }
@@ -633,51 +634,51 @@ macro_rules! inherit_props_2 {
     }
 }*/
 
-pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &ComputedStyle)
+pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &CachedStyle)
 {
     // TODO rewrite this with direct calls to methods of Node
     let styles = &[
-        yoga::FlexStyle::AlignContent(style.align_content),
-        yoga::FlexStyle::AlignItems(style.align_items),
-        yoga::FlexStyle::AlignSelf(style.align_self),
-        yoga::FlexStyle::AspectRatio(style.aspect_ratio.into()),
-        yoga::FlexStyle::BorderEnd(style.border_end.into()),
-        yoga::FlexStyle::Left(style.left),
-        yoga::FlexStyle::Right(style.right),
-        yoga::FlexStyle::Top(style.top),
-        yoga::FlexStyle::Bottom(style.bottom),
-        yoga::FlexStyle::Width(style.width),  // set by measure
-        yoga::FlexStyle::Height(style.height),    // set by measure
-        yoga::FlexStyle::Start(style.start),
-        yoga::FlexStyle::End(style.end),
-        yoga::FlexStyle::Display(style.display),
-        yoga::FlexStyle::FlexBasis(style.flex_basis),
-        yoga::FlexStyle::FlexDirection(style.flex_direction),
-        yoga::FlexStyle::FlexGrow(style.flex_grow.into()),
-        yoga::FlexStyle::FlexShrink(style.flex_shrink.into()),
-        yoga::FlexStyle::FlexWrap(style.flex_wrap),
-        yoga::FlexStyle::JustifyContent(style.justify_content),
+        yoga::FlexStyle::AlignContent(style.layout.align_content),
+        yoga::FlexStyle::AlignItems(style.layout.align_items),
+        yoga::FlexStyle::AlignSelf(style.layout.align_self),
+        yoga::FlexStyle::AspectRatio(style.layout.aspect_ratio.into()),
+        //yoga::FlexStyle::BorderEnd(style.layout.border_end.into()),
+        yoga::FlexStyle::Left(style.dyn_layout.left),
+        yoga::FlexStyle::Right(style.dyn_layout.right),
+        yoga::FlexStyle::Top(style.dyn_layout.top),
+        yoga::FlexStyle::Bottom(style.dyn_layout.bottom),
+        yoga::FlexStyle::Width(style.dyn_layout.width),  // set by measure
+        yoga::FlexStyle::Height(style.dyn_layout.height),    // set by measure
+        //yoga::FlexStyle::Start(style.layout.start),
+        //yoga::FlexStyle::End(style.layout.end),
+        yoga::FlexStyle::Display(style.layout.display),
+        yoga::FlexStyle::FlexBasis(style.layout.flex_basis),
+        yoga::FlexStyle::FlexDirection(style.layout.flex_direction),
+        yoga::FlexStyle::FlexGrow(style.layout.flex_grow.into()),
+        yoga::FlexStyle::FlexShrink(style.layout.flex_shrink.into()),
+        yoga::FlexStyle::FlexWrap(style.layout.flex_wrap),
+        yoga::FlexStyle::JustifyContent(style.layout.justify_content),
 
-        yoga::FlexStyle::MarginTop(style.margin.top),
-        yoga::FlexStyle::MarginBottom(style.margin.bottom),
-        yoga::FlexStyle::MarginLeft(style.margin.left),
-        yoga::FlexStyle::MarginRight(style.margin.right),
+        yoga::FlexStyle::MarginTop(style.layout.margin.top),
+        yoga::FlexStyle::MarginBottom(style.layout.margin.bottom),
+        yoga::FlexStyle::MarginLeft(style.layout.margin.left),
+        yoga::FlexStyle::MarginRight(style.layout.margin.right),
 
-        yoga::FlexStyle::PaddingTop(style.padding.top),
-        yoga::FlexStyle::PaddingBottom(style.padding.bottom),
-        yoga::FlexStyle::PaddingLeft(style.padding.left),
-        yoga::FlexStyle::PaddingRight(style.padding.right),
+        yoga::FlexStyle::PaddingTop(style.layout.padding.top),
+        yoga::FlexStyle::PaddingBottom(style.layout.padding.bottom),
+        yoga::FlexStyle::PaddingLeft(style.layout.padding.left),
+        yoga::FlexStyle::PaddingRight(style.layout.padding.right),
 
-        yoga::FlexStyle::MarginEnd(style.margin_end),
-        yoga::FlexStyle::MarginStart(style.margin_start),
-        yoga::FlexStyle::MaxHeight(style.max_height),
-        yoga::FlexStyle::MaxWidth(style.max_width),
-        yoga::FlexStyle::MinHeight(style.min_height),
-        yoga::FlexStyle::MinWidth(style.min_width),
-        yoga::FlexStyle::Overflow(style.overflow),
-        yoga::FlexStyle::PaddingEnd(style.padding_end),
-        yoga::FlexStyle::PaddingStart(style.padding_start),
-        yoga::FlexStyle::Position(style.position),
+       // yoga::FlexStyle::MarginEnd(style.layout.margin_end),
+       // yoga::FlexStyle::MarginStart(style.layout.margin_start),
+        yoga::FlexStyle::MaxHeight(style.layout.max_height),
+        yoga::FlexStyle::MaxWidth(style.layout.max_width),
+        yoga::FlexStyle::MinHeight(style.layout.min_height),
+        yoga::FlexStyle::MinWidth(style.layout.min_width),
+        yoga::FlexStyle::Overflow(style.layout.overflow),
+       // yoga::FlexStyle::PaddingEnd(style.layout.padding_end),
+       // yoga::FlexStyle::PaddingStart(style.layout.padding_start),
+        yoga::FlexStyle::Position(style.layout.position),
     ];
     node.apply_styles(&styles[..]);
 }

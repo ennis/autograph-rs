@@ -227,7 +227,7 @@ impl ItemNode {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub struct LayoutOverrides
 {
     pub left: Option<yoga::StyleUnit>,
@@ -250,15 +250,12 @@ pub struct Item {
     //pub style: Style,
     /// Cached calculated styles.
     pub style: CachedStyle,
+    /// Whether the CSS classes have changed since last style calculation.
+    pub(super) styles_dirty: bool,
     /// CSS classes.
     pub(super) css_classes: Vec<String>,
-    /// Whether the CSS classes have changed since last style calculation.
-    pub(super) css_classes_dirty: bool,
-    /// Additional inline CSS properties.
-    //inline_styles: Vec<css::PropertyDeclaration>,
-    /// Whether the additional inline CSS properties have changed since last style calculation.
-    //inline_styles_dirty: bool,
     /// Dynamic layout overrides.
+    /// TODO: handle this outside/after flexbox layout to avoid costly calculations.
     pub(super) layout_overrides: LayoutOverrides,
 }
 
@@ -268,14 +265,15 @@ impl Item {
             id,
             layout: Layout::default(),
             style: CachedStyle::default(),
+            styles_dirty: true,
             css_classes: Vec::new(),
-            css_classes_dirty: true,
             layout_overrides: LayoutOverrides::default(),
         }
     }
 
     pub fn add_class(&mut self, class: &str) {
         self.css_classes.push(class.to_owned());
+        self.styles_dirty = true;
     }
 
     /// Overrides the position of the widget.

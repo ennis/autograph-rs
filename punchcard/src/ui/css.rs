@@ -6,6 +6,7 @@ use yoga;
 use yoga::prelude::*;
 use warmy::{Load, FSKey, Storage, Loaded};
 use std::io;
+use std::cell::Cell;
 
 use super::style::*;
 
@@ -106,7 +107,9 @@ pub struct Rule
 pub struct Stylesheet
 {
     /// List of rule-sets.
-    rules: Vec<Rule>
+    rules: Vec<Rule>,
+    /// For hot-reload.
+    pub(super) dirty: Cell<bool>
 }
 
 impl Stylesheet
@@ -462,7 +465,8 @@ pub(super) fn parse_stylesheet(text: &str) -> Result<Stylesheet, Error>
     //let mut errors = Vec::new();
     // stylesheet
     let mut stylesheet = Stylesheet {
-        rules: Vec::new()
+        rules: Vec::new(),
+        dirty: Cell::new(true)
     };
 
     // parse a list of rules

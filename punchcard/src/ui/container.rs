@@ -92,7 +92,7 @@ impl<'a> UiContainer<'a> {
         self.cur_index += 1;
 
         // clear inline CSS styles (they are respecified each frame)
-        item_node.item.inline_styles.clear();
+        //item_node.item.inline_styles.clear();
 
         // 'deconstruct' the node into non-aliasing mutable borrows of its components.
         // This prevents headaches with the borrow checker down the line.
@@ -304,12 +304,12 @@ impl<'a> UiContainer<'a> {
         // hierarchy
         self.item(id, "scroll", ScrollState { pos: 0.0 }, |mut ui, item, scroll| {
             let top = -scroll.pos;
-            style!(ui.flexbox,
+            /*style!(ui.flexbox,
                 FlexDirection(yoga::FlexDirection::Column),
                 FlexGrow(1.0),
                 Margin(4.0 pt),
                 Top(top.point())
-            );
+            );*/
 
             f(ui);
         });
@@ -334,7 +334,7 @@ impl<'a> UiContainer<'a> {
                 let m = renderer.measure_text(&self.0, &item.style);
                 ContentMeasurement {
                     width: Some(m),
-                    height: Some(item.style.font_size),
+                    height: Some(item.style.font.font_size),
                 }
             }
         }
@@ -478,20 +478,11 @@ impl<'a> UiContainer<'a> {
             slider.min = min;
             slider.max = max;
             slider.sync(value);
-
-           // debug!("slider layout: {:?}", item.layout);
-
             let knob_pos = slider.ratio();
 
             ui.item("bar", "slider-bar", Bar, |ui, item, _| {
-                //debug!("slider-bar layout: {:?}", item.layout);
-                // the knob
                 ui.item("knob", "slider-knob", Knob, |ui, item, _| {
-                    //debug!("slider-knob layout: {:?}", item.layout);
-                    //item.style.set_background_color((0.0, 1.0, 0.0, 1.0));
-                    //item.style.set_border_radius(2.0);
-                    item.style.position = yoga::PositionType::Relative;
-                    item.style.left = (100.0*knob_pos).percent();
+                    item.set_position(Some((100.0*knob_pos).percent()), None);
                 });
             });
         });

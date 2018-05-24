@@ -1,5 +1,5 @@
 use super::layout::Layout;
-use super::style::{Background, Color, GradientStop, LinearGradient, RadialGradient, ComputedStyle};
+use super::style::{Background, Color, GradientStop, LinearGradient, RadialGradient, ComputedStyle, CachedStyle};
 use super::ResourceStore;
 
 use std::cell::RefCell;
@@ -19,7 +19,7 @@ pub trait Renderer {
     /// The full computed style must be available when measuring the text.
     /// This means that we need to compute the style inline during the UI update.
     /// This is not consistent with flexbox styles.
-    fn measure_text(&self, text: &str, style: &ComputedStyle) -> f32;
+    fn measure_text(&self, text: &str, style: &CachedStyle) -> f32;
     /// Measure the dimensions of the image at the given path.
     fn measure_image(&self, image_path: &str) -> Option<(f32, f32)>;
 
@@ -27,8 +27,8 @@ pub trait Renderer {
     // issue: draw_text should have access to the store, because
     // it may possibly load a font?
     // => the renderer should use its own store.
-    fn draw_text(&mut self, text: &str, layout: &Layout, style: &ComputedStyle);
-    fn draw_rect(&mut self, layout: &Layout, style: &ComputedStyle);
+    fn draw_text(&mut self, text: &str, layout: &Layout, style: &CachedStyle);
+    fn draw_rect(&mut self, layout: &Layout, style: &CachedStyle);
     fn draw_image(&mut self, image_path: &str, layout: &Layout);
 }
 
@@ -90,7 +90,7 @@ impl<'cache, 'ctx: 'cache> NvgRenderer<'cache, 'ctx> {
 }
 
 impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
-    fn measure_text(&self, text: &str, style: &ComputedStyle) -> f32 {
+    fn measure_text(&self, text: &str, style: &CachedStyle) -> f32 {
         let (advance, bounds) = self.frame.text_bounds(
             self.default_font,
             (0.0, 0.0),
@@ -112,7 +112,7 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
         })
     }
 
-    fn draw_text(&mut self, text: &str, layout: &Layout, style: &ComputedStyle) {
+    fn draw_text(&mut self, text: &str, layout: &Layout, style: &CachedStyle) {
         self.frame.text(
             self.default_font,
             (layout.left, layout.top),
@@ -125,38 +125,35 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
         );
     }
 
-    fn draw_rect(&mut self, layout: &Layout, style: &ComputedStyle) {
+    fn draw_rect(&mut self, layout: &Layout, style: &CachedStyle) {
         // convert style to nvg styles
-        let fill_paint = match style.background {
-                Some(Background::RadialGradient(ref gradient)) => unimplemented!(),
-                Some(Background::LinearGradient(ref gradient)) => unimplemented!(),
-                None => {
-                    let (r, g, b, a) = style.background_color;
-                    nvg::Color::new(r, g, b, a)
-                }
-        	};
-
-        let stroke_paint = {
-            let (r, g, b, a) = style.border_color.top;
+        let fill_paint = {
+            let (r, g, b, a) = style.non_layout.background_color;
             nvg::Color::new(r, g, b, a)
         };
 
-        let border_width = style.border_width.top;
+        let stroke_paint = {
+            let (r, g, b, a) = style.non_layout.border_color.top;
+            nvg::Color::new(r, g, b, a)
+        };
+
+        let border_width = style.non_layout.border_width.top;
         let stroke_opts = nvg::StrokeOptions {
-            width: style.border_width.top,
+            width: border_width,
             .. Default::default()
         };
+        let border_radius = style.non_layout.border_radius;
 
         //debug!("draw layout: {:?}", layout);
 
         // Fill path
         self.frame.path(
             |path| {
-                if style.border_radius != 0.0 {
+                if border_radius != 0.0 {
                     path.rounded_rect(
                         (layout.left, layout.top),
                         (layout.width(), layout.height()),
-                        style.border_radius,
+                        border_radius,
                     );
                 } else {
                     path.rect((layout.left, layout.top), (layout.width(), layout.height()));
@@ -168,11 +165,11 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
 
         self.frame.path(
             |path| {
-                if style.border_radius != 0.0 {
+                if border_radius != 0.0 {
                     path.rounded_rect(
                         (layout.left, layout.top),
                         (layout.width(), layout.height()),
-                        style.border_radius,
+                        border_radius,
                     );
                 } else {
 

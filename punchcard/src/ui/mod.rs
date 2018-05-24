@@ -18,6 +18,7 @@ use yoga::prelude::*;
 use yoga::FlexStyle::*;
 use yoga::StyleUnit::{Auto, UndefinedValue};
 use failure::Error;
+use std::rc::Rc;
 
 mod container;
 mod item;
@@ -89,7 +90,7 @@ use self::item::ItemNode;
 pub use self::item::{DummyBehavior, Item, ItemBehavior};
 pub use self::layout::{ContentMeasurement, Layout};
 pub use self::renderer::{ImageCache, NvgRenderer, Renderer};
-pub use self::style::{Background, Color, LinearGradient, RadialGradient, ComputedStyle};
+pub use self::style::{Background, Color, LinearGradient, RadialGradient, ComputedStyle, CachedStyle};
 pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
 pub use self::css::Stylesheet;
 pub use warmy::{Store, StoreOpt, FSKey, Res};
@@ -312,6 +313,10 @@ impl UiState {
         Ok(())
     }
 
+    fn stylesheets_dirty(&self) -> bool {
+        self.stylesheets.iter().any(|s| { s.borrow().dirty.replace(false) })
+    }
+
     fn set_focus(&mut self, path: Vec<ItemID>) {
         self.focus_path = Some(path);
     }
@@ -404,77 +409,57 @@ impl UiState {
         }
     }
 
-    fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &ComputedStyle) {
+    fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &CachedStyle, stylesheets_dirty: bool) {
         // TODO caching the full computed style in each individual item is super expensive (in CPU and memory)
 
-
         // recompute from stylesheet if classes have changed
-        if node.item.css_classes_dirty {
-
+        // TODO inherit
+        if node.item.styles_dirty || stylesheets_dirty {
+            debug!("Full style calculation");
             // initiate a full recalculation.
+            // TODO inherit
             let mut style = ComputedStyle::default();
-
             for stylesheet in self.stylesheets.iter() {
                 let stylesheet = stylesheet.borrow();
                 // TODO more than one class.
+                debug!("css classes {:?}", node.item.css_classes);
                 if let Some(first) = node.item.css_classes.first() {
                     // 1. fetch all applicable rules
                     // TODO actually fetch all rules.
                     let class_rule = stylesheet.match_class(first);
+                    debug!("rule {:?}", class_rule);
                     if let Some(class_rule) = class_rule {
-
                         // apply rule
-                        style.apply(&class_rule.declarations[..]);
+                        for d in class_rule.declarations.iter() {
+                            style.apply_property(d);
+                        }
+                        debug!("calculated layout for {}: {:#?}", first, style.layout);
                     }
                 }
             }
-        }
 
-        // measure item
-        let m = node.behavior.measure(&mut node.item, renderer);
-        if let Some(width) = m.width {
-            style.apply_property(&css::PropertyDeclaration::Width(width.point()));
-        }
-        if let Some(height) = m.height {
-            style.apply_property(&css::PropertyDeclaration::Height(height.point()));
-        }
+            // update the cached style
+            let layout_damaged = node.item.style.update(&style);
+            node.item.styles_dirty = false;
 
-        // apply layout overrides
-        // issue: I actually have to recompute everything even if only the layout overrides
-        // have changed!
-        // if a layout override become None
-        node.item.layout_overrides.left.map(|v| style.apply_property(&css::PropertyDeclaration::Left(v)));
-        node.item.layout_overrides.top.map(|v| style.apply_property(&css::PropertyDeclaration::Top(v)));
-        node.item.layout_overrides.width.map(|v| style.apply_property(&css::PropertyDeclaration::Width(v)));
-        node.item.layout_overrides.height.map(|v| style.apply_property(&css::PropertyDeclaration::Height(v)));
-
-        // update cached style
-        let layout_damaged = node.item.style.update(&style);
-
-        if layout_damaged {
-            // must update flexbox properties of the layout tree
-            apply_to_flex_node(&mut node.flexbox, &style);
-        }
-
-
-        let mut style = ComputedStyle::default();
-        let mut should_relayout = false;
-        style.inherit(parent);
-        // apply all matching rules, in order of stylesheets
-        for stylesheet in self.stylesheets.iter() {
-            let stylesheet = stylesheet.borrow();
-            // TODO more than one class.
-            if let Some(first) = node.item.css_classes.first() {
-                let class_rule = stylesheet.match_class(first);
-                if let Some(class_rule) = class_rule {
-                    style.apply(&class_rule.declarations[..], &mut should_relayout);
-                }
+            if layout_damaged {
+                // must update flexbox properties of the layout tree
+                debug!("layout is damaged");
+                apply_to_flex_node(&mut node.flexbox, &node.item.style);
             }
         }
 
+        // apply layout overrides: they always have precedence over the computed styles
+        let m = node.behavior.measure(&mut node.item, renderer);
+        m.width.map(|w|{ node.flexbox.set_width(w.point()); });
+        m.height.map(|h|{ node.flexbox.set_height(h.point()); });
+        node.item.layout_overrides.left.map(|v| node.flexbox.set_position(yoga::Edge::Left, v));
+        node.item.layout_overrides.top.map(|v| node.flexbox.set_position(yoga::Edge::Top, v));
+        //node.item.layout_overrides.width.map(|v| node.flexbox.set_width(v));
+        //node.item.layout_overrides.height.map(|v| node.flexbox.set_height(v));
 
         for (_, child) in node.children.iter_mut() {
-            self.calculate_style(child, renderer, &style);
+            self.calculate_style(child, renderer, &node.item.style, stylesheets_dirty);
         }
     }
 
@@ -537,7 +522,6 @@ impl Ui {
         let event_dispatch_time = measure_time(|| {
             self.state.dispatch_event(&mut self.root, event);
         });
-        //debug!("event dispatch took {}us", event_dispatch_time);
     }
 
     /// TODO document.
@@ -550,7 +534,6 @@ impl Ui {
             f(&mut ui);
             ui.finish()
         });
-        //debug!("ui specification took {}us", spec_time);
     }
 
     /// Renders the UI to the given renderer.
@@ -559,9 +542,11 @@ impl Ui {
     pub fn render(&mut self, size: (f32, f32), renderer: &mut Renderer) {
         // measure contents pass
         let style_calculation_time = measure_time(|| {
-            let root_style = ComputedStyle::default();
+            let root_style = CachedStyle::default();
+            // are the sheets dirty?
+            let stylesheets_dirty = self.state.stylesheets_dirty();
             self.state
-                .calculate_style(&mut self.root, renderer, &root_style);
+                .calculate_style(&mut self.root, renderer, &root_style, stylesheets_dirty);
         });
         let layout_time = measure_time(|| {
             self.root

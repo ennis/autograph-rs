@@ -30,6 +30,7 @@ slider-bar {
   background-color: #474747; }
 
 slider-knob {
+  flex-direction: row;
   position: relative;
   width: 10px;
   height: 10px;

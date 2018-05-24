@@ -990,6 +990,25 @@ Requirements:
 - level 1: create and link everything manually (GlWindow, gfx::Context, gfx::Queue, gfx::Frame, gfx::Framebuffer)
 - Q: control of the event loop?
 
+
+### Code hot-reloading
+- Integrated in the build process
+- just change the extension to make it hot-reloadable: .rs -> .rs2
+- the module is compiled separately
+- track all types and fns in public interface
+- on reload, check layout of types
+- issue: requires recompilation by rustc, takes time
+- another language?
+- luajit? automatically-generated bindings (both sides)
+- has a GC 
+- fast compilation
+- consider LuaJIT with transparent interop:
+    + Lua function -> Rust entry point
+    + Rust function -> Lua entry point
+    + issue: functions not statically known at 'compile'-time
+    + Terra?
+- bonus: coroutines
+
 ### Rendering large worlds
 
 #### Voxel data
