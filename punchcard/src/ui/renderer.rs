@@ -119,7 +119,7 @@ impl<'cache, 'ctx: 'cache> Renderer for NvgRenderer<'cache, 'ctx> {
             text,
             nvg::TextOptions {
                 color: nvg::Color::new(1.0, 1.0, 1.0, 1.0),
-                size: 14.0,
+                size: 16.0,
                 ..Default::default()
             },
         );

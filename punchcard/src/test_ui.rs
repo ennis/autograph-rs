@@ -8,10 +8,20 @@ pub fn make_ui(ui: &mut Ui, data: &mut i32) {
     ui.root(|ui| {
         ui.scroll("main", |ui| {
             // ui.vbox("main", |ui| {
-            for i in 0..100 {
+            for i in 0..10 {
                 ui.hbox(format!("{}", i), |ui| {
-                    ui.slider("slider0", data, 0, 50);
-                    ui.slider("slider", data, 0, 50);
+                    for i in 0..2 {
+                        ui.collapsing_panel(format!("Panel {}", i), |ui| {
+                            for i in 0..10 {
+                                ui.hbox(format!("{}", i), |ui| {
+                                    ui.text("hello");
+                                    ui.button("click");
+                                    ui.slider("slider0", data, 0, 50);
+                                    ui.slider("slider", data, 0, 50);
+                                });
+                            }
+                        });
+                    }
                 });
             }
             //if *data < 500 {
@@ -20,4 +30,18 @@ pub fn make_ui(ui: &mut Ui, data: &mut i32) {
             //});
         });
     });
+
 }
+
+// with macros:
+/*@root {
+    @scroll("main") {
+        @collapsing_panel("main") {
+            @hbox {
+                @text("hello");
+                @button("click");
+                @slider("");
+            }
+        }
+    }
+}*/

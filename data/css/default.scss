@@ -36,8 +36,8 @@ hbox {
     flex-direction: row;
     margin: 2px;
 
-    border-color: #c12727;
-    border-width: 1px;
+    //border-color: #c12727;
+    //border-width: 1px;
     background-color: $panel-background-alt;
 }
 
@@ -48,10 +48,10 @@ slider {
     justify-content: center;
     align-items: stretch;
 
-    border-width: 1px;
-    border-color: aquamarine;
+    //border-width: 1px;
+    //border-color: aquamarine;
 
-    margin: 2px;
+    //margin: 2px;
     padding: 2px 4px 2px;
 }
 
@@ -84,8 +84,31 @@ scroll {
     flex-direction: column;
     flex-grow: 1.0;
     align-items: stretch;
+    padding: 3px;
 
     background-color: $panel-background;
-    border-width: 1px;
+    border-width: 3px;
     border-color: azure;
+}
+
+collapsing-panel {
+    flex-direction: column;
+    flex-grow: 1.0;
+    align-self: flex-start;
+
+    margin: 2px;
+    border-width: 1px;
+    border-color: red;
+}
+
+collapsing-panel-header {
+    //border-color: $panel-border;
+    background-color: $panel-header;
+    padding: 3px;
+}
+
+collapsing-panel-contents {
+    padding: 4px;
+    border-color: $panel-header;
+    border-width: 2px;
 }

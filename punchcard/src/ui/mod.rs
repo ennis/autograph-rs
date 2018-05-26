@@ -28,66 +28,13 @@ mod style;
 mod css;
 mod sizer;
 
-// New style system:
-// - target: one million items
-// - minimize updates to the layout tree (yoga)
-//
-// - track dirty styles
-// - static style properties (global stylesheets and item stylesheets)
-// - dynamic style properties (cleared each frame)
-//      ! dynamic properties should not trigger a full relayout!
-//
-// Recomputation:
-// - on stylesheet reload
-//
-// Respec of layout tree:
-// - on stylesheet reload
-// - only spec changed styles
-//
-// Style caching:
-// - cache only style attributes (border, colors)
-// - no need to cache layout
-//
-// Issue:
-// - dynamic layout (e.g. relative position)
-// - dynamic proper
-//
-// algorithm:
-//
-// IF a stylesheet been changed / added? THEN
-//      cascade(root, full=true)
-//
-// cascade(item, parent, full):
-//      if full==false
-//          no global stylesheet update
-//          issue: for inheritable properties, the prio is:
-//              inline styles -> stylesheet -> parent
-//             if no inline style is specified, must re-query the stylesheet (with selectors)
-//
-//          just update dynamic styles, assume that we inherit nothing from the parent
-//          load cached draw styles
-//          apply dynamic styles to cached draw style and flexbox
-//          if any inheritable property has changed
-//              cascade(children, inherit=true)*
-//      else
-//          do full style calculation
-//          find all applicable classes
-//          get all applicable properties
-//          apply properties to draw style and flexbox
-//
-// The issue is inheritance:
-// - cannot track what properties have changed, so must update all of them
-// - may inherit values, but overwrite them just after
-//
-// In any case:
-// - prefer building a list of changes instead of recalculating everything
-//
-
+// New problem: popups
+//  
 
 // Reexports
 pub use self::container::{ScrollState, UiContainer};
 use self::item::ItemNode;
-pub use self::item::{DummyBehavior, Item, ItemBehavior};
+pub use self::item::{Item, ItemBehavior};
 pub use self::layout::{ContentMeasurement, Layout};
 pub use self::renderer::{ImageCache, NvgRenderer, Renderer};
 pub use self::style::{Background, Color, LinearGradient, RadialGradient, ComputedStyle, CachedStyle};
@@ -415,25 +362,25 @@ impl UiState {
         // recompute from stylesheet if classes have changed
         // TODO inherit
         if node.item.styles_dirty || stylesheets_dirty {
-            debug!("Full style calculation");
+            //debug!("Full style calculation");
             // initiate a full recalculation.
             // TODO inherit
             let mut style = ComputedStyle::default();
             for stylesheet in self.stylesheets.iter() {
                 let stylesheet = stylesheet.borrow();
                 // TODO more than one class.
-                debug!("css classes {:?}", node.item.css_classes);
+                //debug!("css classes {:?}", node.item.css_classes);
                 if let Some(first) = node.item.css_classes.first() {
                     // 1. fetch all applicable rules
                     // TODO actually fetch all rules.
                     let class_rule = stylesheet.match_class(first);
-                    debug!("rule {:?}", class_rule);
+                    //debug!("rule {:?}", class_rule);
                     if let Some(class_rule) = class_rule {
                         // apply rule
                         for d in class_rule.declarations.iter() {
                             style.apply_property(d);
                         }
-                        debug!("calculated layout for {}: {:#?}", first, style.layout);
+                        //debug!("calculated layout for {}: {:#?}", first, style.layout);
                     }
                 }
             }
@@ -444,7 +391,7 @@ impl UiState {
 
             if layout_damaged {
                 // must update flexbox properties of the layout tree
-                debug!("layout is damaged");
+                //debug!("layout is damaged");
                 apply_to_flex_node(&mut node.flexbox, &node.item.style);
             }
         }
@@ -496,7 +443,7 @@ pub struct Ui {
 impl Ui {
     /// Creates a new Ui object.
     pub fn new() -> Ui {
-        let root = ItemNode::new(0, Box::new(DummyBehavior));
+        let root = ItemNode::new(0, Box::new(()));
 
         let ui = Ui {
             root,

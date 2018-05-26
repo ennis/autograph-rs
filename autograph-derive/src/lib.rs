@@ -25,7 +25,7 @@ pub fn buffer_layout_derive(input: TokenStream) -> TokenStream {
     result.into()
 }
 
-fn process_buffer_layout_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
+fn process_buffer_layout_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let struct_name = &ast.ident;
 
     let fields = match *fields {
@@ -90,7 +90,7 @@ pub fn vertex_type_derive(input: TokenStream) -> TokenStream {
     result.into()
 }
 
-fn process_vertex_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
+fn process_vertex_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let struct_name = &ast.ident;
 
     let fields = match *fields {
@@ -243,7 +243,7 @@ fn error_multiple_interface_attrs() {
     panic!("Multiple interface attributes on field.");
 }
 
-fn make_option_tokens<T: quote::ToTokens>(v: &Option<T>) -> quote::Tokens {
+fn make_option_tokens<T: quote::ToTokens>(v: &Option<T>) -> TokenStream {
     if let Some(v) = v.as_ref() {
         quote!(Some(#v))
     } else {
@@ -251,7 +251,7 @@ fn make_option_tokens<T: quote::ToTokens>(v: &Option<T>) -> quote::Tokens {
     }
 }
 
-fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> quote::Tokens {
+fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let struct_name = &ast.ident;
 
     let mut uniform_constants = Vec::new();

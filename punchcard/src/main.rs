@@ -22,6 +22,7 @@ extern crate time;
 extern crate yoga;
 extern crate cssparser;
 extern crate warmy;
+extern crate winapi;
 
 use glutin::GlContext;
 use std::f32::consts::PI;
@@ -30,6 +31,7 @@ use warmy::{Store,StoreOpt};
 
 mod test_ui;
 mod ui;
+mod native_textbox;
 
 const INIT_WINDOW_SIZE: (u32, u32) = (1024, 720);
 
@@ -90,12 +92,14 @@ fn main() {
     ui.load_stylesheet("data/css/default.css");
     debug!("HiDPI factor is {}", gl_window.hidpi_factor());
 
+    native_textbox::create_edit_box(&gl_window);
+
     while running {
         events_loop.poll_events(|event| match event {
             glutin::Event::WindowEvent { event, .. } => {
                 ui.dispatch_event(&event);
                 match event {
-                    glutin::WindowEvent::Closed => running = false,
+                    glutin::WindowEvent::CloseRequested => running = false,
                     glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
                     _ => {}
                 }

@@ -77,10 +77,42 @@ where
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct DummyBehavior;
+//#[derive(Copy, Clone, Debug)]
+//pub struct DummyBehavior;
 
-impl ItemBehavior for DummyBehavior {
+impl ItemBehavior for () {
+    //fn draw(&mut self, _item: &mut Item, _renderer: &mut Renderer) {}
+
+    fn measure(&mut self, _item: &mut Item, _renderer: &Renderer) -> ContentMeasurement {
+        ContentMeasurement {
+            width: None,
+            height: None,
+        }
+    }
+
+    fn capture_event(
+        &mut self,
+        item: &mut Item,
+        event: &WindowEvent,
+        input_state: &mut InputState,
+    ) -> bool {
+        false
+    }
+
+    /// Callback to handle an event during bubbling phase.
+    fn event(
+        &mut self,
+        item: &mut Item,
+        event: &WindowEvent,
+        input_state: &mut InputState,
+    ) -> bool {
+        false
+    }
+}
+
+struct Invisible;
+
+impl ItemBehavior for Invisible {
     fn draw(&mut self, _item: &mut Item, _renderer: &mut Renderer) {}
 
     fn measure(&mut self, _item: &mut Item, _renderer: &Renderer) -> ContentMeasurement {
@@ -100,7 +132,6 @@ impl ItemBehavior for DummyBehavior {
         false
     }
 
-    /// Callback to handle an event during bubbling phase.
     fn event(
         &mut self,
         item: &mut Item,
@@ -111,6 +142,7 @@ impl ItemBehavior for DummyBehavior {
         false
     }
 }
+
 
 /// Represents a node in the item hierarchy.
 pub(super) struct ItemNode {

@@ -8,8 +8,6 @@ vbox {
 hbox {
   flex-direction: row;
   margin: 2px;
-  border-color: #c12727;
-  border-width: 1px;
   background-color: #202020; }
 
 slider {
@@ -18,9 +16,6 @@ slider {
   flex-direction: column;
   justify-content: center;
   align-items: stretch;
-  border-width: 1px;
-  border-color: aquamarine;
-  margin: 2px;
   padding: 2px 4px 2px; }
 
 slider-bar {
@@ -45,8 +40,26 @@ scroll {
   flex-direction: column;
   flex-grow: 1.0;
   align-items: stretch;
+  padding: 3px;
   background-color: #202020;
-  border-width: 1px;
+  border-width: 3px;
   border-color: azure; }
+
+collapsing-panel {
+  flex-direction: column;
+  flex-grow: 1.0;
+  align-self: flex-start;
+  margin: 2px;
+  border-width: 1px;
+  border-color: red; }
+
+collapsing-panel-header {
+  background-color: #86a2a2;
+  padding: 3px; }
+
+collapsing-panel-contents {
+  padding: 4px;
+  border-color: #86a2a2;
+  border-width: 2px; }
 
 /*# sourceMappingURL=default.css.map */

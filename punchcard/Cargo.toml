@@ -26,6 +26,9 @@ time="*"
 num="*"
 cssparser="*"
 warmy="*"
+winapi="*"
+user32-sys="*"
+kernel32-sys="*"
 
 [dependencies.nanovg]
 path = "../ext/nanovg-rs"

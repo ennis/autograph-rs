@@ -1,13 +1,35 @@
 use super::item::{ItemBehaviorAny, ItemNode};
-use super::{Color, ContentMeasurement, DummyBehavior, ElementState, InputState, Item,
+use super::{Color, ContentMeasurement, ElementState, InputState, Item,
             ItemBehavior, ItemID, Layout, Renderer, ComputedStyle, UiState, VirtualKeyCode, WindowEvent};
 use indexmap::{map::{Entry, OccupiedEntry, VacantEntry},
                IndexMap};
 use yoga;
 use yoga::prelude::*;
+use glutin::MouseButton;
 
 use std::fmt::Display;
 use std::cell::Cell;
+
+/// Helper trait for window events.
+pub trait WindowEventExt
+{
+    /// If item was clicked by the main mouse button.
+    fn clicked(&self) -> bool;
+}
+
+impl WindowEventExt for WindowEvent
+{
+    fn clicked(&self) -> bool {
+        match self {
+            &WindowEvent::MouseInput {
+                state,
+                button,
+                ..
+            } if state == ElementState::Released && button == MouseButton::Left => true,
+            _ => false,
+        }
+    }
+}
 
 /// A helper type for the construction of item hierarchies.
 /// Creation or modification of new child items go though instances of UiContainer.
@@ -128,6 +150,15 @@ impl<'a> UiContainer<'a> {
 
     pub(super) fn finish(mut self) {
         // TODO useless?
+        // remove all extra children
+        let num_children = self.children.len();
+        if self.cur_index != num_children {
+            debug!("removing {} extra children", num_children - self.cur_index);
+            //self.flexbox.
+        }
+        for i in self.cur_index..num_children {
+            self.children.swap_remove_index(i);
+        }
     }
 
     /// TODO document.
@@ -154,7 +185,7 @@ impl<'a> UiContainer<'a> {
                 .downcast_mut()
                 .expect("downcast to behavior type failed");
             f(&mut ui, item, behavior);
-            //ui.finish()
+            ui.finish()
         }
 
         self.ui_state.id_stack.pop_id();
@@ -439,11 +470,14 @@ impl<'a> UiContainer<'a> {
                     // clicked inside the slider layout rect
                     &WindowEvent::MouseInput {
                         state: elem_state, ..
-                    } if elem_state == ElementState::Pressed =>
+                    }  =>
                     {
-                        // capture events
-                        input_state.set_capture();
-                        update_slider_pos(&item.layout, input_state.cursor_pos());
+                        if elem_state == ElementState::Pressed {
+                            // capture events
+                            input_state.set_capture();
+                            update_slider_pos(&item.layout, input_state.cursor_pos());
+                        }
+                        //debug!("slider event");
                         true
                     }
                     &WindowEvent::CursorMoved { position, .. } => {
@@ -487,4 +521,56 @@ impl<'a> UiContainer<'a> {
             });
         });
     }
+
+    ///
+    /// Collapsing header.
+    ///
+    pub fn collapsing_panel<S,F>(&mut self, id: S, f: F)
+        where
+            S: Into<String>,
+            F: FnOnce(&mut UiContainer),
+    {
+        let label = id.into();
+
+        //=====================================
+        // bar
+        struct CollapsingPanel {
+            collapsed: bool,
+        }
+        impl ItemBehavior for CollapsingPanel {
+            fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
+                debug!("panel event");
+                if event.clicked() {
+                    self.collapsed = !self.collapsed;
+                    true
+                }
+                else { false }
+            }
+        }
+
+       /* struct CollapsingPanelHeader;
+        impl ItemBehavior for CollapsingPanelHeader
+        {
+            fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
+                // transparent to events
+                false
+            }
+        }*/
+
+        self.item(label.clone(), "collapsing-panel", (), |ui, item, state| {
+            let mut collapsed = false;
+            ui.item("header", "collapsing-panel-header", CollapsingPanel { collapsed: true }, |ui, item, state| {
+                ui.text(label.clone());
+                collapsed = state.collapsed;
+            });
+
+            if !collapsed {
+                ui.item("contents", "collapsing-panel-contents", (), |ui, item, _| {
+                    f(ui);
+                });
+            }
+        });
+    }
+
 }
+
