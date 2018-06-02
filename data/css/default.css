@@ -49,9 +49,7 @@ collapsing-panel {
   flex-direction: column;
   flex-grow: 1.0;
   align-self: flex-start;
-  margin: 2px;
-  border-width: 1px;
-  border-color: red; }
+  margin: 2px; }
 
 collapsing-panel-header {
   background-color: #86a2a2;
@@ -61,5 +59,31 @@ collapsing-panel-contents {
   padding: 4px;
   border-color: #86a2a2;
   border-width: 2px; }
+
+floating-panel {
+  flex-direction: column;
+  flex-grow: 1.0;
+  align-self: flex-start;
+  margin: 2px;
+  border-width: 1px;
+  border-color: red;
+  position: absolute; }
+
+floating-panel-header {
+  background-color: #86a2a2;
+  padding: 3px; }
+
+floating-panel-contents {
+  padding: 4px;
+  border-color: #86a2a2;
+  border-width: 2px; }
+
+floating-panel-resize-handle {
+  background-color: #c12727;
+  width: 15px;
+  height: 15px;
+  position: absolute;
+  bottom: 2px;
+  right: 2px; }
 
 /*# sourceMappingURL=default.css.map */

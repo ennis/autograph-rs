@@ -448,6 +448,26 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
                 self.declarations.push(PropertyDeclaration::Height(h));
                 Ok(())
             },
+            "left" => {
+                let v = parse_style_unit(parser)?;
+                self.declarations.push(PropertyDeclaration::Left(v));
+                Ok(())
+            },
+            "top" => {
+                let v = parse_style_unit(parser)?;
+                self.declarations.push(PropertyDeclaration::Top(v));
+                Ok(())
+            },
+            "right" => {
+                let v = parse_style_unit(parser)?;
+                self.declarations.push(PropertyDeclaration::Right(v));
+                Ok(())
+            },
+            "bottom" => {
+                let v = parse_style_unit(parser)?;
+                self.declarations.push(PropertyDeclaration::Bottom(v));
+                Ok(())
+            },
             _ => Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))
         }
 

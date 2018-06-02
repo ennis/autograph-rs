@@ -9,6 +9,9 @@ pub fn make_ui(ui: &mut Ui, data: &mut i32) {
         ui.scroll("main", |ui| {
             // ui.vbox("main", |ui| {
             for i in 0..10 {
+                ui.floating_panel(format!("Floating {}", i), |ui| {
+                   ui.text("panel contents");
+                });
                 ui.hbox(format!("{}", i), |ui| {
                     for i in 0..2 {
                         ui.collapsing_panel(format!("Panel {}", i), |ui| {

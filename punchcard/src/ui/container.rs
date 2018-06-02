@@ -1,4 +1,4 @@
-use super::item::{ItemBehaviorAny, ItemNode};
+use super::item::{ItemBehaviorAny, ItemNode, DragBehavior, DragState};
 use super::{Color, ContentMeasurement, ElementState, InputState, Item,
             ItemBehavior, ItemID, Layout, Renderer, ComputedStyle, UiState, VirtualKeyCode, WindowEvent};
 use indexmap::{map::{Entry, OccupiedEntry, VacantEntry},
@@ -46,7 +46,10 @@ pub struct UiContainer<'a> {
     cur_index: usize,
 }
 
-impl<'a> UiContainer<'a> {
+impl<'a> UiContainer<'a>
+{
+
+
     /// Gets the child item with the specified item ID, or create a new child with this ID if it
     /// doesn't exist.
     /// Returns:
@@ -162,11 +165,11 @@ impl<'a> UiContainer<'a> {
     }
 
     /// TODO document.
-    pub fn item<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
-    where
-        S: Into<String>,
-        Behavior: ItemBehavior,
-        F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
+    fn item_or_popup<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, is_popup: bool, f: F)
+        where
+            S: Into<String>,
+            Behavior: ItemBehavior,
+            F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
     {
         // convert ID to string for later storage
         let id_str = id.into();
@@ -188,8 +191,88 @@ impl<'a> UiContainer<'a> {
             ui.finish()
         }
 
+        if is_popup {
+            // add to popup list
+            let popup_path = self.ui_state.id_stack.0.clone();
+            self.ui_state.popups.push(popup_path);
+        }
+
         self.ui_state.id_stack.pop_id();
     }
+
+    /// TODO document.
+    pub fn item<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
+    where
+        S: Into<String>,
+        Behavior: ItemBehavior,
+        F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
+    {
+        self.item_or_popup(id, class, init, false, f)
+    }
+
+    /// TODO document.
+    pub fn popup<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
+        where
+            S: Into<String>,
+            Behavior: ItemBehavior,
+            F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
+    {
+        self.item_or_popup(id, class, init, true, f)
+    }
+
+
+    /*pub(super) fn popup<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
+        where
+            S: Into<String>,
+            Behavior: ItemBehavior,
+            F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
+    {
+        // convert ID to string for later storage
+        let id_str = id.into();
+        // get numeric ID
+        let id = self.ui_state.id_stack.push_id(&id_str);
+
+        // we don't care about the insertion order for popups
+        // (they don't influence the layout of child items)
+        {
+            let entry = self.popups.entry(id);
+            // we extract the item so that we own it no strings attached.
+            let node = match entry {
+                Entry::Vacant(_) => {
+                    let mut node = ItemNode::new(id, Box::new(init));
+                    node.item.add_class(class);
+                    node
+                }
+                Entry::Occupied(mut entry) => {
+                    // extract item (will reinsert later)
+                    entry.remove()
+                }
+            };
+
+            {
+                let mut ui = UiContainer {
+                    ui_state: self.ui_state,
+                    children: &mut node.children,
+                    popups: &mut self.popups,
+                    flexbox: &mut node.flexbox,
+                    id,
+                    cur_index: 0,
+                };
+                let item = &mut node.item;
+                let behavior = node.behavior.as_mut()
+                    .as_mut_any()
+                    .downcast_mut()
+                    .expect("downcast to behavior type failed");
+                f(&mut ui, item, behavior);
+                ui.finish();
+            }
+
+            // insert node into popup list
+            self.popups.insert(id, node);
+        }
+
+        self.ui_state.id_stack.pop_id();
+    }*/
 }
 
 pub struct ScrollState {
@@ -532,14 +615,11 @@ impl<'a> UiContainer<'a> {
     {
         let label = id.into();
 
-        //=====================================
-        // bar
         struct CollapsingPanel {
             collapsed: bool,
         }
         impl ItemBehavior for CollapsingPanel {
             fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
-                debug!("panel event");
                 if event.clicked() {
                     self.collapsed = !self.collapsed;
                     true
@@ -547,15 +627,6 @@ impl<'a> UiContainer<'a> {
                 else { false }
             }
         }
-
-       /* struct CollapsingPanelHeader;
-        impl ItemBehavior for CollapsingPanelHeader
-        {
-            fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
-                // transparent to events
-                false
-            }
-        }*/
 
         self.item(label.clone(), "collapsing-panel", (), |ui, item, state| {
             let mut collapsed = false;
@@ -569,6 +640,70 @@ impl<'a> UiContainer<'a> {
                     f(ui);
                 });
             }
+        });
+    }
+
+    ///
+    /// Draggable panel.
+    /// Very similar to collapsing panels.
+    ///
+    pub fn floating_panel<S,F>(&mut self, id: S, f: F)
+        where
+            S: Into<String>,
+            F: FnOnce(&mut UiContainer)
+    {
+        let label = id.into();
+
+
+        struct FloatingPanel {
+            collapsed: bool,
+            drag_behavior: DragBehavior,
+        }
+
+        impl Default for FloatingPanel
+        {
+            fn default() -> Self {
+                FloatingPanel {
+                    collapsed: false,
+                    drag_behavior: DragBehavior::default()
+                }
+            }
+        }
+
+        impl ItemBehavior for FloatingPanel {
+            fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
+                // dragging behavior
+                self.drag_behavior.event(item, event, input_state);
+                // TODO collapsing behavior
+                true
+            }
+        }
+
+        struct ResizeHandle;
+
+        impl ItemBehavior for ResizeHandle {
+            fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
+                false
+            }
+        }
+
+        self.popup(label.clone(), "floating-panel", FloatingPanel::default(), |ui, item, state| {
+            if let Some(ref drag) = state.drag_behavior.drag {
+                let position = (drag.start_pos.0 + drag.offset.0, drag.start_pos.1 + drag.offset.1);
+                item.set_position(Some(position.0.point()), Some(position.1.point()));
+            }
+
+            ui.item("header", "floating-panel-header", (), |ui, item, state| {
+                ui.text(label.clone());
+            });
+
+            ui.item("contents", "floating-panel-contents", (), |ui, item, _| {
+                if !state.collapsed {
+                    f(ui);
+                }
+                ui.item("resize-handle", "floating-panel-resize-handle", ResizeHandle, |ui, item, _| {});
+            });
+
         });
     }
 

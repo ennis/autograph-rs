@@ -28,6 +28,10 @@ impl Layout {
     pub fn is_point_inside(&self, pos: (f32, f32)) -> bool {
         self.left <= pos.0 && pos.0 <= self.right && self.top <= pos.1 && pos.1 <= self.bottom
     }
+
+    pub fn relative_position(&self, pos: (f32, f32)) -> (f32,f32) {
+        (pos.0 - self.left, pos.1 - self.top)
+    }
 }
 
 pub struct ContentMeasurement {

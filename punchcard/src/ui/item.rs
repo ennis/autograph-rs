@@ -5,7 +5,7 @@ use super::{DispatchChain, DispatchTarget, InputState, ItemID, UiState};
 use super::ResourceStore;
 use super::css;
 
-use glutin::{KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
+use glutin::{KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent, ElementState};
 use indexmap::IndexMap;
 use yoga;
 
@@ -143,6 +143,76 @@ impl ItemBehavior for Invisible {
     }
 }
 
+
+/// InputBehavior: feed events, get info.
+/*pub struct InputBehavior
+{
+    pub clicked: bool,
+    pub drag: Option<DragState>
+}*/
+
+pub struct DragState
+{
+    /// Position of the item (layout) when the dragging started.
+    pub start_pos: (f32,f32),
+    /// Where the mouse pointer was when the dragging started.
+    pub origin: (f32,f32),
+    /// Current drag offset.
+    pub offset: (f32,f32),
+}
+
+/// Common input behavior
+pub struct DragBehavior
+{
+    pub drag: Option<DragState>,
+}
+
+impl Default for DragBehavior
+{
+    fn default() -> Self {
+        DragBehavior {
+            drag: None
+        }
+    }
+}
+
+impl ItemBehavior for DragBehavior {
+    fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
+        // drag behavior:
+        // - on mouse button down: capture, set click pos
+        // - on cursor move: update offset
+        let captured = match event {
+            &WindowEvent::MouseInput {
+                state, ..
+            } => {
+                if state == ElementState::Pressed {
+                    // capture events
+                    input_state.set_capture();
+                    self.drag = Some(DragState { start_pos: (item.layout.left, item.layout.top), origin: input_state.cursor_pos(), offset: (0.0,0.0) });
+                }
+                true
+            }
+            &WindowEvent::CursorMoved { position, .. } => {
+                if input_state.capturing {
+                    let cursor_pos = input_state.cursor_pos();
+                    if let Some(ref mut drag) = self.drag {
+                        drag.offset = (cursor_pos.0 - drag.origin.0, cursor_pos.1 - drag.origin.1);
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+
+        if !input_state.capturing {
+            self.drag = None;
+        }
+
+        captured
+    }
+}
 
 /// Represents a node in the item hierarchy.
 pub(super) struct ItemNode {

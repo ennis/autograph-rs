@@ -29,7 +29,15 @@ mod css;
 mod sizer;
 
 // New problem: popups
-//  
+// Must keep a list of popups, hit-test all of them
+// popups are outside the visual rect tree
+//
+// Popups should modify the root?
+// => popups are alternate roots
+// => separate popup root node: contains all popups, sorted by z-order
+//
+// In UiContainer: mut ref to popup ItemNodes
+// Issue: multiple mut-borrows: list of ItemNodes and
 
 // Reexports
 pub use self::container::{ScrollState, UiContainer};
@@ -186,6 +194,7 @@ impl<'a> InputState<'a> {
     pub fn set_capture(&mut self) {
         self.state
             .set_capture(self.dispatch_chain.current_chain().into());
+        self.capturing = true;
     }
 
     /// Signals that the current item should have focus.
@@ -236,6 +245,8 @@ pub struct UiState {
     capture: Option<PointerCapture>,
     focus_path: Option<Vec<ItemID>>,
     stylesheets: Vec<Res<css::Stylesheet>>,
+    /// Floating popup windows (transient).
+    popups: Vec<Vec<ItemID>>,
     store: ResourceStore
 }
 
@@ -248,8 +259,14 @@ impl UiState {
             capture: None,
             focus_path: None,
             stylesheets: Vec::new(),
+            popups: Vec::new(),
             store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store")
         }
+    }
+
+    fn add_popup(&mut self, id_path: &[ItemID])
+    {
+
     }
 
     fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error>
@@ -294,11 +311,21 @@ impl UiState {
         }
     }
 
-    fn hit_test(&self, pos: (f32, f32), node: &ItemNode, chain: &mut Vec<ItemID>) -> bool {
+    fn hit_test_item_rec(&self, pos: (f32, f32), node: &ItemNode, path: &[ItemID], chain: &mut Vec<ItemID>) -> bool
+    {
+        if let Some((x,xs)) = path.split_first() {
+            chain.push(node.item.id);
+            self.hit_test_item_rec(pos, &node.children[x], xs, chain)
+        } else {
+            self.hit_test_rec(pos, node, chain)
+        }
+    }
+
+    fn hit_test_rec(&self, pos: (f32, f32), node: &ItemNode, chain: &mut Vec<ItemID>) -> bool {
         if node.hit_test(pos) {
             chain.push(node.item.id);
             for (_, child) in node.children.iter() {
-                if self.hit_test(pos, child, chain) {
+                if self.hit_test_rec(pos, child, chain) {
                     break;
                 }
             }
@@ -306,6 +333,24 @@ impl UiState {
         } else {
             false
         }
+    }
+
+    fn hit_test(&self, pos: (f32, f32), node: &ItemNode, popups: &[Vec<ItemID>], chain: &mut Vec<ItemID>) -> bool {
+        // check popups first
+        for p in popups {
+            if self.hit_test_item_rec(pos, node, &p[1..], chain) {
+                // got a match
+                break;
+            }
+            chain.clear();
+        }
+
+        if !chain.is_empty() {
+            return true;
+        }
+
+        // check root
+        self.hit_test_rec(pos, node, chain)
     }
 
     fn dispatch_event(&mut self, root_node: &mut ItemNode, event: &WindowEvent) {
@@ -337,7 +382,7 @@ impl UiState {
         } else {
             // TODO hit-test
             let mut hit_test_chain = Vec::new();
-            self.hit_test(self.cursor_pos, root_node, &mut hit_test_chain);
+            self.hit_test(self.cursor_pos, root_node, &self.popups[..], &mut hit_test_chain);
             (hit_test_chain, DispatchTarget::HitTest)
         };
 
@@ -436,6 +481,7 @@ fn measure_time<F: FnOnce()>(f: F) -> u64 {
 /// The UI.
 /// Call root() to get a UiContainer that allows adding child items to the UI root.
 pub struct Ui {
+    /// Root node of the main window.
     root: ItemNode,
     state: UiState,
 }
@@ -476,6 +522,7 @@ impl Ui {
         let mut ctx = ();
         // this should probably be done in its own function.
         self.state.store.sync(&mut ctx);
+        self.state.popups.clear();
         let spec_time = measure_time(|| {
             let mut ui = UiContainer::new_root(0, &mut self.root, &mut self.state);
             f(&mut ui);
