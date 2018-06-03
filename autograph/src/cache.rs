@@ -92,7 +92,8 @@ impl Cache {
         let mut hash = self.cached_objects.borrow_mut();
         // if the hashmap doesn't have an entry, call f(), box the returned value, add it to the hash,
         // downcast it to the concrete type and return it
-        let obj = hash.entry(path.to_owned())
+        let obj = hash
+            .entry(path.to_owned())
             .or_insert_with(|| Box::new(CacheCell::new(path.to_owned(), f().clone())));
 
         obj.inner.downcast_ref::<T>().map(|v| v.clone())

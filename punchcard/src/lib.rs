@@ -1,59 +1,70 @@
-// cassowary is too slow unfortunately: took 693ms to layout 100 items in a vbox
-// good for static layouts, not so much for imgui context with a highly dynamic item count
-// use yoga instead
-use diff;
-use indexmap::{map::Entry, map::OccupiedEntry, map::VacantEntry, IndexMap};
-use nvg;
+#[macro_use]
+extern crate log;
+extern crate glutin;
+#[macro_use]
+extern crate failure;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate bitflags;
+extern crate indexmap;
+extern crate nanovg as nvg;
+extern crate num;
+extern crate petgraph;
+extern crate rand;
+extern crate time;
+#[macro_use]
+extern crate yoga;
+extern crate cssparser;
+extern crate warmy;
+extern crate winapi;
+
+use failure::Error;
 use std::any::Any;
-use std::fs;
 use std::cell::{Cell, RefCell};
 use std::collections::{hash_map, HashMap};
-use std::path::{Path,PathBuf};
-use std::hash::{Hash, Hasher, SipHasher};
+use std::fs;
 use std::marker::PhantomData;
 use std::mem;
-use time;
-use yoga;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use yoga::prelude::*;
 use yoga::FlexStyle::*;
 use yoga::StyleUnit::{Auto, UndefinedValue};
-use failure::Error;
-use std::rc::Rc;
 
+mod behavior;
 mod container;
+mod css;
+mod id_stack;
+mod input;
 mod item;
 mod layout;
+mod nanovg_renderer;
 mod renderer;
-mod style;
-mod css;
 mod sizer;
+mod style;
 mod widgets;
 
-// New problem: popups
-// Must keep a list of popups, hit-test all of them
-// popups are outside the visual rect tree
-//
-// Popups should modify the root?
-// => popups are alternate roots
-// => separate popup root node: contains all popups, sorted by z-order
-//
-// In UiContainer: mut ref to popup ItemNodes
-// Issue: multiple mut-borrows: list of ItemNodes and
-
-// Reexports
-pub use self::container::{UiContainer};
-pub use self::widgets::{ScrollState};
-use self::item::ItemNode;
-pub use self::item::{Item, ItemBehavior};
-pub use self::layout::{ContentMeasurement, Layout};
-pub use self::renderer::{ImageCache, NvgRenderer, Renderer};
-pub use self::style::{Background, Color, LinearGradient, RadialGradient, ComputedStyle, CachedStyle};
-pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
+pub use self::behavior::{Behavior, CheckboxBehavior, DragBehavior, DragState};
+pub use self::container::UiContainer;
 pub use self::css::Stylesheet;
-pub use warmy::{Store, StoreOpt, FSKey, Res};
-use self::style::apply_to_flex_node;
+pub use self::id_stack::{IdStack, ItemID};
+pub use self::input::InputState;
+pub use self::item::Item;
+pub use self::layout::{ContentMeasurement, Layout};
+pub use self::nanovg_renderer::NvgRenderer;
+pub use self::renderer::{DrawItem, DrawItemKind, DrawList, Renderer};
+pub use self::style::{
+    Background, CachedStyle, Color, ComputedStyle, LinearGradient, RadialGradient,
+};
+pub use self::widgets::*;
+pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
+pub use yoga::prelude::*;
 
-type ItemID = u64;
+use self::input::{DispatchChain, DispatchTarget, PointerCapture};
+use self::item::ItemNode;
+use self::style::apply_to_flex_node;
+pub use warmy::{FSKey, Res, Store, StoreOpt};
 
 macro_rules! unwrap_enum {
     ($e:expr,ref mut $p:path) => {
@@ -76,166 +87,6 @@ macro_rules! unwrap_enum {
     };
 }
 
-/// The ID stack. Each level corresponds to a parent ItemNode.
-pub struct IdStack(Vec<ItemID>);
-
-impl IdStack {
-    /// Creates a new IdStack and push the specified ID onto it.
-    pub fn new(root_id: ItemID) -> IdStack {
-        IdStack(vec![root_id])
-    }
-
-    fn chain_hash<H: Hash>(&self, s: &H) -> ItemID {
-        let stacklen = self.0.len();
-        let key1 = if stacklen >= 2 {
-            self.0[stacklen - 2]
-        } else {
-            0
-        };
-        let key0 = if stacklen >= 1 {
-            self.0[stacklen - 1]
-        } else {
-            0
-        };
-        let mut sip = SipHasher::new_with_keys(key0, key1);
-        s.hash(&mut sip);
-        sip.finish()
-    }
-
-    /// Hashes the given data, initializing the hasher with the items currently on the stack.
-    /// Pushes the result on the stack and returns it.
-    /// This is used to generate a unique ID per item path in the hierarchy.
-    pub fn push_id<H: Hash>(&mut self, s: &H) -> ItemID {
-        let id = self.chain_hash(s);
-        let parent_id = *self.0.last().unwrap();
-        self.0.push(id);
-        id
-    }
-
-    /// Pops the ID at the top of the stack.
-    pub fn pop_id(&mut self) {
-        self.0.pop();
-    }
-}
-
-/// Struct containing information about a pointer capture.
-#[derive(Clone)]
-pub struct PointerCapture {
-    /// Where the mouse button was at capture.
-    origin: (f32, f32),
-    /// The path (hierarchy of IDs) to the element that is capturing the mouse pointer.
-    id_path: Vec<ItemID>,
-}
-
-/// Describes the nature of the target of a dispatch chain.
-#[derive(Copy, Clone, Debug)]
-enum DispatchTarget {
-    /// The dispatch chain targets a captured item.
-    Capture,
-    /// The dispatch chain targets a focused item.
-    Focus,
-    /// The dispatch chain targets a leaf item that passed the cursor hit-test.
-    HitTest,
-}
-
-/// Represent a dispatch chain: a chain of items that should receive an event.
-#[derive(Copy, Clone)]
-struct DispatchChain<'a> {
-    /// The items in the chain.
-    items: &'a [ItemID],
-    /// Current position in the chain.
-    current: usize,
-    /// Reason for dispatch.
-    target: DispatchTarget,
-}
-
-impl<'a> DispatchChain<'a> {
-    /// advance position in the chain
-    fn next(&self) -> Option<DispatchChain<'a>> {
-        if self.current + 1 < self.items.len() {
-            Some(DispatchChain {
-                items: self.items,
-                current: self.current + 1,
-                target: self.target,
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Get the current item ID
-    fn current_id(&self) -> ItemID {
-        self.items[self.current]
-    }
-
-    /// Returns the final target of this dispatch chain.
-    fn target_id(&self) -> ItemID {
-        *self.items.last().unwrap()
-    }
-
-    /// Returns the currently processed chain, including the current element.
-    fn current_chain(&self) -> &'a [ItemID] {
-        &self.items[0..=self.current]
-    }
-}
-
-/// Struct passed to event handlers.
-pub struct InputState<'a> {
-    /// TODO document
-    state: &'a mut UiState,
-    /// Dispatch chain that the event is travelling along.
-    dispatch_chain: DispatchChain<'a>,
-    /// Whether the item received this event because it has been captured.
-    capturing: bool,
-    /// Whether the item received this event because it has focus.
-    focused: bool,
-}
-
-impl<'a> InputState<'a> {
-    /// Signals that the current item in the dispatch chain should capture all events.
-    pub fn set_capture(&mut self) {
-        self.state
-            .set_capture(self.dispatch_chain.current_chain().into());
-        self.capturing = true;
-    }
-
-    /// Signals that the current item should have focus.
-    pub fn set_focus(&mut self) {
-        self.state
-            .set_focus(self.dispatch_chain.current_chain().into());
-    }
-
-    /// Get the pointer capture origin position.
-    pub fn get_capture_origin(&self) -> Option<(f32, f32)> {
-        self.state.capture.as_ref().map(|params| params.origin)
-    }
-
-    /// Get drag delta from start of capture.
-    pub fn get_capture_drag_delta(&self) -> Option<(f32, f32)> {
-        self.state.capture.as_ref().map(|params| {
-            let (ox, oy) = params.origin;
-            let (cx, cy) = self.state.cursor_pos;
-            (cx - ox, cy - oy)
-        })
-    }
-
-    /// Release the capture. This fails (silently) if the current item is not
-    /// capturing events.
-    pub fn release_capture(&mut self) {
-        // check that we are capturing
-        if self.capturing {
-            self.state.release_capture()
-        } else {
-            warn!("trying to release capture without capturing");
-        }
-    }
-
-    /// Get the current cursor position.
-    pub fn cursor_pos(&self) -> (f32, f32) {
-        self.state.cursor_pos
-    }
-}
-
 /// The resource store type for all UI stuff (images, etc.)
 pub type ResourceStore = Store<()>;
 
@@ -249,7 +100,7 @@ pub struct UiState {
     stylesheets: Vec<Res<css::Stylesheet>>,
     /// Floating popup windows (transient).
     popups: Vec<Vec<ItemID>>,
-    store: ResourceStore
+    store: ResourceStore,
 }
 
 impl UiState {
@@ -262,25 +113,28 @@ impl UiState {
             focus_path: None,
             stylesheets: Vec::new(),
             popups: Vec::new(),
-            store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store")
+            store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
         }
     }
 
-    fn add_popup(&mut self, id_path: &[ItemID])
+    /*fn add_popup(&mut self, id_path: &[ItemID])
     {
 
-    }
+    }*/
 
-    fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error>
-    {
+    fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
         let mut ctx = ();
-        let stylesheet = self.store.get::<_, Stylesheet>(&FSKey::new(path), &mut ctx)?;
+        let stylesheet = self
+            .store
+            .get::<_, Stylesheet>(&FSKey::new(path), &mut ctx)?;
         self.stylesheets.push(stylesheet);
         Ok(())
     }
 
     fn stylesheets_dirty(&self) -> bool {
-        self.stylesheets.iter().any(|s| { s.borrow().dirty.replace(false) })
+        self.stylesheets
+            .iter()
+            .any(|s| s.borrow().dirty.replace(false))
     }
 
     fn set_focus(&mut self, path: Vec<ItemID>) {
@@ -313,9 +167,14 @@ impl UiState {
         }
     }
 
-    fn hit_test_item_rec(&self, pos: (f32, f32), node: &ItemNode, path: &[ItemID], chain: &mut Vec<ItemID>) -> bool
-    {
-        if let Some((x,xs)) = path.split_first() {
+    fn hit_test_item_rec(
+        &self,
+        pos: (f32, f32),
+        node: &ItemNode,
+        path: &[ItemID],
+        chain: &mut Vec<ItemID>,
+    ) -> bool {
+        if let Some((x, xs)) = path.split_first() {
             chain.push(node.item.id);
             self.hit_test_item_rec(pos, &node.children[x], xs, chain)
         } else {
@@ -337,7 +196,13 @@ impl UiState {
         }
     }
 
-    fn hit_test(&self, pos: (f32, f32), node: &ItemNode, popups: &[Vec<ItemID>], chain: &mut Vec<ItemID>) -> bool {
+    fn hit_test(
+        &self,
+        pos: (f32, f32),
+        node: &ItemNode,
+        popups: &[Vec<ItemID>],
+        chain: &mut Vec<ItemID>,
+    ) -> bool {
         // check popups first
         for p in popups {
             if self.hit_test_item_rec(pos, node, &p[1..], chain) {
@@ -383,7 +248,12 @@ impl UiState {
             (focus.clone(), DispatchTarget::Focus)
         } else {
             let mut hit_test_chain = Vec::new();
-            self.hit_test(self.cursor_pos, root_node, &self.popups[..], &mut hit_test_chain);
+            self.hit_test(
+                self.cursor_pos,
+                root_node,
+                &self.popups[..],
+                &mut hit_test_chain,
+            );
             (hit_test_chain, DispatchTarget::HitTest)
         };
 
@@ -402,7 +272,13 @@ impl UiState {
         }
     }
 
-    fn calculate_style(&mut self, node: &mut ItemNode, renderer: &Renderer, parent: &CachedStyle, stylesheets_dirty: bool) {
+    fn calculate_style(
+        &mut self,
+        node: &mut ItemNode,
+        renderer: &Renderer,
+        parent: &CachedStyle,
+        stylesheets_dirty: bool,
+    ) {
         // TODO caching the full computed style in each individual item is super expensive (in CPU and memory)
 
         // recompute from stylesheet if classes have changed
@@ -444,12 +320,28 @@ impl UiState {
 
         // apply layout overrides: they always have precedence over the computed styles
         let m = node.behavior.measure(&mut node.item, renderer);
-        m.width.map(|w|{ node.flexbox.set_width(w.point()); });
-        m.height.map(|h|{ node.flexbox.set_height(h.point()); });
-        node.item.layout_overrides.left.map(|v| node.flexbox.set_position(yoga::Edge::Left, v));
-        node.item.layout_overrides.top.map(|v| node.flexbox.set_position(yoga::Edge::Top, v));
-        node.item.layout_overrides.width.map(|v| node.flexbox.set_width(v));
-        node.item.layout_overrides.height.map(|v| node.flexbox.set_height(v));
+        m.width.map(|w| {
+            node.flexbox.set_width(w.point());
+        });
+        m.height.map(|h| {
+            node.flexbox.set_height(h.point());
+        });
+        node.item
+            .layout_overrides
+            .left
+            .map(|v| node.flexbox.set_position(yoga::Edge::Left, v));
+        node.item
+            .layout_overrides
+            .top
+            .map(|v| node.flexbox.set_position(yoga::Edge::Top, v));
+        node.item
+            .layout_overrides
+            .width
+            .map(|v| node.flexbox.set_width(v));
+        node.item
+            .layout_overrides
+            .height
+            .map(|v| node.flexbox.set_height(v));
 
         for (_, child) in node.children.iter_mut() {
             self.calculate_style(child, renderer, &node.item.style, stylesheets_dirty);
@@ -460,14 +352,14 @@ impl UiState {
         &mut self,
         node: &mut ItemNode,
         parent_layout: &Layout,
-        renderer: &mut Renderer,
+        draw_list: &mut DrawList,
     ) {
         let layout = Layout::from_yoga_layout(parent_layout, node.flexbox.get_layout());
         node.item.layout = layout;
         //debug!("layout {:?}", layout);
-        node.behavior.draw(&mut node.item, renderer);
+        node.behavior.draw(&mut node.item, draw_list);
         for (_, child) in node.children.iter_mut() {
-            self.render_item(child, &layout, renderer);
+            self.render_item(child, &layout, draw_list);
         }
     }
 }
@@ -500,7 +392,7 @@ impl Ui {
     }
 
     /// Loads a CSS stylesheet from the specified path.
-    pub fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(),Error> {
+    pub fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
         self.state.load_stylesheet(path)
     }
 
@@ -555,8 +447,11 @@ impl Ui {
             bottom: size.1,
         };
         let render_time = measure_time(|| {
+            let mut draw_list = DrawList::new();
             self.state
-                .render_item(&mut self.root, &root_layout, renderer);
+                .render_item(&mut self.root, &root_layout, &mut draw_list);
+            draw_list.sort();
+            renderer.draw_frame(&draw_list.items[..]);
         });
 
         //debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);

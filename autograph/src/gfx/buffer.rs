@@ -153,11 +153,15 @@ impl RawBufferObject {
     pub unsafe fn map_persistent_unsynchronized(&self) -> *mut c_void {
         let flags = match self.usage {
             BufferUsage::READBACK => {
-                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_READ_BIT | gl::MAP_PERSISTENT_BIT
+                gl::MAP_UNSYNCHRONIZED_BIT
+                    | gl::MAP_READ_BIT
+                    | gl::MAP_PERSISTENT_BIT
                     | gl::MAP_COHERENT_BIT
             }
             BufferUsage::UPLOAD => {
-                gl::MAP_UNSYNCHRONIZED_BIT | gl::MAP_WRITE_BIT | gl::MAP_PERSISTENT_BIT
+                gl::MAP_UNSYNCHRONIZED_BIT
+                    | gl::MAP_WRITE_BIT
+                    | gl::MAP_PERSISTENT_BIT
                     | gl::MAP_COHERENT_BIT
             }
             BufferUsage::DEFAULT => {

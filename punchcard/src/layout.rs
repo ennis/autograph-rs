@@ -29,7 +29,7 @@ impl Layout {
         self.left <= pos.0 && pos.0 <= self.right && self.top <= pos.1 && pos.1 <= self.bottom
     }
 
-    pub fn relative_position(&self, pos: (f32, f32)) -> (f32,f32) {
+    pub fn relative_position(&self, pos: (f32, f32)) -> (f32, f32) {
         (pos.0 - self.left, pos.1 - self.top)
     }
 }

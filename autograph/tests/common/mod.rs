@@ -6,10 +6,12 @@ extern crate time;
 extern crate winit;
 
 use self::autograph::gfx;
-use self::autograph::gfx::glsl::interface::{verify_spirv_interface,
-                                            ShaderInterfaceVerificationError};
-use self::autograph::gfx::glsl::{compile_glsl_to_spirv, preprocess_combined_shader_source,
-                                 SourceWithFileName, SpirvModules};
+use self::autograph::gfx::glsl::interface::{
+    verify_spirv_interface, ShaderInterfaceVerificationError,
+};
+use self::autograph::gfx::glsl::{
+    compile_glsl_to_spirv, preprocess_combined_shader_source, SourceWithFileName, SpirvModules,
+};
 use self::autograph::gfx::shader_interface::{ShaderInterface, ShaderInterfaceDesc};
 use self::autograph::gfx::GraphicsShaderPipeline;
 use self::autograph::gl;

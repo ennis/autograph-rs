@@ -471,7 +471,8 @@ fn decode_instruction(opcode: u16, operands: &[u32]) -> Result<Instruction, Pars
 }
 
 fn parse_string(data: &[u32]) -> (String, &[u32]) {
-    let bytes = data.iter()
+    let bytes = data
+        .iter()
         .flat_map(|&n| {
             let b1 = (n & 0xff) as u8;
             let b2 = ((n >> 8) & 0xff) as u8;

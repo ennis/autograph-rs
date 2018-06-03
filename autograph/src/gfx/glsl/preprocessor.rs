@@ -1,5 +1,6 @@
-use super::{PipelineStages, PS_COMPUTE, PS_FRAGMENT, PS_GEOMETRY, PS_TESS_CONTROL, PS_TESS_EVAL,
-            PS_VERTEX};
+use super::{
+    PipelineStages, PS_COMPUTE, PS_FRAGMENT, PS_GEOMETRY, PS_TESS_CONTROL, PS_TESS_EVAL, PS_VERTEX,
+};
 use failure::Error;
 use gfx;
 use gfx::pipeline::GraphicsPipelineBuilder;

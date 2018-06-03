@@ -3,6 +3,10 @@ name = "punchcard"
 version = "0.1.0"
 authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
+[dev-dependencies]
+pretty_env_logger = "*"
+gl = "*"
+
 [build-dependencies]
 embed-resource = "*"
 
@@ -10,16 +14,12 @@ embed-resource = "*"
 bitflags = "*"
 lazy_static = "*"
 smallvec = "*"
-pretty_env_logger = "*"
 libc = "*"
 log = "*"
 winit = "*"
 glutin = "*"
-gl = "*"
 failure = "*"
 petgraph="*"
-cassowary="*"
-diff="*"
 rand="*"
 indexmap="*"
 time="*"

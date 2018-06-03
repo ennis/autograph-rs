@@ -1,31 +1,34 @@
-use super::item::{ItemBehaviorAny, ItemNode, DragBehavior, DragState};
-use super::{Color, ContentMeasurement, ElementState, InputState, Item,
-            ItemBehavior, ItemID, Layout, Renderer, ComputedStyle, UiState, VirtualKeyCode, WindowEvent};
-use indexmap::{map::{Entry, OccupiedEntry, VacantEntry},
-               IndexMap};
+//! Widget creation interface.
+use super::behavior::{Behavior, BehaviorAny};
+use super::item::{Item, ItemNode};
+use super::{
+    Color, ComputedStyle, ContentMeasurement, ElementState, InputState, ItemID, Layout, Renderer,
+    UiState,
+};
+use glutin::{MouseButton, VirtualKeyCode, WindowEvent};
+use indexmap::{
+    map::{Entry, OccupiedEntry, VacantEntry}, IndexMap,
+};
 use yoga;
 use yoga::prelude::*;
-use glutin::MouseButton;
 
-use std::fmt::Display;
 use std::cell::Cell;
+use std::fmt::Display;
 
 /// Helper trait for window events.
-pub trait WindowEventExt
-{
+pub trait WindowEventExt {
     /// If item was clicked by the main mouse button.
     fn clicked(&self) -> bool;
 }
 
-impl WindowEventExt for WindowEvent
-{
+impl WindowEventExt for WindowEvent {
     fn clicked(&self) -> bool {
         match self {
-            &WindowEvent::MouseInput {
-                state,
-                button,
-                ..
-            } if state == ElementState::Released && button == MouseButton::Left => true,
+            &WindowEvent::MouseInput { state, button, .. }
+                if state == ElementState::Released && button == MouseButton::Left =>
+            {
+                true
+            }
             _ => false,
         }
     }
@@ -46,22 +49,20 @@ pub struct UiContainer<'a> {
     cur_index: usize,
 }
 
-impl<'a> UiContainer<'a>
-{
-
-
+impl<'a> UiContainer<'a> {
     /// Gets the child item with the specified item ID, or create a new child with this ID if it
     /// doesn't exist.
     /// Returns:
     /// - a UIContainer for the newly created child item
     /// - a mutable reference to the item properties `&'mut Item`
-    /// - a mutable reference to the `ItemBehavior`
+    /// - a mutable reference to the `Behavior`
     pub(super) fn new_item<'b, F>(
         &'b mut self,
         new_item_id: ItemID,
-        f: F
-    ) -> (UiContainer<'b>, &'b mut Item, &'b mut ItemBehaviorAny)
-    where F: FnOnce(ItemID) -> ItemNode
+        f: F,
+    ) -> (UiContainer<'b>, &'b mut Item, &'b mut BehaviorAny)
+    where
+        F: FnOnce(ItemID) -> ItemNode,
     {
         // when inserting a child item:
         //      - if index matches: OK
@@ -165,11 +166,11 @@ impl<'a> UiContainer<'a>
     }
 
     /// TODO document.
-    fn item_or_popup<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, is_popup: bool, f: F)
-        where
-            S: Into<String>,
-            Behavior: ItemBehavior,
-            F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
+    fn item_or_popup<S, B, F>(&mut self, id: S, class: &str, init: B, is_popup: bool, f: F)
+    where
+        S: Into<String>,
+        B: Behavior,
+        F: FnOnce(&mut UiContainer, &mut Item, &mut B),
     {
         // convert ID to string for later storage
         let id_str = id.into();
@@ -201,76 +202,22 @@ impl<'a> UiContainer<'a>
     }
 
     /// TODO document.
-    pub fn item<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
+    pub fn item<S, B, F>(&mut self, id: S, class: &str, init: B, f: F)
     where
         S: Into<String>,
-        Behavior: ItemBehavior,
-        F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
+        B: Behavior,
+        F: FnOnce(&mut UiContainer, &mut Item, &mut B),
     {
         self.item_or_popup(id, class, init, false, f)
     }
 
     /// TODO document.
-    pub fn popup<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
-        where
-            S: Into<String>,
-            Behavior: ItemBehavior,
-            F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
+    pub fn popup<S, B, F>(&mut self, id: S, class: &str, init: B, f: F)
+    where
+        S: Into<String>,
+        B: Behavior,
+        F: FnOnce(&mut UiContainer, &mut Item, &mut B),
     {
         self.item_or_popup(id, class, init, true, f)
     }
-
-
-    /*pub(super) fn popup<S, Behavior, F>(&mut self, id: S, class: &str, init: Behavior, f: F)
-        where
-            S: Into<String>,
-            Behavior: ItemBehavior,
-            F: FnOnce(&mut UiContainer, &mut Item, &mut Behavior),
-    {
-        // convert ID to string for later storage
-        let id_str = id.into();
-        // get numeric ID
-        let id = self.ui_state.id_stack.push_id(&id_str);
-
-        // we don't care about the insertion order for popups
-        // (they don't influence the layout of child items)
-        {
-            let entry = self.popups.entry(id);
-            // we extract the item so that we own it no strings attached.
-            let node = match entry {
-                Entry::Vacant(_) => {
-                    let mut node = ItemNode::new(id, Box::new(init));
-                    node.item.add_class(class);
-                    node
-                }
-                Entry::Occupied(mut entry) => {
-                    // extract item (will reinsert later)
-                    entry.remove()
-                }
-            };
-
-            {
-                let mut ui = UiContainer {
-                    ui_state: self.ui_state,
-                    children: &mut node.children,
-                    popups: &mut self.popups,
-                    flexbox: &mut node.flexbox,
-                    id,
-                    cur_index: 0,
-                };
-                let item = &mut node.item;
-                let behavior = node.behavior.as_mut()
-                    .as_mut_any()
-                    .downcast_mut()
-                    .expect("downcast to behavior type failed");
-                f(&mut ui, item, behavior);
-                ui.finish();
-            }
-
-            // insert node into popup list
-            self.popups.insert(id, node);
-        }
-
-        self.ui_state.id_stack.pop_id();
-    }*/
 }

@@ -81,7 +81,8 @@ impl<'queue> DrawUtilsExt<'queue> for Frame<'queue> {
         static PIPELINE_KEY: &'static str = concat!(file!(), line!());
         static LOAD_ERR: &'static str = "failed to load internal shader";
         let gctx = self.queue().context();
-        let pipeline = gctx.cache()
+        let pipeline = gctx
+            .cache()
             .get_or(PIPELINE_KEY, || {
                 gfx::GraphicsPipelineBuilder::new()
                     .with_glsl_file_via_spirv("data/shaders/gfx/blitTexture.glsl")

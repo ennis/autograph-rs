@@ -108,7 +108,8 @@ impl SceneObjects {
 
     pub fn calculate_transforms(&mut self) {
         // isolate roots
-        let roots: Vec<_> = self.scene_objects
+        let roots: Vec<_> = self
+            .scene_objects
             .values()
             .filter(|obj| obj.borrow().parent_id == None)
             .map(|obj| obj.borrow().id)
@@ -172,7 +173,8 @@ impl SceneObjects {
                             .push(scene_object.id);
                     }
                     // insert scene object
-                    if let Some(_) = self.scene_objects
+                    if let Some(_) = self
+                        .scene_objects
                         .insert(scene_object.id, RefCell::new(scene_object))
                     {
                         panic!("Key already present");

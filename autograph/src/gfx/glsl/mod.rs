@@ -222,7 +222,9 @@ impl ::std::fmt::Debug for GlslCombinedSource {
 }
 
 #[derive(Fail, Debug)]
-#[fail(display = "Compilation of GLSL shader failed (path: {:?}, stage: {:?}).", source_path, stage)]
+#[fail(
+    display = "Compilation of GLSL shader failed (path: {:?}, stage: {:?}).", source_path, stage
+)]
 struct GlslCompilationError {
     source_path: PathBuf,
     stage: PipelineStages,
@@ -644,7 +646,8 @@ impl GraphicsPipelineBuilderExt for GraphicsPipelineBuilder {
     fn with_glsl_file<P: AsRef<Path>>(self, path: P) -> Result<Self, Error> {
         let compiled = create_pipeline_via_gl(path)?;
 
-        let tmp = self.with_shader_pipeline(Box::new(compiled.shader_pipeline))
+        let tmp = self
+            .with_shader_pipeline(Box::new(compiled.shader_pipeline))
             .with_input_layout(compiled.input_layout)
             .with_primitive_topology(compiled.primitive_topology);
 
@@ -681,7 +684,8 @@ impl GraphicsPipelineBuilderExt for GraphicsPipelineBuilder {
 
         let spv_pipeline = SpirvGraphicsShaderPipeline::from_binary(spv_modules)?;
 
-        let tmp = self.with_shader_pipeline(Box::new(spv_pipeline))
+        let tmp = self
+            .with_shader_pipeline(Box::new(spv_pipeline))
             .with_input_layout(pp.input_layout.ok_or(format_err!(
                 "Missing input layout in combined shader source: {}",
                 path.as_ref().display()

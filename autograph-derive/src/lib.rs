@@ -39,7 +39,8 @@ fn process_buffer_layout_struct(ast: &syn::DeriveInput, fields: &syn::Fields) ->
     for (i, f) in fields.iter().enumerate() {
         println!("{} => {:?}", i, f.ident);
         let field_ty = &f.ty;
-        let field_name = f.ident
+        let field_name = f
+            .ident
             .clone()
             .unwrap_or(syn::Ident::from(format!("unnamed_{}", i)));
         let field_offset = if let Some(ref name) = f.ident {
@@ -105,7 +106,8 @@ fn process_vertex_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenS
     for (i, f) in fields.iter().enumerate() {
         println!("{} => {:?}", i, f.ident);
         let field_ty = &f.ty;
-        let field_name = f.ident
+        let field_name = f
+            .ident
             .clone()
             .unwrap_or(syn::Ident::from(format!("unnamed_{}", i)));
         let field_offset = if let Some(ref name) = f.ident {
@@ -342,7 +344,8 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let uniform_constant_items = uniform_constants
         .iter()
         .map(|u| {
-            let name = u.rename
+            let name = u
+                .rename
                 .as_ref()
                 .map_or(u.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&u.index);
@@ -401,7 +404,8 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let vertex_buffer_items = vertex_buffers
         .iter()
         .map(|vb| {
-            let name = vb.rename
+            let name = vb
+                .rename
                 .as_ref()
                 .map_or(vb.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&vb.index);
@@ -425,7 +429,8 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let mut uniform_buffer_bind_statements = Vec::new();
     for ub in uniform_buffers.iter() {
         let orig_name = ub.ident.unwrap();
-        let name = ub.rename
+        let name = ub
+            .rename
             .as_ref()
             .map_or(ub.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
         let index_tokens = make_option_tokens(&ub.index);
@@ -455,7 +460,8 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let render_target_items = render_targets
         .iter()
         .map(|rt| {
-            let name = rt.rename
+            let name = rt
+                .rename
                 .as_ref()
                 .map_or(rt.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
             let index_tokens = make_option_tokens(&rt.index);

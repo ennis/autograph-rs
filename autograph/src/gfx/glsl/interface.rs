@@ -457,7 +457,8 @@ impl ModuleWrapper {
             match *sr {
                 ShaderResource::UniformConstant(desc) => {
                     // looking for a uniform constant
-                    let location = desc.index
+                    let location = desc
+                        .index
                         .expect("must provide a location for uniform constants");
                     if var.storage_class != spirv::StorageClass::UniformConstant {
                         continue;
@@ -476,15 +477,18 @@ impl ModuleWrapper {
                 }
                 ShaderResource::UniformBuffer(desc) => {
                     // Storage class is uniform, and has a Block decoration
-                    let binding = desc.index
+                    let binding = desc
+                        .index
                         .expect("must provide a buffer binding index for uniform buffers");
                     if !(var.storage_class == spirv::StorageClass::Uniform
-                        && self.find_decoration(resource_ty_id, spirv::Decoration::Block)
+                        && self
+                            .find_decoration(resource_ty_id, spirv::Decoration::Block)
                             .is_some())
                     {
                         continue;
                     }
-                    let shader_binding = self.find_binding_decoration(var.result_id)
+                    let shader_binding = self
+                        .find_binding_decoration(var.result_id)
                         .expect("uniform buffer with no binding");
                     if shader_binding != binding {
                         continue;
@@ -498,16 +502,19 @@ impl ModuleWrapper {
                 }
                 ShaderResource::ShaderStorageBuffer(desc) => {
                     // Storage class is uniform, and has a bufferBlock decoration (deprecated) OR Storage class is StorageBuffer
-                    let binding = desc.index
+                    let binding = desc
+                        .index
                         .expect("must provide a buffer binding index for shader storage buffers");
                     if !((var.storage_class == spirv::StorageClass::Uniform
-                        && self.find_decoration(resource_ty_id, spirv::Decoration::BufferBlock)
+                        && self
+                            .find_decoration(resource_ty_id, spirv::Decoration::BufferBlock)
                             .is_some())
                         || var.storage_class == spirv::StorageClass::StorageBuffer)
                     {
                         continue;
                     }
-                    let shader_binding = self.find_binding_decoration(var.result_id)
+                    let shader_binding = self
+                        .find_binding_decoration(var.result_id)
                         .expect("SSBO with no binding");
                     if shader_binding != binding {
                         continue;
@@ -522,7 +529,8 @@ impl ModuleWrapper {
                     let binding = desc.index.expect("must provide an image unit");
                     // type is TypeImage
                     if let &Instruction::TypeImage(_) = resource_ty_inst {
-                        let shader_binding = self.find_binding_decoration(var.result_id)
+                        let shader_binding = self
+                            .find_binding_decoration(var.result_id)
                             .expect("image with no binding in shader");
                         if shader_binding != binding {
                             continue;
@@ -540,7 +548,8 @@ impl ModuleWrapper {
                     let binding = desc.index.expect("must provide a texture unit");
                     // type is TypeSampledImage
                     if let &Instruction::TypeSampledImage(ref sampled_image) = resource_ty_inst {
-                        let shader_binding = self.find_binding_decoration(var.result_id)
+                        let shader_binding = self
+                            .find_binding_decoration(var.result_id)
                             .expect("texture with no binding in shader");
                         if shader_binding != binding {
                             continue;

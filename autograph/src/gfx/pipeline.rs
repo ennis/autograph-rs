@@ -167,7 +167,8 @@ impl GraphicsPipelineBuilder {
 
     pub fn build(self, gctx: &Context) -> Result<GraphicsPipeline, Error> {
         let vao = unsafe {
-            gen_vertex_array(&self.input_layout
+            gen_vertex_array(&self
+                .input_layout
                 .ok_or(GraphicsPipelineBuildError::MissingInputLayout)?)
         };
 
@@ -176,7 +177,8 @@ impl GraphicsPipelineBuilder {
             rasterizer_state: self.rasterizer_state,
             blend_states: self.blend_states,
             vao,
-            shader_pipeline: self.shader_pipeline
+            shader_pipeline: self
+                .shader_pipeline
                 .ok_or(GraphicsPipelineBuildError::MissingShaderPipeline)?,
             primitive_topology: self.primitive_topology,
             gctx: gctx.clone(),

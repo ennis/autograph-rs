@@ -57,7 +57,8 @@ impl<'a> ExecutionContext<'a> {
         let node = self.fg.graph.node_weight(res.0).unwrap();
         if let &Node::Resource { index, .. } = node {
             let res = &self.fg.resources[index.index()];
-            &self.allocator.allocations[res.aliased_index
+            &self.allocator.allocations[res
+                                            .aliased_index
                                             .get()
                                             .expect("resource was not allocated")
                                             .index()]

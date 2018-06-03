@@ -1,6 +1,7 @@
 use gfx::bind::StateCache;
-use gfx::bind::{bind_graphics_pipeline, bind_scissors, bind_target, bind_uniforms,
-                bind_vertex_input, SG_ALL};
+use gfx::bind::{
+    bind_graphics_pipeline, bind_scissors, bind_target, bind_uniforms, bind_vertex_input, SG_ALL,
+};
 use gfx::bind::{Scissors, Uniforms, VertexInput};
 use gfx::buffer_data::BufferData;
 use gfx::pipeline::{GraphicsPipeline, TypedGraphicsPipeline};

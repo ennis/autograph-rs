@@ -71,7 +71,8 @@ impl UploadBuffer {
     ) -> BufferSlice<T> {
         let byte_size = mem::size_of_val(data);
         let ptr = data as *const T as *const u8;
-        let slice = self.allocate(byte_size, align, fence_value, reclaim_until)
+        let slice = self
+            .allocate(byte_size, align, fence_value, reclaim_until)
             .expect("upload buffer is full"); // TODO expand? wait?
         copy_nonoverlapping(
             ptr,

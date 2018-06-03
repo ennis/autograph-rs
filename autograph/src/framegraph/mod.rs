@@ -219,7 +219,8 @@ impl<'fg> RenderPassBuilder<'fg> {
         desc: &gfx::TextureDesc,
         usage: ResourceUsage,
     ) -> ResourceVersion {
-        let res = self.framegraph
+        let res = self
+            .framegraph
             .create_resource(name.into(), ResourceInfo::Texture { desc: *desc });
         self.framegraph.link_output(self.pass, res, usage);
         res
@@ -231,7 +232,8 @@ impl<'fg> RenderPassBuilder<'fg> {
         byte_size: usize,
         usage: ResourceUsage,
     ) -> ResourceVersion {
-        let res = self.framegraph
+        let res = self
+            .framegraph
             .create_resource(name.into(), ResourceInfo::Buffer { byte_size });
         self.framegraph.link_output(self.pass, res, usage);
         res

@@ -1,5 +1,7 @@
-use gfx::{BufferData, BufferSliceAny, Framebuffer, FramebufferObject, GraphicsPipeline,
-          GraphicsShaderPipeline, Sampler, TextureAny};
+use gfx::{
+    BufferData, BufferSliceAny, Framebuffer, FramebufferObject, GraphicsPipeline,
+    GraphicsShaderPipeline, Sampler, TextureAny,
+};
 use gl;
 use gl::types::*;
 
@@ -213,7 +215,8 @@ impl StateCache {
 
     pub unsafe fn set_graphics_pipeline(&mut self, pipe: &GraphicsPipeline) {
         // same pipeline as before?
-        if self.pipeline
+        if self
+            .pipeline
             .map_or(true, |prev_pipe| prev_pipe != pipe.as_ref() as *const _)
         {
             // nope, bind it
