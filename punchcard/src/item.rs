@@ -1,21 +1,14 @@
-use super::behavior::{Behavior, BehaviorAny};
-use super::container::WindowEventExt;
-use super::css;
+use super::behavior::{BehaviorAny};
 use super::input::DispatchChain;
 use super::input::InputState;
 use super::layout::{ContentMeasurement, Layout};
-use super::renderer::{DrawItem, DrawItemKind, DrawList, Renderer};
-use super::style::{CachedStyle, ComputedStyle};
-use super::ResourceStore;
+use super::renderer::{DrawList, Renderer};
+use super::style::{CachedStyle};
 use super::{ItemID, UiState};
-use indexmap::{map::Entry, map::OccupiedEntry, map::VacantEntry, IndexMap};
+use indexmap::IndexMap;
 
-use glutin::{ElementState, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
+use glutin::{WindowEvent};
 use yoga;
-
-use std::any::Any;
-use std::cell::Cell;
-use std::mem;
 
 /// Represents a node in the item hierarchy.
 pub(super) struct ItemNode {
@@ -128,10 +121,11 @@ impl ItemNode {
         }
     }
 
+    /*
     /// Add a flexbox layout style.
     pub fn apply_flex_style(&mut self, flex_style: &yoga::FlexStyle) {
         self.flexbox.apply_style(flex_style);
-    }
+    }*/
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]

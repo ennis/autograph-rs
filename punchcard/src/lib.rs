@@ -13,24 +13,13 @@ extern crate num;
 extern crate petgraph;
 extern crate rand;
 extern crate time;
-#[macro_use]
 extern crate yoga;
 extern crate cssparser;
 extern crate warmy;
 extern crate winapi;
 
 use failure::Error;
-use std::any::Any;
-use std::cell::{Cell, RefCell};
-use std::collections::{hash_map, HashMap};
-use std::fs;
-use std::marker::PhantomData;
-use std::mem;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use yoga::prelude::*;
-use yoga::FlexStyle::*;
-use yoga::StyleUnit::{Auto, UndefinedValue};
+use std::path::{Path};
 
 mod behavior;
 mod container;
@@ -66,7 +55,7 @@ use self::item::ItemNode;
 use self::style::apply_to_flex_node;
 pub use warmy::{FSKey, Res, Store, StoreOpt};
 
-macro_rules! unwrap_enum {
+/*macro_rules! unwrap_enum {
     ($e:expr,ref mut $p:path) => {
         match $e {
             $p(ref mut e) => e,
@@ -85,7 +74,7 @@ macro_rules! unwrap_enum {
             _ => panic!("unexpected enum variant"),
         }
     };
-}
+}*/
 
 /// The resource store type for all UI stuff (images, etc.)
 pub type ResourceStore = Store<()>;
@@ -93,7 +82,7 @@ pub type ResourceStore = Store<()>;
 /// Various global UI states.
 pub struct UiState {
     id_stack: IdStack,
-    cur_frame: u64,
+    _cur_frame: u64,
     cursor_pos: (f32, f32),
     capture: Option<PointerCapture>,
     focus_path: Option<Vec<ItemID>>,
@@ -107,7 +96,7 @@ impl UiState {
     fn new() -> UiState {
         UiState {
             id_stack: IdStack::new(0),
-            cur_frame: 0,
+            _cur_frame: 0,
             cursor_pos: (0.0, 0.0),
             capture: None,
             focus_path: None,
@@ -126,7 +115,8 @@ impl UiState {
         let mut ctx = ();
         let stylesheet = self
             .store
-            .get::<_, Stylesheet>(&FSKey::new(path), &mut ctx)?;
+            .get::<_, Stylesheet>(&FSKey::new(path.as_ref().clone()), &mut ctx)?;
+        debug!("loading stylesheet at {}", path.as_ref().display());
         self.stylesheets.push(stylesheet);
         Ok(())
     }
@@ -227,10 +217,10 @@ impl UiState {
                 self.cursor_pos = (position.0 as f32, position.1 as f32);
             }
             &WindowEvent::MouseInput {
-                device_id,
+                device_id: _,
                 state,
-                button,
-                modifiers,
+                button: _,
+                modifiers: _,
             } => {
                 if state == ElementState::Released {
                     // implicit capture release
@@ -276,7 +266,7 @@ impl UiState {
         &mut self,
         node: &mut ItemNode,
         renderer: &Renderer,
-        parent: &CachedStyle,
+        _parent: &CachedStyle,
         stylesheets_dirty: bool,
     ) {
         // TODO caching the full computed style in each individual item is super expensive (in CPU and memory)
@@ -319,7 +309,7 @@ impl UiState {
         }
 
         // apply layout overrides: they always have precedence over the computed styles
-        let m = node.behavior.measure(&mut node.item, renderer);
+        let m = node.measure(renderer);
         m.width.map(|w| {
             node.flexbox.set_width(w.point());
         });
@@ -357,10 +347,12 @@ impl UiState {
         let layout = Layout::from_yoga_layout(parent_layout, node.flexbox.get_layout());
         node.item.layout = layout;
         //debug!("layout {:?}", layout);
-        node.behavior.draw(&mut node.item, draw_list);
-        for (_, child) in node.children.iter_mut() {
-            self.render_item(child, &layout, draw_list);
-        }
+        draw_list.with_z_order(node.item.z_order, |draw_list| {
+            node.draw(draw_list);
+            for (_, child) in node.children.iter_mut() {
+                self.render_item(child, &layout, draw_list);
+            }
+        });
     }
 }
 
@@ -405,7 +397,7 @@ impl Ui {
     /// If the event is not captured, then the bubble event handlers are called,
     /// in reverse order from the target to the root, until the event is captured (bubble phase).
     pub fn dispatch_event(&mut self, event: &WindowEvent) {
-        let event_dispatch_time = measure_time(|| {
+        let _event_dispatch_time = measure_time(|| {
             self.state.dispatch_event(&mut self.root, event);
         });
     }
@@ -428,14 +420,14 @@ impl Ui {
     /// and finally calls the draw() function of each ItemBehavior in the hierarchy.
     pub fn render(&mut self, size: (f32, f32), renderer: &mut Renderer) {
         // measure contents pass
-        let style_calculation_time = measure_time(|| {
+        let _style_calculation_time = measure_time(|| {
             let root_style = CachedStyle::default();
             // are the sheets dirty?
             let stylesheets_dirty = self.state.stylesheets_dirty();
             self.state
                 .calculate_style(&mut self.root, renderer, &root_style, stylesheets_dirty);
         });
-        let layout_time = measure_time(|| {
+        let _layout_time = measure_time(|| {
             self.root
                 .flexbox
                 .calculate_layout(size.0, size.1, yoga::Direction::LTR);
@@ -446,7 +438,7 @@ impl Ui {
             right: size.0,
             bottom: size.1,
         };
-        let render_time = measure_time(|| {
+        let _render_time = measure_time(|| {
             let mut draw_list = DrawList::new();
             self.state
                 .render_item(&mut self.root, &root_layout, &mut draw_list);

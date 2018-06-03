@@ -51,10 +51,11 @@ impl<'a> DispatchChain<'a> {
         self.items[self.current]
     }
 
+    /*
     /// Returns the final target of this dispatch chain.
     pub(super) fn target_id(&self) -> ItemID {
         *self.items.last().unwrap()
-    }
+    }*/
 
     /// Returns the currently processed chain, including the current element.
     pub(super) fn current_chain(&self) -> &'a [ItemID] {

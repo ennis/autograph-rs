@@ -18,7 +18,6 @@ impl<'a> UiContainer<'a> {
                     self.0.clone(),
                     item.layout.clone(),
                     item.style.clone(),
-                    item.z_order,
                 );
             }
 

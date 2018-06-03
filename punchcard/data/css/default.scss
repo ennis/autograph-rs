@@ -28,7 +28,7 @@ vbox {
     margin: 2px;
 
     border-color: $panel-border;
-    background-color: $panel-background-alt;
+    background-color: $panel-background;
     border-width: 1px;
 }
 
@@ -38,7 +38,7 @@ hbox {
 
     //border-color: #c12727;
     //border-width: 1px;
-    background-color: $panel-background-alt;
+    background-color: $panel-background;
 }
 
 slider {
@@ -119,6 +119,8 @@ floating-panel {
     border-width: 2px;
     border-color: $panel-header;
     position: absolute;
+
+    background-color: $panel-background-alt;
 
     width: 400px;
     height: 400px;

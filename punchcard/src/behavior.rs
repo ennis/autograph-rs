@@ -2,9 +2,9 @@
 use super::container::WindowEventExt;
 use super::input::InputState;
 use super::item::Item;
-use super::layout::{ContentMeasurement, Layout};
-use super::renderer::{DrawItem, DrawItemKind, DrawList, Renderer};
-use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
+use super::layout::ContentMeasurement;
+use super::renderer::{DrawList, Renderer};
+use glutin::{ElementState, WindowEvent};
 use std::any::Any;
 
 /// A set of callbacks that describes the behavior of an item for all deferred processing:
@@ -14,15 +14,15 @@ use std::any::Any;
 /// items.
 pub trait Behavior: Any {
     /// One-time initialization.
-    fn init(&mut self, item: &mut Item) {}
+    fn init(&mut self, _item: &mut Item) {}
 
     /// Draw the item to the specified renderer.
     fn draw(&mut self, item: &mut Item, draw_list: &mut DrawList) {
-        draw_list.add_rect(item.layout.clone(), item.style.clone(), item.z_order);
+        draw_list.add_rect(item.layout.clone(), item.style.clone());
     }
 
     /// Measure the given item using the specified renderer.
-    fn measure(&mut self, item: &mut Item, renderer: &Renderer) -> ContentMeasurement {
+    fn measure(&mut self, _item: &mut Item, _renderer: &Renderer) -> ContentMeasurement {
         ContentMeasurement {
             width: None,
             height: None,
@@ -32,9 +32,9 @@ pub trait Behavior: Any {
     /// Callback to handle an event passed to the item during the capturing phase.
     fn capture_event(
         &mut self,
-        item: &mut Item,
-        event: &WindowEvent,
-        input_state: &mut InputState,
+        _item: &mut Item,
+        _event: &WindowEvent,
+        _input_state: &mut InputState,
     ) -> bool {
         false
     }
@@ -42,9 +42,9 @@ pub trait Behavior: Any {
     /// Callback to handle an event during bubbling phase.
     fn event(
         &mut self,
-        item: &mut Item,
-        event: &WindowEvent,
-        input_state: &mut InputState,
+        _item: &mut Item,
+        _event: &WindowEvent,
+        _input_state: &mut InputState,
     ) -> bool {
         false
     }
@@ -86,9 +86,9 @@ impl Behavior for () {
 
     fn capture_event(
         &mut self,
-        item: &mut Item,
-        event: &WindowEvent,
-        input_state: &mut InputState,
+        _item: &mut Item,
+        _event: &WindowEvent,
+        _input_state: &mut InputState,
     ) -> bool {
         false
     }
@@ -96,9 +96,9 @@ impl Behavior for () {
     /// Callback to handle an event during bubbling phase.
     fn event(
         &mut self,
-        item: &mut Item,
-        event: &WindowEvent,
-        input_state: &mut InputState,
+        _item: &mut Item,
+        _event: &WindowEvent,
+        _input_state: &mut InputState,
     ) -> bool {
         false
     }
@@ -118,9 +118,9 @@ impl Behavior for Invisible {
 
     fn capture_event(
         &mut self,
-        item: &mut Item,
-        event: &WindowEvent,
-        input_state: &mut InputState,
+        _item: &mut Item,
+        _event: &WindowEvent,
+        _input_state: &mut InputState,
     ) -> bool {
         // capture nothing
         false
@@ -128,9 +128,9 @@ impl Behavior for Invisible {
 
     fn event(
         &mut self,
-        item: &mut Item,
-        event: &WindowEvent,
-        input_state: &mut InputState,
+        _item: &mut Item,
+        _event: &WindowEvent,
+        _input_state: &mut InputState,
     ) -> bool {
         // always bubble
         false
@@ -157,9 +157,9 @@ impl CheckboxBehavior {
 impl Behavior for CheckboxBehavior {
     fn event(
         &mut self,
-        item: &mut Item,
+        _item: &mut Item,
         event: &WindowEvent,
-        input_state: &mut InputState,
+        _input_state: &mut InputState,
     ) -> bool {
         if event.clicked() {
             self.checked = !self.checked;
@@ -213,7 +213,7 @@ impl DragBehavior {
 impl Behavior for DragBehavior {
     fn event(
         &mut self,
-        item: &mut Item,
+        _item: &mut Item,
         event: &WindowEvent,
         input_state: &mut InputState,
     ) -> bool {
@@ -235,13 +235,12 @@ impl Behavior for DragBehavior {
                 }
                 true
             }
-            &WindowEvent::CursorMoved { position, .. } => {
+            &WindowEvent::CursorMoved { .. } => {
                 if input_state.capturing {
                     let cursor_pos = input_state.cursor_pos();
                     if let Some(ref mut drag) = self.drag {
                         // continue drag, update offset
                         drag.offset = (cursor_pos.0 - drag.origin.0, cursor_pos.1 - drag.origin.1);
-                        //*current_value = (drag.start.0 + drag.offset.0, drag.start.1 + drag.offset.1);
                     }
                     true
                 } else {
@@ -255,10 +254,7 @@ impl Behavior for DragBehavior {
             // drag end
             self.drag = None;
             self.start_value = None;
-        } else {
-            debug!("{:016X} capturing", item.id);
         }
-
         captured
     }
 }

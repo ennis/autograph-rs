@@ -1,5 +1,6 @@
 //! Stack of widget IDs.
-use std::hash::{Hash, Hasher, SipHasher};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// The ID type.
 pub type ItemID = u64;
@@ -25,9 +26,11 @@ impl IdStack {
         } else {
             0
         };
-        let mut sip = SipHasher::new_with_keys(key0, key1);
-        s.hash(&mut sip);
-        sip.finish()
+        let mut hasher = DefaultHasher::new();
+        key0.hash(&mut hasher);
+        key1.hash(&mut hasher);
+        s.hash(&mut hasher);
+        hasher.finish()
     }
 
     /// Hashes the given data, initializing the hasher with the items currently on the stack.
@@ -35,7 +38,7 @@ impl IdStack {
     /// This is used to generate a unique ID per item path in the hierarchy.
     pub fn push_id<H: Hash>(&mut self, s: &H) -> ItemID {
         let id = self.chain_hash(s);
-        let parent_id = *self.0.last().unwrap();
+        //let parent_id = *self.0.last().unwrap();
         self.0.push(id);
         id
     }

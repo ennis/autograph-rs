@@ -1,8 +1,6 @@
-use super::layout::{ContentMeasurement, Layout};
+use super::layout::{Layout};
 use super::renderer::{DrawItem, DrawItemKind, Renderer};
-use super::style::{
-    Background, CachedStyle, Color, ComputedStyle, GradientStop, LinearGradient, RadialGradient,
-};
+use super::style::{CachedStyle};
 
 use nvg;
 
@@ -129,8 +127,8 @@ impl<'ctx> NvgRenderer<'ctx> {
 }
 
 impl<'ctx> Renderer for NvgRenderer<'ctx> {
-    fn measure_text(&self, text: &str, style: &CachedStyle) -> f32 {
-        let (advance, bounds) = self.frame.text_bounds(
+    fn measure_text(&self, text: &str, _style: &CachedStyle) -> f32 {
+        let (advance, _bounds) = self.frame.text_bounds(
             self.default_font,
             (0.0, 0.0),
             text,

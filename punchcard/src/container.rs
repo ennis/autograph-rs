@@ -2,18 +2,13 @@
 use super::behavior::{Behavior, BehaviorAny};
 use super::item::{Item, ItemNode};
 use super::{
-    Color, ComputedStyle, ContentMeasurement, ElementState, InputState, ItemID, Layout, Renderer,
-    UiState,
+    ElementState, ItemID, UiState,
 };
-use glutin::{MouseButton, VirtualKeyCode, WindowEvent};
+use glutin::{MouseButton, WindowEvent};
 use indexmap::{
-    map::{Entry, OccupiedEntry, VacantEntry}, IndexMap,
+    map::{Entry}, IndexMap,
 };
 use yoga;
-use yoga::prelude::*;
-
-use std::cell::Cell;
-use std::fmt::Display;
 
 /// Helper trait for window events.
 pub trait WindowEventExt {
@@ -73,7 +68,7 @@ impl<'a> UiContainer<'a> {
             let entry = self.children.entry(new_item_id);
             // TODO accelerate common case (no change) by looking by index first
             match entry {
-                Entry::Vacant(ref entry) => {
+                Entry::Vacant(_) => {
                     // entry is vacant: must insert at current location
                     Some(f(new_item_id))
                 }
@@ -141,8 +136,6 @@ impl<'a> UiContainer<'a> {
         item_node: &'a mut ItemNode,
         ui_state: &'a mut UiState,
     ) -> UiContainer<'a> {
-        use std::any::Any;
-
         UiContainer {
             ui_state,
             children: &mut item_node.children,
@@ -152,7 +145,7 @@ impl<'a> UiContainer<'a> {
         }
     }
 
-    pub(super) fn finish(mut self) {
+    pub(super) fn finish(self) {
         // TODO useless?
         // remove all extra children
         let num_children = self.children.len();
@@ -178,7 +171,6 @@ impl<'a> UiContainer<'a> {
         let id = self.ui_state.id_stack.push_id(&id_str);
 
         {
-            use std::any::Any;
             let (mut ui, item, behavior) = self.new_item(id, move |id| {
                 let mut node = ItemNode::new(id, Box::new(init));
                 node.item.add_class(class);
@@ -189,6 +181,10 @@ impl<'a> UiContainer<'a> {
                 .downcast_mut()
                 .expect("downcast to behavior type failed");
             f(&mut ui, item, behavior);
+            if is_popup {
+                // set z-order
+                item.z_order = Some(1);
+            }
             ui.finish()
         }
 

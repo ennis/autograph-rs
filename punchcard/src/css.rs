@@ -4,9 +4,8 @@ use cssparser::{
     ParserInput, QualifiedRuleParser, RuleListParser,
 };
 use cssparser::{Token, RGBA};
-use failure::{Compat, Error, Fail};
+use failure::{Compat, Error};
 use std::cell::Cell;
-use std::io;
 use warmy::{FSKey, Load, Loaded, Storage};
 use yoga;
 use yoga::prelude::*;
@@ -42,44 +41,44 @@ pub enum PropertyDeclaration {
     AlignContent(yoga::Align),
     AlignItems(yoga::Align),
     AlignSelf(yoga::Align),
-    AspectRatio(f32),
-    BorderEnd(f32),
+    //AspectRatio(f32),
+    //BorderEnd(f32),
     Bottom(yoga::StyleUnit),
     Display(yoga::Display),
-    End(yoga::StyleUnit),
-    Flex(f32),
-    FlexBasis(yoga::StyleUnit),
+    //End(yoga::StyleUnit),
+    //Flex(f32),
+    //FlexBasis(yoga::StyleUnit),
     FlexDirection(yoga::FlexDirection),
     FlexGrow(f32),
     FlexShrink(f32),
-    FlexWrap(yoga::Wrap),
+    //FlexWrap(yoga::Wrap),
     Height(yoga::StyleUnit),
     JustifyContent(yoga::Justify),
     Left(yoga::StyleUnit),
     MarginBottom(yoga::StyleUnit),
-    MarginEnd(yoga::StyleUnit),
-    MarginHorizontal(yoga::StyleUnit),
+    //MarginEnd(yoga::StyleUnit),
+    //MarginHorizontal(yoga::StyleUnit),
     MarginLeft(yoga::StyleUnit),
     MarginRight(yoga::StyleUnit),
-    MarginStart(yoga::StyleUnit),
+    //MarginStart(yoga::StyleUnit),
     MarginTop(yoga::StyleUnit),
-    MarginVertical(yoga::StyleUnit),
-    MaxHeight(yoga::StyleUnit),
-    MaxWidth(yoga::StyleUnit),
-    MinHeight(yoga::StyleUnit),
-    MinWidth(yoga::StyleUnit),
-    Overflow(yoga::Overflow),
+    //MarginVertical(yoga::StyleUnit),
+    //MaxHeight(yoga::StyleUnit),
+    //MaxWidth(yoga::StyleUnit),
+    //MinHeight(yoga::StyleUnit),
+    //MinWidth(yoga::StyleUnit),
+    //Overflow(yoga::Overflow),
     PaddingBottom(yoga::StyleUnit),
-    PaddingEnd(yoga::StyleUnit),
-    PaddingHorizontal(yoga::StyleUnit),
+    //PaddingEnd(yoga::StyleUnit),
+    //PaddingHorizontal(yoga::StyleUnit),
     PaddingLeft(yoga::StyleUnit),
     PaddingRight(yoga::StyleUnit),
-    PaddingStart(yoga::StyleUnit),
+    //PaddingStart(yoga::StyleUnit),
     PaddingTop(yoga::StyleUnit),
-    PaddingVertical(yoga::StyleUnit),
+    //PaddingVertical(yoga::StyleUnit),
     Position(yoga::PositionType),
     Right(yoga::StyleUnit),
-    Start(yoga::StyleUnit),
+    //Start(yoga::StyleUnit),
     Top(yoga::StyleUnit),
     Width(yoga::StyleUnit),
 }
@@ -119,13 +118,13 @@ impl Stylesheet {
     }
 }
 
-#[derive(Debug, Fail)]
+/*#[derive(Debug, Fail)]
 pub enum StylesheetLoadError {
     #[fail(display = "io error")]
     IoError(io::Error),
     #[fail(display = "parse error")]
     ParseError(Compat<Error>),
-}
+}*/
 
 /// Hot-reloadable impl.
 impl<C> Load<C> for Stylesheet {
@@ -134,8 +133,8 @@ impl<C> Load<C> for Stylesheet {
 
     fn load(
         key: Self::Key,
-        storage: &mut Storage<C>,
-        ctx: &mut C,
+        _storage: &mut Storage<C>,
+        _ctx: &mut C,
     ) -> Result<Loaded<Self>, Self::Error> {
         use std::fs;
         let src = fs::read_to_string(key.as_path()).map_err(|e| Error::from(e).compat())?;
@@ -239,11 +238,11 @@ enum PropertyParseErrorKind<'i> {
     Other,
 }
 
-/// Length values.
-#[derive(Copy, Clone, Debug)]
+
+/*#[derive(Copy, Clone, Debug)]
 enum Length {
     Px(f32),
-}
+}*/
 
 trait ToPx {
     fn to_px<'i>(&self) -> Option<f32>;
@@ -258,7 +257,7 @@ impl ToPx for yoga::StyleUnit {
     }
 }
 
-impl Length {
+/*impl Length {
     fn parse<'i, 't>(
         parser: &mut Parser<'i, 't>,
     ) -> Result<Length, ParseError<'i, PropertyParseErrorKind<'i>>> {
@@ -273,7 +272,7 @@ impl Length {
         }
         Err(parser.new_custom_error(PropertyParseErrorKind::Other))
     }
-}
+}*/
 
 fn parse_style_unit<'i, 't>(
     parser: &mut Parser<'i, 't>,
@@ -347,7 +346,6 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
         name: CowRcStr<'i>,
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::Declaration, ParseError<'i, Self::Error>> {
-        use cssparser::RGBA;
 
         match name.as_ref() {
             "color" => {
@@ -607,7 +605,7 @@ pub(super) fn parse_stylesheet(text: &str) -> Result<Stylesheet, Error> {
     for result in RuleListParser::new_for_stylesheet(&mut parser, RulesParser) {
         match result {
             Ok(rule) => stylesheet.rules.push(rule),
-            Err(e) => {
+            Err(_) => {
                 warn!("Error parsing CSS rule")
                 // TODO
             }

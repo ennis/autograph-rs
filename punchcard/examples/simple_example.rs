@@ -2,7 +2,6 @@ extern crate punchcard;
 
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate pretty_env_logger;
 extern crate glutin;
 #[macro_use]
@@ -18,7 +17,6 @@ extern crate num;
 extern crate petgraph;
 extern crate rand;
 extern crate time;
-#[macro_use]
 extern crate yoga;
 extern crate cssparser;
 extern crate warmy;
@@ -29,8 +27,7 @@ use rand::Rng;
 
 mod common;
 
-#[test]
-fn test_ui() {
+fn main() {
     common::gui_test(|ui| {
         static mut DATA: u32 = 0;
         let data = unsafe { &mut DATA };

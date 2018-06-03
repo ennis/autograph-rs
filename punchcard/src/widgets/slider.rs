@@ -112,7 +112,7 @@ impl<'a> UiContainer<'a> {
                         //debug!("slider event");
                         true
                     }
-                    &WindowEvent::CursorMoved { position, .. } => {
+                    &WindowEvent::CursorMoved { .. } => {
                         if input_state.capturing {
                             update_slider_pos(&item.layout, input_state.cursor_pos());
                             true
@@ -146,15 +146,14 @@ impl<'a> UiContainer<'a> {
                 max,
                 dirty: false,
             },
-            |ui, item, slider| {
-                use std::mem::swap;
+            |ui, _, slider| {
                 slider.min = min;
                 slider.max = max;
                 slider.sync(value);
                 let knob_pos = slider.ratio();
 
-                ui.item("bar", "slider-bar", Bar, |ui, item, _| {
-                    ui.item("knob", "slider-knob", Knob, |ui, item, _| {
+                ui.item("bar", "slider-bar", Bar, |ui, _, _| {
+                    ui.item("knob", "slider-knob", Knob, |_, item, _| {
                         item.set_position(Some((100.0 * knob_pos).percent()), None);
                     });
                 });

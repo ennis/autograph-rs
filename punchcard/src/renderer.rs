@@ -1,14 +1,5 @@
 use super::layout::Layout;
-use super::style::{
-    Background, CachedStyle, Color, ComputedStyle, GradientStop, LinearGradient, RadialGradient,
-};
-use super::ResourceStore;
-
-use std::cell::RefCell;
-use std::collections::{
-    hash_map::{Entry, OccupiedEntry, VacantEntry}, HashMap,
-};
-use std::rc::Rc;
+use super::style::{CachedStyle};
 
 pub enum DrawItemKind {
     Text(String),
@@ -25,9 +16,9 @@ pub struct DrawItem {
 }
 
 impl DrawItem {
-    pub(super) fn new_rect(layout: Layout, style: CachedStyle, z_order: Option<u32>) -> DrawItem {
+    pub(super) fn new_rect(layout: Layout, style: CachedStyle, z_order: u32) -> DrawItem {
         DrawItem {
-            z_order: z_order.unwrap_or(0),
+            z_order,
             style,
             layout,
             kind: DrawItemKind::Rect,
@@ -38,10 +29,10 @@ impl DrawItem {
         text: String,
         layout: Layout,
         style: CachedStyle,
-        z_order: Option<u32>,
+        z_order: u32,
     ) -> DrawItem {
         DrawItem {
-            z_order: z_order.unwrap_or(0),
+            z_order,
             style,
             layout,
             kind: DrawItemKind::Text(text),
@@ -52,7 +43,7 @@ impl DrawItem {
         text: String,
         layout: Layout,
         style: CachedStyle,
-        z_order: Option<u32>,
+        z_order: u32,
     ) -> DrawItem {
         unimplemented!()
     }
@@ -60,30 +51,47 @@ impl DrawItem {
 
 pub struct DrawList {
     pub(super) items: Vec<DrawItem>,
+    z_order_stack: Vec<u32>
 }
 
 impl DrawList {
     pub(super) fn new() -> DrawList {
-        DrawList { items: Vec::new() }
+        DrawList { items: Vec::new(), z_order_stack: Vec::new() }
     }
 
-    pub fn add_item(&mut self, item: DrawItem) {
-        self.items.push(item);
+    fn get_z_order(&self) -> u32 { self.z_order_stack.last().cloned().unwrap_or(0) }
+
+    /*pub fn push_z_order(&mut self, z_order: u32) {
     }
 
-    pub fn add_rect(&mut self, layout: Layout, style: CachedStyle, z_order: Option<u32>) {
-        self.items.push(DrawItem::new_rect(layout, style, z_order));
+    pub fn pop_z_order(&mut self) {
+        self.z_order_stack.pop();
+    }*/
+
+    pub fn with_z_order<F>(&mut self, z_order: Option<u32>, f: F) where F: FnOnce(&mut Self) {
+        if let Some(z) = z_order {
+            self.z_order_stack.push(z);
+            f(self);
+            self.z_order_stack.pop();
+        } else {
+            f(self);
+        }
+    }
+
+    pub fn add_rect(&mut self, layout: Layout, style: CachedStyle) {
+        let cur_z = self.get_z_order();
+        self.items.push(DrawItem::new_rect(layout, style, cur_z));
     }
 
     pub fn add_text(
         &mut self,
         text: String,
         layout: Layout,
-        style: CachedStyle,
-        z_order: Option<u32>,
+        style: CachedStyle
     ) {
+        let cur_z = self.get_z_order();
         self.items
-            .push(DrawItem::new_text(text, layout, style, z_order));
+            .push(DrawItem::new_text(text, layout, style, cur_z));
     }
 
     pub(super) fn sort(&mut self) {

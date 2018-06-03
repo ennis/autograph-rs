@@ -13,7 +13,7 @@ impl<'a> UiContainer<'a> {
         struct VBox;
         impl Behavior for VBox {}
 
-        self.item(id, "vbox", VBox, |ui, item, _| {
+        self.item(id, "vbox", VBox, |ui, _, _| {
             f(ui);
         });
 
@@ -34,7 +34,7 @@ impl<'a> UiContainer<'a> {
         struct HBox;
         impl Behavior for HBox {}
 
-        self.item(id, "hbox", HBox, |ui, item, _| {
+        self.item(id, "hbox", HBox, |ui, _, _| {
             f(ui);
         });
 
@@ -58,8 +58,8 @@ impl<'a> UiContainer<'a> {
             label.clone(),
             "collapsing-panel",
             CheckboxBehavior::new(),
-            |ui, item, behavior| {
-                ui.item("header", "collapsing-panel-header", (), |ui, item, _| {
+            |ui, _, behavior| {
+                ui.item("header", "collapsing-panel-header", (), |ui, _, _| {
                     ui.text(label.clone());
                 });
 
@@ -68,7 +68,7 @@ impl<'a> UiContainer<'a> {
                         "contents",
                         "collapsing-panel-contents",
                         (),
-                        |ui, item, _| {
+                        |ui, _, _| {
                             f(ui);
                         },
                     );
@@ -128,11 +128,11 @@ impl<'a> UiContainer<'a> {
                     panel_item.set_position(Some(position.0.point()), Some(position.1.point()));
                 }
 
-                ui.item("header", "floating-panel-header", (), |ui, item, _| {
+                ui.item("header", "floating-panel-header", (), |ui, _, _| {
                     ui.text(label.clone());
                 });
 
-                ui.item("contents", "floating-panel-contents", (), |ui, item, _| {
+                ui.item("contents", "floating-panel-contents", (), |ui, _, _| {
                     if !panel_behavior.collapsed {
                         f(ui);
                     }
@@ -141,7 +141,7 @@ impl<'a> UiContainer<'a> {
                     "resize-handle",
                     "floating-panel-resize-handle",
                     DragBehavior::new(),
-                    |ui, handle_item, handle_behavior| {
+                    |_, _, handle_behavior| {
                         let mut size = (panel_item.layout.width(), panel_item.layout.height());
                         if handle_behavior.handle_drag(&mut size) {
                             //debug!("DRAG SIZE {}x{}", size.0, size.1);

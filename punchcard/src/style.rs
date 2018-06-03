@@ -1,12 +1,6 @@
 use super::css;
 use std::rc::Rc;
 use yoga;
-use yoga::prelude::*;
-
-// Style system V2
-// Split computed style in independent shareable style blocks.
-// Borders, Background fill, Font (all inheritable), Layout properties, dynamic layout properties (left, right, etc.) that do not required full relayout.
-//
 
 /// Font description
 #[derive(Clone, Debug)]
@@ -241,12 +235,12 @@ impl ComputedStyle {
             css::PropertyDeclaration::AlignSelf(v) => {
                 self.layout.align_self = *v;
             }
-            css::PropertyDeclaration::Display(v) => {
+            /*css::PropertyDeclaration::Display(v) => {
                 self.layout.display = *v;
-            }
-            css::PropertyDeclaration::FlexBasis(v) => {
+            }*/
+            /*css::PropertyDeclaration::FlexBasis(v) => {
                 self.layout.flex_basis = *v;
-            }
+            }*/
             css::PropertyDeclaration::FlexDirection(v) => {
                 self.layout.flex_direction = *v;
             }
@@ -256,9 +250,9 @@ impl ComputedStyle {
             css::PropertyDeclaration::FlexShrink(v) => {
                 self.layout.flex_shrink = *v;
             }
-            css::PropertyDeclaration::FlexWrap(v) => {
+            /*css::PropertyDeclaration::FlexWrap(v) => {
                 self.layout.flex_wrap = *v;
-            }
+            }*/
             css::PropertyDeclaration::JustifyContent(v) => {
                 self.layout.justify_content = *v;
             }
@@ -274,7 +268,7 @@ impl ComputedStyle {
             css::PropertyDeclaration::MarginBottom(v) => {
                 self.layout.margin.bottom = *v;
             }
-            css::PropertyDeclaration::MaxHeight(v) => {
+            /*css::PropertyDeclaration::MaxHeight(v) => {
                 self.layout.max_height = *v;
             }
             css::PropertyDeclaration::MaxWidth(v) => {
@@ -285,10 +279,10 @@ impl ComputedStyle {
             }
             css::PropertyDeclaration::MinWidth(v) => {
                 self.layout.min_width = *v;
-            }
-            css::PropertyDeclaration::Overflow(v) => {
+            }*/
+            /*css::PropertyDeclaration::Overflow(v) => {
                 self.layout.overflow = *v;
-            }
+            }*/
             css::PropertyDeclaration::PaddingLeft(v) => {
                 self.layout.padding.left = *v;
             }

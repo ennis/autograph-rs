@@ -19,9 +19,9 @@ impl<'a> UiContainer<'a> {
         impl Behavior for ScrollState {
             fn event(
                 &mut self,
-                item: &mut Item,
+                _item: &mut Item,
                 event: &WindowEvent,
-                input_state: &mut InputState,
+                _input_state: &mut InputState,
             ) -> bool {
                 match event {
                     &WindowEvent::KeyboardInput { input, .. } => match input.virtual_keycode {
@@ -46,8 +46,8 @@ impl<'a> UiContainer<'a> {
             id,
             "scroll",
             ScrollState { pos: 0.0 },
-            |mut ui, item, scroll| {
-                let top = -scroll.pos;
+            |ui, _, scroll| {
+                //let top = -scroll.pos;
                 f(ui);
             },
         );

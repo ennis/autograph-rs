@@ -68,6 +68,7 @@ floating-panel {
   border-width: 2px;
   border-color: #86a2a2;
   position: absolute;
+  background-color: #202020;
   width: 400px;
   height: 400px; }
 

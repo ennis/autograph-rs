@@ -1,7 +1,4 @@
 use glutin::GlContext;
-use std::f32::consts::PI;
-use std::time::Instant;
-use warmy::{Store, StoreOpt};
 
 use gl;
 use glutin;
@@ -9,18 +6,15 @@ use nvg;
 use pretty_env_logger;
 use punchcard::*;
 use std::path::{Path, PathBuf};
+use std::env;
 
 const INIT_WINDOW_SIZE: (u32, u32) = (1024, 720);
-
-fn get_resource_path(path: &str) -> PathBuf {
-    info!("resources dir: {}", env!("CARGO_MANIFEST_DIR"));
-    Path::new(env!("CARGO_MANIFEST_DIR")).join(path)
-}
 
 pub fn gui_test<F>(mut f: F)
 where
     F: FnMut(&mut Ui),
 {
+    env::set_current_dir(env!("CARGO_MANIFEST_DIR"));
     pretty_env_logger::init();
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new()
@@ -46,12 +40,12 @@ where
     let iosevka_font = nvg::Font::from_file(
         &context,
         "Iosevka",
-        get_resource_path("data/fonts/iosevka-regular.ttf"),
+        "data/fonts/iosevka-regular.ttf",
     ).expect("Failed to load font");
 
     let mut running = true;
     let mut ui = Ui::new();
-    ui.load_stylesheet(get_resource_path("data/css/default.css"));
+    ui.load_stylesheet("data/css/default.css").expect("failed to load default stylesheet");
     debug!("HiDPI factor is {}", gl_window.hidpi_factor());
 
     while running {
