@@ -65,18 +65,18 @@ floating-panel {
   flex-grow: 1.0;
   align-self: flex-start;
   margin: 2px;
-  border-width: 1px;
-  border-color: red;
-  position: absolute; }
+  border-width: 2px;
+  border-color: #86a2a2;
+  position: absolute;
+  width: 400px;
+  height: 400px; }
 
 floating-panel-header {
   background-color: #86a2a2;
   padding: 3px; }
 
 floating-panel-contents {
-  padding: 4px;
-  border-color: #86a2a2;
-  border-width: 2px; }
+  padding: 4px; }
 
 floating-panel-resize-handle {
   background-color: #c12727;

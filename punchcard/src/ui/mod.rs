@@ -27,6 +27,7 @@ mod renderer;
 mod style;
 mod css;
 mod sizer;
+mod widgets;
 
 // New problem: popups
 // Must keep a list of popups, hit-test all of them
@@ -40,7 +41,8 @@ mod sizer;
 // Issue: multiple mut-borrows: list of ItemNodes and
 
 // Reexports
-pub use self::container::{ScrollState, UiContainer};
+pub use self::container::{UiContainer};
+pub use self::widgets::{ScrollState};
 use self::item::ItemNode;
 pub use self::item::{Item, ItemBehavior};
 pub use self::layout::{ContentMeasurement, Layout};
@@ -380,7 +382,6 @@ impl UiState {
         } else if let Some(ref focus) = self.focus_path {
             (focus.clone(), DispatchTarget::Focus)
         } else {
-            // TODO hit-test
             let mut hit_test_chain = Vec::new();
             self.hit_test(self.cursor_pos, root_node, &self.popups[..], &mut hit_test_chain);
             (hit_test_chain, DispatchTarget::HitTest)
@@ -447,8 +448,8 @@ impl UiState {
         m.height.map(|h|{ node.flexbox.set_height(h.point()); });
         node.item.layout_overrides.left.map(|v| node.flexbox.set_position(yoga::Edge::Left, v));
         node.item.layout_overrides.top.map(|v| node.flexbox.set_position(yoga::Edge::Top, v));
-        //node.item.layout_overrides.width.map(|v| node.flexbox.set_width(v));
-        //node.item.layout_overrides.height.map(|v| node.flexbox.set_height(v));
+        node.item.layout_overrides.width.map(|v| node.flexbox.set_width(v));
+        node.item.layout_overrides.height.map(|v| node.flexbox.set_height(v));
 
         for (_, child) in node.children.iter_mut() {
             self.calculate_style(child, renderer, &node.item.style, stylesheets_dirty);
@@ -558,6 +559,6 @@ impl Ui {
                 .render_item(&mut self.root, &root_layout, renderer);
         });
 
-        debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);
+        //debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);
     }
 }

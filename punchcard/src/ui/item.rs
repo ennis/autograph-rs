@@ -153,31 +153,59 @@ impl ItemBehavior for Invisible {
 
 pub struct DragState
 {
-    /// Position of the item (layout) when the dragging started.
-    pub start_pos: (f32,f32),
     /// Where the mouse pointer was when the dragging started.
     pub origin: (f32,f32),
     /// Current drag offset.
     pub offset: (f32,f32),
 }
 
-/// Common input behavior
+/// Common input behavior.
 pub struct DragBehavior
 {
     pub drag: Option<DragState>,
+    pub drag_started: bool,
+    pub start_value: Option<(f32,f32)>
 }
 
-impl Default for DragBehavior
+impl DragBehavior
 {
-    fn default() -> Self {
+    pub fn new() -> DragBehavior
+    {
         DragBehavior {
-            drag: None
+            drag: None,
+            start_value: None,
+            drag_started: true,
+        }
+    }
+
+    pub fn handle_drag(&mut self, value: &mut (f32,f32)) -> bool {
+        if self.drag_started {
+            self.start_value = Some(*value);
+            self.drag_started = false;
+        }
+
+        if let Some(ref drag) = self.drag {
+            if let Some(ref start) = self.start_value {
+                *value = (start.0 + drag.offset.0, start.1 + drag.offset.1);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
         }
     }
 }
 
-impl ItemBehavior for DragBehavior {
-    fn event(&mut self, item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
+impl ItemBehavior for DragBehavior
+{
+    fn event(
+        &mut self,
+        item: &mut Item,
+        event: &WindowEvent,
+        input_state: &mut InputState) -> bool
+    {
+        //debug!("EVENT {:016X}", item.id);
         // drag behavior:
         // - on mouse button down: capture, set click pos
         // - on cursor move: update offset
@@ -188,7 +216,12 @@ impl ItemBehavior for DragBehavior {
                 if state == ElementState::Pressed {
                     // capture events
                     input_state.set_capture();
-                    self.drag = Some(DragState { start_pos: (item.layout.left, item.layout.top), origin: input_state.cursor_pos(), offset: (0.0,0.0) });
+                    // starting drag
+                    self.drag_started = true;
+                    self.drag = Some(DragState {
+                        origin: input_state.cursor_pos(),
+                        offset: (0.0,0.0),
+                    });
                 }
                 true
             }
@@ -196,7 +229,9 @@ impl ItemBehavior for DragBehavior {
                 if input_state.capturing {
                     let cursor_pos = input_state.cursor_pos();
                     if let Some(ref mut drag) = self.drag {
+                        // continue drag, update offset
                         drag.offset = (cursor_pos.0 - drag.origin.0, cursor_pos.1 - drag.origin.1);
+                        //*current_value = (drag.start.0 + drag.offset.0, drag.start.1 + drag.offset.1);
                     }
                     true
                 } else {
@@ -206,13 +241,19 @@ impl ItemBehavior for DragBehavior {
             _ => false,
         };
 
+
         if !input_state.capturing {
+            // drag end
             self.drag = None;
+            self.start_value = None;
+        } else {
+            debug!("{:016X} capturing", item.id);
         }
 
         captured
     }
 }
+
 
 /// Represents a node in the item hierarchy.
 pub(super) struct ItemNode {
@@ -282,7 +323,7 @@ impl ItemNode {
             capturing,
             focused: false,
         };
-        self.behavior.event(&mut self.item, event, &mut input_state)
+        self.behavior.capture_event(&mut self.item, event, &mut input_state)
     }
 
     /// Propagate an event.
@@ -391,59 +432,8 @@ impl Item {
         self.layout_overrides.height = height;
     }
 
-    /*pub fn with_measure<F: Fn(&mut Item, &Renderer) -> ContentMeasurement + 'static>(
-        &mut self,
-        f: F,
-    ) {
-        self.measure = Some(Box::new(f));
-    }
-
-    pub fn init_state<D: Any>(&mut self, default: D) -> &mut D {
-        if self.state.get_mut().is_none() {
-            self.state.replace(Some(Box::new(default)));
-        }
-        self.state
-            .get_mut()
-            .as_mut()
-            .unwrap()
-            .downcast_mut()
-            .expect("wrong custom data type")
-    }
-
-    pub fn extract_state<State: 'static>(&mut self) -> Box<State> {
-        self.state
-            .take()
-            .expect("state was empty")
-            .downcast()
-            .expect("unexpected state type")
-    }
-
-    pub fn replace_state<State: 'static>(&mut self, s: Box<State>) {
-        self.state.replace(Some(s));
-    }
-
-    pub fn with_extract_state<State: 'static, R, F: FnMut(&mut Item, &mut State) -> R>(
-        &mut self,
-        mut f: F,
-    ) -> R {
-        let mut state = self.extract_state();
-        let result = f(self, &mut *state);
-        self.replace_state(state);
-        result
-    }*/
-
-    /*pub fn get_custom_data<D: Any>(&self) -> &D {
-        self.custom_data.as_ref().unwrap().downcast_ref::<D>().unwrap()
-    }
-
-    pub fn get_custom_data_mut<D: Any>(&mut self) -> &mut D {
-        self.custom_data.as_mut().unwrap().downcast_mut::<D>().unwrap()
-    }*/
-
-    /*pub fn apply_styles<'b, I>(&mut self, styles: I)
-    where
-        I: IntoIterator<Item = &'b yoga::FlexStyle>,
-    {
-        self.flexbox.apply_styles(styles);
-    }*/
 }
+
+// dragging:
+// anchor point (absolute, relative) + offset (displacement)
+// Apply

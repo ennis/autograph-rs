@@ -116,9 +116,12 @@ floating-panel {
     align-self: flex-start;
 
     margin: 2px;
-    border-width: 1px;
-    border-color: red;
+    border-width: 2px;
+    border-color: $panel-header;
     position: absolute;
+
+    width: 400px;
+    height: 400px;
 }
 
 floating-panel-header {
@@ -129,8 +132,6 @@ floating-panel-header {
 
 floating-panel-contents {
     padding: 4px;
-    border-color: $panel-header;
-    border-width: 2px;
 }
 
 floating-panel-resize-handle {
