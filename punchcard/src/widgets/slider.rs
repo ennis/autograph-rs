@@ -150,14 +150,53 @@ impl<'a> UiContainer<'a> {
                 slider.min = min;
                 slider.max = max;
                 slider.sync(value);
-                let knob_pos = slider.ratio();
 
                 ui.item("bar", "slider-bar", Bar, |ui, _, _| {
                     ui.item("knob", "slider-knob", Knob, |_, item, _| {
-                        item.set_position(Some((100.0 * knob_pos).percent()), None);
+                        item.set_position(Some((100.0 * slider.ratio()).percent()), None);
                     });
                 });
             },
         );
     }
 }
+
+// reduce visual noise:
+//      |ui, item, state| -> |item|
+// state + behavior:
+//      item.state
+// set class:
+//      item.set_class("...");
+//
+// issue with borrowing:
+// - adding a child to item makes item.state inaccessible (borrows everything)
+// - must do item.children.add(...) (but does not work: borrows b in the closure)
+//
+// => use a macro
+
+/*
+fn slider2<'a>(label: S, value: &'a mut T, min: T, max: T) -> impl Renderable + 'a
+{
+    ui! {
+        @item(label, Slider {
+                value: *value,
+                min,
+                max,
+                dirty: false
+            })
+        {
+            @class("slider");
+
+            @item("bar", Bar) {
+                @this.class("slider-bar");
+                let knob_pos = @this.ratio();
+
+                @item("knob", Knob) {
+                    @class("slider-knob");
+                    @set_position("")
+                }
+            }
+        }
+    }
+}
+*/

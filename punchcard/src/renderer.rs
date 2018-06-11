@@ -9,14 +9,14 @@ pub enum DrawItemKind {
 
 /// Item of a draw list.
 pub struct DrawItem {
-    pub z_order: u32,
+    pub z_order: i32,
     pub style: CachedStyle,
     pub layout: Layout,
     pub kind: DrawItemKind,
 }
 
 impl DrawItem {
-    pub(super) fn new_rect(layout: Layout, style: CachedStyle, z_order: u32) -> DrawItem {
+    pub(super) fn new_rect(layout: Layout, style: CachedStyle, z_order: i32) -> DrawItem {
         DrawItem {
             z_order,
             style,
@@ -29,7 +29,7 @@ impl DrawItem {
         text: String,
         layout: Layout,
         style: CachedStyle,
-        z_order: u32,
+        z_order: i32,
     ) -> DrawItem {
         DrawItem {
             z_order,
@@ -43,7 +43,7 @@ impl DrawItem {
         text: String,
         layout: Layout,
         style: CachedStyle,
-        z_order: u32,
+        z_order: i32,
     ) -> DrawItem {
         unimplemented!()
     }
@@ -51,7 +51,7 @@ impl DrawItem {
 
 pub struct DrawList {
     pub(super) items: Vec<DrawItem>,
-    z_order_stack: Vec<u32>
+    z_order_stack: Vec<i32>
 }
 
 impl DrawList {
@@ -59,7 +59,7 @@ impl DrawList {
         DrawList { items: Vec::new(), z_order_stack: Vec::new() }
     }
 
-    fn get_z_order(&self) -> u32 { self.z_order_stack.last().cloned().unwrap_or(0) }
+    fn get_z_order(&self) -> i32 { self.z_order_stack.last().cloned().unwrap_or(0) }
 
     /*pub fn push_z_order(&mut self, z_order: u32) {
     }
@@ -68,7 +68,7 @@ impl DrawList {
         self.z_order_stack.pop();
     }*/
 
-    pub fn with_z_order<F>(&mut self, z_order: Option<u32>, f: F) where F: FnOnce(&mut Self) {
+    pub fn with_z_order<F>(&mut self, z_order: Option<i32>, f: F) where F: FnOnce(&mut Self) {
         if let Some(z) = z_order {
             self.z_order_stack.push(z);
             f(self);

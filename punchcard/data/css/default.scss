@@ -74,10 +74,15 @@ slider-knob {
 
 button {
     background-color: $button-background;
-    //border-width: 2px;
-    height: 20px;
-    //border-color: #848484;
-    padding: 2px;
+    border-width: 2px;
+    height: 24px;
+    border-color: #848484;
+    padding: 4px;
+    border-radius: 2px;
+}
+
+button:hover {
+
 }
 
 scroll {

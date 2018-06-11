@@ -83,11 +83,19 @@ pub enum PropertyDeclaration {
     Width(yoga::StyleUnit),
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum PseudoClass
+{
+    Active,
+    Hover,
+}
+
 /// A CSS selector.
 #[derive(Clone, Debug)]
 pub struct Selector {
     /// TODO
     class: String,
+    pseudo_class: Option<PseudoClass>
 }
 
 /// A CSS rule-set.
@@ -172,9 +180,23 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
         &mut self,
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::Prelude, ParseError<'i, Self::Error>> {
-        Ok(parser.expect_ident().map(|ident| Selector {
-            class: ident.to_string(),
-        })?)
+        let class_ident = parser.expect_ident()?.clone();
+        let colon = parser.expect_colon().clone();
+        let pseudo_class = match colon {
+            Ok(()) => {
+                let pseudo_class_ident = parser.expect_ident()?.clone();
+                match pseudo_class_ident.as_ref() {
+                    "active" => Some(PseudoClass::Active),
+                    "hover" => Some(PseudoClass::Hover),
+                    _ => return Err(parser.new_custom_error(RuleParseErrorKind::Other))
+                }
+            },
+            _ => None
+        };
+        Ok(Selector {
+            class: class_ident.to_string(),
+            pseudo_class
+        })
     }
 
     /// Parse the declaration block.

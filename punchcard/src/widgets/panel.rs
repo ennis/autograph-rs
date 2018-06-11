@@ -1,5 +1,6 @@
 //! Layout panels (vbox and hbox), collapsible panels and floating panels.
 use super::super::*;
+use container::WindowEventExt;
 
 impl<'a> UiContainer<'a> {
     ///
@@ -113,6 +114,9 @@ impl<'a> UiContainer<'a> {
                 event: &WindowEvent,
                 input_state: &mut InputState,
             ) -> bool {
+                if event.mouse_down() {
+                    item.bring_to_front();
+                }
                 self.drag.event(item, event, input_state)
                 // TODO collapsing behavior
             }

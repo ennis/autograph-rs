@@ -20,6 +20,7 @@ extern crate winapi;
 
 use failure::Error;
 use std::path::{Path};
+use indexmap::IndexMap;
 
 mod behavior;
 mod container;
@@ -51,7 +52,7 @@ pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, Windo
 pub use yoga::prelude::*;
 
 use self::input::{DispatchChain, DispatchTarget, PointerCapture};
-use self::item::ItemNode;
+use self::item::{ItemChildren, ItemNode};
 use self::style::apply_to_flex_node;
 pub use warmy::{FSKey, Res, Store, StoreOpt};
 
@@ -80,47 +81,24 @@ pub use warmy::{FSKey, Res, Store, StoreOpt};
 pub type ResourceStore = Store<()>;
 
 /// Various global UI states.
-pub struct UiState {
+pub struct Ui {
     id_stack: IdStack,
     _cur_frame: u64,
     cursor_pos: (f32, f32),
     capture: Option<PointerCapture>,
     focus_path: Option<Vec<ItemID>>,
     stylesheets: Vec<Res<css::Stylesheet>>,
-    /// Floating popup windows (transient).
-    popups: Vec<Vec<ItemID>>,
+    roots: ItemChildren,
+    cur_root_index: usize,
+    frontmost_z: i32,
     store: ResourceStore,
 }
 
-impl UiState {
-    fn new() -> UiState {
-        UiState {
-            id_stack: IdStack::new(0),
-            _cur_frame: 0,
-            cursor_pos: (0.0, 0.0),
-            capture: None,
-            focus_path: None,
-            stylesheets: Vec::new(),
-            popups: Vec::new(),
-            store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
-        }
-    }
-
+impl Ui {
     /*fn add_popup(&mut self, id_path: &[ItemID])
     {
 
     }*/
-
-    fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
-        let mut ctx = ();
-        let stylesheet = self
-            .store
-            .get::<_, Stylesheet>(&FSKey::new(path.as_ref().clone()), &mut ctx)?;
-        debug!("loading stylesheet at {}", path.as_ref().display());
-        self.stylesheets.push(stylesheet);
-        Ok(())
-    }
-
     fn stylesheets_dirty(&self) -> bool {
         self.stylesheets
             .iter()
@@ -157,7 +135,7 @@ impl UiState {
         }
     }
 
-    fn hit_test_item_rec(
+    /*fn hit_test_item_rec(
         &self,
         pos: (f32, f32),
         node: &ItemNode,
@@ -170,12 +148,12 @@ impl UiState {
         } else {
             self.hit_test_rec(pos, node, chain)
         }
-    }
+    }*/
 
     fn hit_test_rec(&self, pos: (f32, f32), node: &ItemNode, chain: &mut Vec<ItemID>) -> bool {
         if node.hit_test(pos) {
             chain.push(node.item.id);
-            for (_, child) in node.children.iter() {
+            for (_, child) in node.children.0.iter() {
                 if self.hit_test_rec(pos, child, chain) {
                     break;
                 }
@@ -189,77 +167,20 @@ impl UiState {
     fn hit_test(
         &self,
         pos: (f32, f32),
-        node: &ItemNode,
-        popups: &[Vec<ItemID>],
         chain: &mut Vec<ItemID>,
     ) -> bool {
         // check popups first
-        for p in popups {
-            if self.hit_test_item_rec(pos, node, &p[1..], chain) {
+        for (k,node) in self.roots.0.iter().rev() {
+            debug!("testing {}", *k);
+            if self.hit_test_rec(pos, node, chain) {
                 // got a match
                 break;
             }
             chain.clear();
         }
 
-        if !chain.is_empty() {
-            return true;
-        }
-
-        // check root
-        self.hit_test_rec(pos, node, chain)
-    }
-
-    fn dispatch_event(&mut self, root_node: &mut ItemNode, event: &WindowEvent) {
-        // update state
-        match event {
-            &WindowEvent::CursorMoved { position, .. } => {
-                self.cursor_pos = (position.0 as f32, position.1 as f32);
-            }
-            &WindowEvent::MouseInput {
-                device_id: _,
-                state,
-                button: _,
-                modifiers: _,
-            } => {
-                if state == ElementState::Released {
-                    // implicit capture release
-                    debug!("implicit capture release");
-                    self.release_capture();
-                }
-            }
-            _ => {}
-        };
-
-        // build dispatch chain
-        let (dispatch_items, target) = if let Some(ref capture) = self.capture {
-            (capture.id_path.clone(), DispatchTarget::Capture)
-        } else if let Some(ref focus) = self.focus_path {
-            (focus.clone(), DispatchTarget::Focus)
-        } else {
-            let mut hit_test_chain = Vec::new();
-            self.hit_test(
-                self.cursor_pos,
-                root_node,
-                &self.popups[..],
-                &mut hit_test_chain,
-            );
-            (hit_test_chain, DispatchTarget::HitTest)
-        };
-
-        /*debug!("dispatch chain: ");
-        for (i,id) in dispatch_items.iter().enumerate() {
-            debug!("#{}({:016X})", i, id);
-        }*/
-
-        if !dispatch_items.is_empty() {
-            let dispatch_chain = DispatchChain {
-                items: &dispatch_items[..],
-                target,
-                current: 0,
-            };
-            root_node.propagate_event(event, self, dispatch_chain);
-        }
+        // a popup matched
+        !chain.is_empty()
     }
 
     fn calculate_style(
@@ -280,12 +201,10 @@ impl UiState {
             let mut style = ComputedStyle::default();
             for stylesheet in self.stylesheets.iter() {
                 let stylesheet = stylesheet.borrow();
-                // TODO more than one class.
-                //debug!("css classes {:?}", node.item.css_classes);
-                if let Some(first) = node.item.css_classes.first() {
+                if let Some(ref class) = node.item.css_class {
                     // 1. fetch all applicable rules
                     // TODO actually fetch all rules.
-                    let class_rule = stylesheet.match_class(first);
+                    let class_rule = stylesheet.match_class(class);
                     //debug!("rule {:?}", class_rule);
                     if let Some(class_rule) = class_rule {
                         // apply rule
@@ -333,7 +252,7 @@ impl UiState {
             .height
             .map(|v| node.flexbox.set_height(v));
 
-        for (_, child) in node.children.iter_mut() {
+        for (_, child) in node.children.0.iter_mut() {
             self.calculate_style(child, renderer, &node.item.style, stylesheets_dirty);
         }
     }
@@ -349,7 +268,7 @@ impl UiState {
         //debug!("layout {:?}", layout);
         draw_list.with_z_order(node.item.z_order, |draw_list| {
             node.draw(draw_list);
-            for (_, child) in node.children.iter_mut() {
+            for (_, child) in node.children.0.iter_mut() {
                 self.render_item(child, &layout, draw_list);
             }
         });
@@ -363,29 +282,41 @@ fn measure_time<F: FnOnce()>(f: F) -> u64 {
     duration.num_microseconds().unwrap() as u64
 }
 
-/// The UI.
-/// Call root() to get a UiContainer that allows adding child items to the UI root.
-pub struct Ui {
-    /// Root node of the main window.
-    root: ItemNode,
-    state: UiState,
-}
 
 impl Ui {
     /// Creates a new Ui object.
     pub fn new() -> Ui {
+        // The root node of the main window (ID 0).
         let root = ItemNode::new(0, Box::new(()));
+        // roots
+        let mut roots = ItemChildren::new();
+        roots.0.insert(0, root);
 
         let ui = Ui {
-            root,
-            state: UiState::new(),
+            id_stack: IdStack::new(0),
+            _cur_frame: 0,
+            cursor_pos: (0.0, 0.0),
+            capture: None,
+            focus_path: None,
+            stylesheets: Vec::new(),
+            roots,
+            frontmost_z: -1,
+            cur_root_index: 0,
+            store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
         };
+
         ui
     }
 
     /// Loads a CSS stylesheet from the specified path.
     pub fn load_stylesheet<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
-        self.state.load_stylesheet(path)
+        let mut ctx = ();
+        let stylesheet = self
+            .store
+            .get::<_, Stylesheet>(&FSKey::new(path.as_ref().clone()), &mut ctx)?;
+        debug!("loading stylesheet at {}", path.as_ref().display());
+        self.stylesheets.push(stylesheet);
+        Ok(())
     }
 
     /// Dispatches a `WindowEvent` to items.
@@ -398,7 +329,61 @@ impl Ui {
     /// in reverse order from the target to the root, until the event is captured (bubble phase).
     pub fn dispatch_event(&mut self, event: &WindowEvent) {
         let _event_dispatch_time = measure_time(|| {
-            self.state.dispatch_event(&mut self.root, event);
+            // update state
+            match event {
+                &WindowEvent::CursorMoved { position, .. } => {
+                    self.cursor_pos = (position.0 as f32, position.1 as f32);
+                }
+                &WindowEvent::MouseInput {
+                    device_id: _,
+                    state,
+                    button: _,
+                    modifiers: _,
+                } => {
+                    if state == ElementState::Released {
+                        // implicit capture release
+                        debug!("implicit capture release");
+                        self.release_capture();
+                    }
+                }
+                _ => {}
+            };
+
+            // build dispatch chain
+            let (dispatch_items, target) = if let Some(ref capture) = self.capture {
+                (capture.id_path.clone(), DispatchTarget::Capture)
+            } else if let Some(ref focus) = self.focus_path {
+                (focus.clone(), DispatchTarget::Focus)
+            } else {
+                let mut hit_test_chain = Vec::new();
+                self.hit_test(
+                    self.cursor_pos,
+                    &mut hit_test_chain,
+                );
+                (hit_test_chain, DispatchTarget::HitTest)
+            };
+
+            /*debug!("dispatch chain: ");
+            for (i,id) in dispatch_items.iter().enumerate() {
+                debug!("#{}({:016X})", i, id);
+            }*/
+
+            if !dispatch_items.is_empty() {
+                let dispatch_chain = DispatchChain {
+                    items: &dispatch_items[..],
+                    target,
+                    current: 0,
+                };
+
+                if let Some(root_id) = dispatch_chain.items.first() {
+                    // extract root to avoid multiple mut borrows of self
+                    let mut root = self
+                        .roots.0.remove(root_id)
+                        .expect("root node not found");
+                    root.propagate_event(event, self, dispatch_chain.clone());
+                    self.roots.0.insert(*root_id, root);
+                }
+            }
         });
     }
 
@@ -406,13 +391,51 @@ impl Ui {
     pub fn root<F: FnOnce(&mut UiContainer)>(&mut self, f: F) {
         let mut ctx = ();
         // this should probably be done in its own function.
-        self.state.store.sync(&mut ctx);
-        self.state.popups.clear();
+        self.store.sync(&mut ctx);
+
         let spec_time = measure_time(|| {
-            let mut ui = UiContainer::new_root(0, &mut self.root, &mut self.state);
-            f(&mut ui);
-            ui.finish()
+            let mut window_root = self.roots.0.remove(&0).expect("main window root not found");
+            {
+                let mut ui = UiContainer {
+                    ui: self,
+                    children: &mut window_root.children,
+                    flexbox: &mut window_root.flexbox,
+                    id: 0,
+                    cur_index: 0,
+                };
+                f(&mut ui);
+                ui.finish();
+            }
+            self.roots.0.insert(0, window_root);
+            self.sort_roots();
+            self.frontmost_z = self.roots.0.values().last().unwrap().item.z_order.unwrap();
         });
+    }
+
+    fn calculate_layouts(&mut self, roots: &mut ItemChildren, size: (f32,f32))
+    {
+        for (k,v) in roots.0.iter_mut() {
+            v.flexbox.calculate_layout(size.0, size.1, yoga::Direction::LTR);
+        }
+    }
+
+    fn calculate_styles(&mut self, roots: &mut ItemChildren, renderer: &Renderer, root_style: &CachedStyle, stylesheets_dirty: bool)
+    {
+        for (k,v) in roots.0.iter_mut() {
+            self.calculate_style(v, renderer, root_style, stylesheets_dirty);
+        }
+    }
+
+    fn sort_roots(&mut self)
+    {
+        self.roots.0.sort_by(|ka, va, kb, vb| {
+            // stable sort
+            va.item.z_order.unwrap_or(-1).cmp(&vb.item.z_order.unwrap_or(-1))
+        });
+        // normalize orders
+        for (i,v) in self.roots.0.values_mut().enumerate() {
+            v.item.z_order = Some(i as i32);
+        };
     }
 
     /// Renders the UI to the given renderer.
@@ -420,17 +443,17 @@ impl Ui {
     /// and finally calls the draw() function of each ItemBehavior in the hierarchy.
     pub fn render(&mut self, size: (f32, f32), renderer: &mut Renderer) {
         // measure contents pass
+        use ::std::mem::replace;
+        let mut roots = replace(&mut self.roots, ItemChildren::new());
+
         let _style_calculation_time = measure_time(|| {
             let root_style = CachedStyle::default();
             // are the sheets dirty?
-            let stylesheets_dirty = self.state.stylesheets_dirty();
-            self.state
-                .calculate_style(&mut self.root, renderer, &root_style, stylesheets_dirty);
+            let stylesheets_dirty = self.stylesheets_dirty();
+            self.calculate_styles(&mut roots, renderer, &root_style, stylesheets_dirty);
         });
         let _layout_time = measure_time(|| {
-            self.root
-                .flexbox
-                .calculate_layout(size.0, size.1, yoga::Direction::LTR);
+            self.calculate_layouts(&mut roots, size);
         });
         let root_layout = Layout {
             left: 0.0,
@@ -440,12 +463,14 @@ impl Ui {
         };
         let _render_time = measure_time(|| {
             let mut draw_list = DrawList::new();
-            self.state
-                .render_item(&mut self.root, &root_layout, &mut draw_list);
+            for (k,v) in roots.0.iter_mut() {
+                self.render_item(v, &root_layout, &mut draw_list);
+            }
             draw_list.sort();
             renderer.draw_frame(&draw_list.items[..]);
         });
 
+        replace(&mut self.roots, roots);
         //debug!("style {}us, layout {}us, render {}us", style_calculation_time, layout_time, render_time);
     }
 }

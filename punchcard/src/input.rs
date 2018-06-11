@@ -1,5 +1,5 @@
 //! Input handling.
-use super::{ItemID, UiState};
+use super::{ItemID, Ui};
 
 /// Struct containing information about a pointer capture.
 #[derive(Clone)]
@@ -66,7 +66,7 @@ impl<'a> DispatchChain<'a> {
 /// Struct passed to event handlers.
 pub struct InputState<'a> {
     /// TODO document
-    pub(super) state: &'a mut UiState,
+    pub(super) ui: &'a mut Ui,
     /// Dispatch chain that the event is travelling along.
     pub(super) dispatch_chain: DispatchChain<'a>,
     /// Whether the item received this event because it has been captured.
@@ -80,27 +80,25 @@ pub struct InputState<'a> {
 impl<'a> InputState<'a> {
     /// Signals that the current item in the dispatch chain should capture all events.
     pub fn set_capture(&mut self) {
-        self.state
-            .set_capture(self.dispatch_chain.current_chain().into());
+        self.ui.set_capture(self.dispatch_chain.current_chain().into());
         self.capturing = true;
     }
 
     /// Signals that the current item should have focus.
     pub fn set_focus(&mut self) {
-        self.state
-            .set_focus(self.dispatch_chain.current_chain().into());
+        self.ui.set_focus(self.dispatch_chain.current_chain().into());
     }
 
     /// Get the pointer capture origin position.
     pub fn get_capture_origin(&self) -> Option<(f32, f32)> {
-        self.state.capture.as_ref().map(|params| params.origin)
+        self.ui.capture.as_ref().map(|params| params.origin)
     }
 
     /// Get drag delta from start of capture.
     pub fn get_capture_drag_delta(&self) -> Option<(f32, f32)> {
-        self.state.capture.as_ref().map(|params| {
+        self.ui.capture.as_ref().map(|params| {
             let (ox, oy) = params.origin;
-            let (cx, cy) = self.state.cursor_pos;
+            let (cx, cy) = self.ui.cursor_pos;
             (cx - ox, cy - oy)
         })
     }
@@ -110,7 +108,7 @@ impl<'a> InputState<'a> {
     pub fn release_capture(&mut self) {
         // check that we are capturing
         if self.capturing {
-            self.state.release_capture()
+            self.ui.release_capture()
         } else {
             warn!("trying to release capture without capturing");
         }
@@ -118,6 +116,6 @@ impl<'a> InputState<'a> {
 
     /// Get the current cursor position.
     pub fn cursor_pos(&self) -> (f32, f32) {
-        self.state.cursor_pos
+        self.ui.cursor_pos
     }
 }
