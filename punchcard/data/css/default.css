@@ -19,14 +19,14 @@ slider-bar {
   flex-direction: row;
   align-items: center;
   height: 5px;
-  background-color: #474747; }
+  background-color: #484848; }
 
 slider-knob {
   flex-direction: row;
   position: relative;
   width: 10px;
   height: 10px;
-  background-color: #6abe37; }
+  background-color: #fffefc; }
 
 button {
   background-color: #474747;
@@ -41,9 +41,8 @@ scroll {
   flex-grow: 1.0;
   align-items: stretch;
   padding: 3px;
-  background-color: #202020;
-  border-width: 3px;
-  border-color: azure; }
+  background-color: #151515;
+  border-width: 3px; }
 
 collapsing-panel {
   flex-direction: column;
@@ -52,12 +51,12 @@ collapsing-panel {
   margin: 2px; }
 
 collapsing-panel-header {
-  background-color: #86a2a2;
+  background-color: #ffe15c;
   padding: 4px; }
 
 collapsing-panel-contents {
   padding: 4px;
-  border-color: #86a2a2;
+  border-color: #ffe15c;
   border-width: 1px; }
 
 floating-panel {
@@ -65,11 +64,12 @@ floating-panel {
   flex-grow: 1.0;
   align-self: flex-start;
   margin: 2px;
-  border-width: 2px;
+  border-width: 4px;
   padding: 2px;
-  border-color: #4f5344;
+  border-radius: 8px;
+  border-color: #f5c800;
   position: absolute;
-  background-color: #34372d;
+  background-color: #151515;
   width: 400px;
   height: 400px; }
 
@@ -77,12 +77,12 @@ floating-panel-close-button {
   position: absolute;
   right: 3px;
   top: 3px;
-  background-color: #c12727;
+  background-color: #be0500;
   width: 18px;
   height: 18px; }
 
 floating-panel-header {
-  background-color: #9da28e;
+  background-color: #f5c800;
   padding: 3px;
   height: 24px; }
 
@@ -90,7 +90,7 @@ floating-panel-contents {
   padding: 6px; }
 
 floating-panel-resize-handle {
-  background-color: #c12727;
+  background-color: #fffefc;
   width: 15px;
   height: 15px;
   position: absolute;

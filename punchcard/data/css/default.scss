@@ -1,16 +1,19 @@
 
-$highlight-background: #c1ff54;
-$highlight-text: #282828;
-$accent-1: #6abe37;
-$accent-2: #c12727;
-$text: #eaeaea;
-$text-disabled: #898989;
+$primary: #151515;
+$accent: #fffefc;
+$secondary: #ffe15c;
+
+$highlight-background: $accent;
+$highlight-text: $accent;
+$accent-1: #be0500;
+$text: #000000;
+$text-disabled: #000000;
 // panel header color
-$panel-header: #86a2a2;
-$panel-header-alt: #9da28e;
+$panel-header: $secondary;
+$panel-header-alt: $secondary;
 // default background of panels
-$panel-background: #202020;
-$panel-background-alt: #202020;
+$panel-background: $primary;
+$panel-background-alt: $primary;
 $panel-border: #3e3e3e;
 // the void
 $canvas-background: #000000;
@@ -40,11 +43,6 @@ slider {
     flex-direction: column;
     justify-content: center;
     align-items: stretch;
-
-    //border-width: 1px;
-    //border-color: aquamarine;
-
-    //margin: 2px;
     padding: 2px 4px 2px;
 }
 
@@ -52,8 +50,7 @@ slider-bar {
     flex-direction: row;
     align-items: center;
     height: 5px;
-
-    background-color: #474747;
+    background-color: lighten($primary, 20);
 }
 
 slider-knob {
@@ -61,8 +58,7 @@ slider-knob {
     position: relative;
     width: 10px;
     height: 10px;
-    background-color: $accent-1;
-    //border-radius: 0.0px;
+    background-color: $accent;
 }
 
 button {
@@ -83,10 +79,8 @@ scroll {
     flex-grow: 1.0;
     align-items: stretch;
     padding: 3px;
-
     background-color: $panel-background;
     border-width: 3px;
-    border-color: azure;
 }
 
 collapsing-panel {
@@ -97,7 +91,6 @@ collapsing-panel {
 }
 
 collapsing-panel-header {
-    //border-color: $panel-border;
     background-color: $panel-header;
     padding: 4px;
 }
@@ -114,12 +107,13 @@ floating-panel {
     align-self: flex-start;
 
     margin: 2px;
-    border-width: 2px;
+    border-width: 4px;
     padding: 2px;
-    border-color: darken($panel-header-alt, 30);
+    border-radius: 8px;
+    border-color: darken($secondary, 20);
     position: absolute;
 
-    background-color: darken($panel-header-alt, 40);
+    background-color: $panel-background;
 
     width: 400px;
     height: 400px;
@@ -130,14 +124,15 @@ floating-panel-close-button {
     position: absolute;
     right: 3px;
     top: 3px;
-    background-color: $accent-2;
+    background-color: $accent-1;
     width: 18px;
     height: 18px;
 }
 
 floating-panel-header {
     //border-color: $panel-border;
-    background-color: $panel-header-alt;
+    background-color: darken($secondary, 20);
+    //border-radius: 5px;
     padding: 3px;
     height: 24px;
 }
@@ -147,7 +142,7 @@ floating-panel-contents {
 }
 
 floating-panel-resize-handle {
-    background-color: $accent-2;
+    background-color: $accent;
     width: 15px;
     height: 15px;
     position: absolute;
