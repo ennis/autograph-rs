@@ -1,14 +1,11 @@
 vbox {
   flex-direction: column;
   margin: 2px;
-  border-color: #3e3e3e;
-  background-color: #202020;
   border-width: 1px; }
 
 hbox {
   flex-direction: row;
-  margin: 2px;
-  background-color: #202020; }
+  margin: 2px; }
 
 slider {
   flex-grow: 1.0;
@@ -56,12 +53,12 @@ collapsing-panel {
 
 collapsing-panel-header {
   background-color: #86a2a2;
-  padding: 3px; }
+  padding: 4px; }
 
 collapsing-panel-contents {
   padding: 4px;
   border-color: #86a2a2;
-  border-width: 2px; }
+  border-width: 1px; }
 
 floating-panel {
   flex-direction: column;
@@ -69,18 +66,28 @@ floating-panel {
   align-self: flex-start;
   margin: 2px;
   border-width: 2px;
-  border-color: #86a2a2;
+  padding: 2px;
+  border-color: #4f5344;
   position: absolute;
-  background-color: #202020;
+  background-color: #34372d;
   width: 400px;
   height: 400px; }
 
+floating-panel-close-button {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  background-color: #c12727;
+  width: 18px;
+  height: 18px; }
+
 floating-panel-header {
-  background-color: #86a2a2;
-  padding: 3px; }
+  background-color: #9da28e;
+  padding: 3px;
+  height: 24px; }
 
 floating-panel-contents {
-  padding: 4px; }
+  padding: 6px; }
 
 floating-panel-resize-handle {
   background-color: #c12727;

@@ -132,10 +132,12 @@ impl ItemNode {
         dispatch_chain: DispatchChain,
     ) -> bool {
         let capturing = ui.is_item_capturing(dispatch_chain.current_id());
+        let frame_index = ui.frame_index;
         let mut input_state = InputState {
             ui,
             dispatch_chain,
             capturing,
+            frame_index,
             focused: false,
         };
         self.behavior.event(&mut self.item, event, &mut input_state)
@@ -148,10 +150,12 @@ impl ItemNode {
         dispatch_chain: DispatchChain,
     ) -> bool {
         let capturing = ui.is_item_capturing(dispatch_chain.current_id());
+        let frame_index = ui.frame_index;
         let mut input_state = InputState {
             ui,
             dispatch_chain,
             capturing,
+            frame_index,
             focused: false,
         };
         self.behavior

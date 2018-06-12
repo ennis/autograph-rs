@@ -2,6 +2,7 @@
 use super::super::*;
 use container::WindowEventExt;
 
+
 impl<'a> UiContainer<'a> {
     ///
     /// Vertical layout box.
@@ -108,6 +109,18 @@ impl<'a> UiContainer<'a> {
         }
 
         impl Behavior for FloatingPanel {
+            fn capture_event(
+                &mut self,
+                item: &mut Item,
+                event: &WindowEvent,
+                input_state: &mut InputState,
+            ) -> bool {
+                if event.mouse_down() {
+                    item.bring_to_front();
+                }
+                false
+            }
+
             fn event(
                 &mut self,
                 item: &mut Item,
@@ -134,6 +147,8 @@ impl<'a> UiContainer<'a> {
 
                 ui.item("header", "floating-panel-header", (), |ui, _, _| {
                     ui.text(label.clone());
+                    ui.item("close", "floating-panel-close-button", (), |_,_,_| {
+                    });
                 });
 
                 ui.item("contents", "floating-panel-contents", (), |ui, _, _| {
@@ -156,4 +171,27 @@ impl<'a> UiContainer<'a> {
             },
         );
     }
+
+   /* pub fn dock_area<S, F>(&mut self, id: S, f: F)
+        where
+            S: Into<String>,
+            F: FnOnce(&mut DockContainer)
+    {
+        struct DockArea {
+            // map ID -> position in dock tree
+        }
+    }*/
+
+    // dock panel:
+    // reuse floating-panel
+    // when dragging into a certain region: show anchor
+    /*
+    @dock_area {
+        @dock_panel {
+            // need to know we're in a panel
+        }
+        @dock_panel {
+        }
+    }
+    */
 }

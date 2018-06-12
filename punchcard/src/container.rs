@@ -114,6 +114,7 @@ impl<'a> UiContainer<'a> {
                 .downcast_mut()
                 .expect("downcast to behavior type failed");
             f(&mut container, item, behavior);
+            behavior.post_frame(item, container.ui.frame_index);
             container.finish()
         }
 

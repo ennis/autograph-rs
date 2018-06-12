@@ -26,19 +26,12 @@ $edit-background: $button-background;
 vbox {
     flex-direction: column;
     margin: 2px;
-
-    border-color: $panel-border;
-    background-color: $panel-background;
     border-width: 1px;
 }
 
 hbox {
     flex-direction: row;
     margin: 2px;
-
-    //border-color: #c12727;
-    //border-width: 1px;
-    background-color: $panel-background;
 }
 
 slider {
@@ -106,13 +99,13 @@ collapsing-panel {
 collapsing-panel-header {
     //border-color: $panel-border;
     background-color: $panel-header;
-    padding: 3px;
+    padding: 4px;
 }
 
 collapsing-panel-contents {
     padding: 4px;
     border-color: $panel-header;
-    border-width: 2px;
+    border-width: 1px;
 }
 
 floating-panel {
@@ -122,23 +115,35 @@ floating-panel {
 
     margin: 2px;
     border-width: 2px;
-    border-color: $panel-header;
+    padding: 2px;
+    border-color: darken($panel-header-alt, 30);
     position: absolute;
 
-    background-color: $panel-background-alt;
+    background-color: darken($panel-header-alt, 40);
 
     width: 400px;
     height: 400px;
 }
 
+floating-panel-close-button {
+    //border-color: $panel-border;
+    position: absolute;
+    right: 3px;
+    top: 3px;
+    background-color: $accent-2;
+    width: 18px;
+    height: 18px;
+}
+
 floating-panel-header {
     //border-color: $panel-border;
-    background-color: $panel-header;
+    background-color: $panel-header-alt;
     padding: 3px;
+    height: 24px;
 }
 
 floating-panel-contents {
-    padding: 4px;
+    padding: 6px;
 }
 
 floating-panel-resize-handle {

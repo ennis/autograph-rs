@@ -75,6 +75,9 @@ pub struct InputState<'a> {
     /// Whether the item received this event because it has focus.
     /// TODO make this private, replace with method.
     pub focused: bool,
+    /// The frame index for the event.
+    pub frame_index: usize,
+
 }
 
 impl<'a> InputState<'a> {

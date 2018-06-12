@@ -16,6 +16,9 @@ pub trait Behavior: Any {
     /// One-time initialization.
     fn init(&mut self, _item: &mut Item) {}
 
+    /// once-per-frame initialization.
+    fn post_frame(&mut self, _item: &mut Item, frame_index: usize) {}
+
     /// Draw the item to the specified renderer.
     fn draw(&mut self, item: &mut Item, draw_list: &mut DrawList) {
         draw_list.add_rect(item.layout.clone(), item.style.clone());
@@ -155,6 +158,8 @@ impl CheckboxBehavior {
 }
 
 impl Behavior for CheckboxBehavior {
+
+
     fn event(
         &mut self,
         _item: &mut Item,
@@ -163,6 +168,38 @@ impl Behavior for CheckboxBehavior {
     ) -> bool {
         if event.clicked() {
             self.checked = !self.checked;
+        }
+        true
+    }
+}
+
+pub struct ButtonBehavior
+{
+    /// Whether the button has been clicked on the given frame.
+    pub clicked: bool
+}
+
+impl ButtonBehavior
+{
+    pub fn new() -> ButtonBehavior {
+        ButtonBehavior { clicked: false }
+    }
+
+    pub fn clicked(&self) -> bool {
+        self.clicked
+    }
+}
+
+impl Behavior for ButtonBehavior
+{
+    fn post_frame(&mut self, _item: &mut Item, _frame_index: usize) {
+        // reset clicked flag.
+        self.clicked = false;
+    }
+
+    fn event(&mut self, _item: &mut Item, event: &WindowEvent, input_state: &mut InputState) -> bool {
+        if event.clicked() {
+            self.clicked = true;
         }
         true
     }

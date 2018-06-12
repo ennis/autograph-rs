@@ -1,5 +1,6 @@
 //! Buttons
 use super::super::*;
+use super::super::behavior::ButtonBehavior;
 
 impl<'a> UiContainer<'a> {
     ///
@@ -10,10 +11,11 @@ impl<'a> UiContainer<'a> {
         S: Into<String>,
     {
         let label = label.into();
-        struct Button;
-        impl Behavior for Button {}
-        self.item(label.clone(), "button", Button, |ui, _, _| {
+        self.item(label.clone(), "button", ButtonBehavior::new(), |ui, item, state| {
             ui.text_class(label, "button-label");
+            if state.clicked() {
+                debug!("button clicked {:016X}", item.id);
+            }
         });
     }
 }

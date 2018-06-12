@@ -92,7 +92,12 @@ pub struct Ui {
     cur_root_index: usize,
     frontmost_z: i32,
     store: ResourceStore,
+    frame_index: usize
 }
+
+//
+// Separate the UI tree from the visual tree.
+//
 
 impl Ui {
     /*fn add_popup(&mut self, id_path: &[ItemID])
@@ -171,7 +176,7 @@ impl Ui {
     ) -> bool {
         // check popups first
         for (k,node) in self.roots.0.iter().rev() {
-            debug!("testing {}", *k);
+           // debug!("testing {}", *k);
             if self.hit_test_rec(pos, node, chain) {
                 // got a match
                 break;
@@ -303,6 +308,7 @@ impl Ui {
             frontmost_z: -1,
             cur_root_index: 0,
             store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
+            frame_index: 0
         };
 
         ui
@@ -409,6 +415,7 @@ impl Ui {
             self.roots.0.insert(0, window_root);
             self.sort_roots();
             self.frontmost_z = self.roots.0.values().last().unwrap().item.z_order.unwrap();
+            self.frame_index += 1;
         });
     }
 
