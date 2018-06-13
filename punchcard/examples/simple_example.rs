@@ -3,24 +3,15 @@ extern crate punchcard;
 #[macro_use]
 extern crate log;
 extern crate pretty_env_logger;
-extern crate glutin;
 #[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
-extern crate gl;
-extern crate indexmap;
-extern crate nanovg as nvg;
 extern crate num;
-extern crate petgraph;
 extern crate rand;
 extern crate time;
-extern crate yoga;
-extern crate cssparser;
-extern crate warmy;
-extern crate winapi;
 
 use punchcard::*;
 use rand::Rng;
@@ -28,7 +19,7 @@ use rand::Rng;
 mod common;
 
 fn main() {
-    common::gui_test(|ui| {
+    common::main_wrapper("Simple example", 1280, 720, |ui| {
         static mut DATA: u32 = 0;
         let data = unsafe { &mut DATA };
 

@@ -29,6 +29,11 @@ warmy="*"
 winapi="*"
 user32-sys="*"
 kernel32-sys="*"
+euclid="*"
+gleam="*"
+
+[dependencies.webrender]
+git = "https://github.com/servo/webrender"
 
 [dependencies.nanovg]
 path = "../ext/nanovg-rs"

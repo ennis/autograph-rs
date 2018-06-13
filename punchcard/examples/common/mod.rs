@@ -1,87 +1,407 @@
-use glutin::GlContext;
+extern crate warmy;
+extern crate glutin;
+extern crate winit;
+extern crate webrender;
+extern crate euclid;
+extern crate gleam;
 
-use gl;
-use glutin;
-use nvg;
+use self::gleam::gl;
+use self::glutin::GlContext;
 use pretty_env_logger;
 use punchcard::*;
 use std::path::{Path, PathBuf};
 use std::env;
+use std::cmp::{min,max};
+use self::webrender::api::*;
 
 const INIT_WINDOW_SIZE: (u32, u32) = (1024, 720);
 
-pub fn gui_test<F>(mut f: F)
-where
-    F: FnMut(&mut Ui),
+struct Notifier {
+    events_proxy: winit::EventsLoopProxy,
+}
+
+impl Notifier {
+    fn new(events_proxy: winit::EventsLoopProxy) -> Notifier {
+        Notifier { events_proxy }
+    }
+}
+
+impl RenderNotifier for Notifier {
+    fn clone(&self) -> Box<RenderNotifier> {
+        Box::new(Notifier {
+            events_proxy: self.events_proxy.clone(),
+        })
+    }
+
+    fn wake_up(&self) {
+        #[cfg(not(target_os = "android"))]
+        let _ = self.events_proxy.wakeup();
+    }
+
+    fn new_frame_ready(&self, _: DocumentId, _scrolled: bool, _composite_needed: bool) {
+        self.wake_up();
+    }
+}
+
+fn ui_render(
+    ui: &mut Ui,
+    api: &RenderApi,
+    builder: &mut DisplayListBuilder,
+    txn: &mut Transaction,
+    framebuffer_size: DeviceUintSize,
+    pipeline_id: PipelineId,
+    document_id: DocumentId)
+{
+    let mut wr_renderer = WRRenderer {
+        api,
+        builder,
+        txn,
+        framebuffer_size,
+        pipeline_id,
+        document_id,
+    };
+
+    debug!("fb size= {:?}", framebuffer_size);
+    ui.render((framebuffer_size.width as f32, framebuffer_size.height as f32), &mut wr_renderer);
+}
+
+fn ui_event(
+    ui: &mut Ui,
+    event: winit::WindowEvent,
+    api: &RenderApi,
+    document_id: DocumentId) -> bool
+{
+    ui.dispatch_event(&event);
+    true
+}
+
+struct WRRenderer<'a>
+{
+    api: &'a RenderApi,
+    builder: &'a mut DisplayListBuilder,
+    txn: &'a mut Transaction,
+    framebuffer_size: DeviceUintSize,
+    pipeline_id: PipelineId,
+    document_id: DocumentId
+}
+
+impl<'a> WRRenderer<'a>
+{
+    fn draw_rect(&mut self, layout: &Layout, style: &CachedStyle) {
+        let fill_color = {
+            let (r, g, b, a) = style.non_layout.background_color;
+            ColorF::new(r, g, b, a)
+        };
+
+        let border_color = {
+            let (r, g, b, a) = style.non_layout.border_color.top;
+            ColorF::new(r, g, b, a)
+        };
+
+        let bounds = LayoutRect::new(LayoutPoint::new(layout.left, layout.top),
+                                     // WR doesn't like zero sizes?
+                                     LayoutSize::new(
+                                        layout.width().max(1.0),
+                                        layout.height().max(1.0)));
+        let info = LayoutPrimitiveInfo::new(bounds);
+        debug!("layout {:?}", layout);
+
+        let clip = ComplexClipRegion {
+            rect: bounds,
+            radii: BorderRadius::uniform(style.non_layout.border_radius),
+            mode: ClipMode::Clip,
+        };
+        let clip_id = self.builder.define_clip(bounds, vec![clip], None);
+        self.builder.push_clip_id(clip_id);
+
+        self.builder.push_rect(&info, fill_color);
+
+        let border_side = BorderSide {
+            color: border_color,
+            style: BorderStyle::Solid,
+        };
+        let border_widths = BorderWidths {
+            top: style.non_layout.border_width.top.max(1.0),
+            left: style.non_layout.border_width.left.max(1.0),
+            bottom: style.non_layout.border_width.bottom.max(1.0),
+            right: style.non_layout.border_width.right.max(1.0)
+        };
+        let border_details = BorderDetails::Normal(NormalBorder {
+            top: border_side,
+            right: border_side,
+            bottom: border_side,
+            left: border_side,
+            radius: BorderRadius::uniform(style.non_layout.border_radius),
+        });
+
+        self.builder.pop_clip_id();
+
+        self.builder.push_border(&info, border_widths, border_details);
+    }
+}
+
+impl<'a> Renderer for WRRenderer<'a>
+{
+    fn measure_text(&self, text: &str, style: &CachedStyle) -> f32 {
+        0.0
+    }
+
+    fn measure_image(&self, image_path: &str) -> Option<(f32, f32)> {
+        None
+    }
+
+    fn draw_frame(&mut self, items: &[DrawItem]) {
+        debug!("RENDEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEER");
+        let bounds = LayoutRect::new(LayoutPoint::zero(), self.builder.content_size());
+        let info = LayoutPrimitiveInfo::new(bounds);
+        debug!("prim info {:?}", info);
+        self.builder.push_stacking_context(
+            &info,
+            None,
+            TransformStyle::Flat,
+            MixBlendMode::Normal,
+            Vec::new(),
+            GlyphRasterSpace::Screen,
+        );
+
+        for di in items {
+            match di.kind {
+                DrawItemKind::Rect => {
+                    self.draw_rect(&di.layout, &di.style);
+                }
+                DrawItemKind::Image(_) => unimplemented!(),
+                DrawItemKind::Text(ref str) => {
+                    //self.draw_text(str, &di.layout, &di.style);
+                }
+            }
+        }
+
+        self.builder.pop_stacking_context();
+    }
+}
+
+
+pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut f: F)
 {
     env::set_current_dir(env!("CARGO_MANIFEST_DIR"));
     pretty_env_logger::init();
-    let mut events_loop = glutin::EventsLoop::new();
-    let window = glutin::WindowBuilder::new()
-        .with_title("Glutin NanoVG")
-        .with_dimensions(INIT_WINDOW_SIZE.0, INIT_WINDOW_SIZE.1);
-    let context = glutin::ContextBuilder::new()
-        .with_vsync(true)
-        .with_multisampling(4)
-        .with_srgb(true);
-    let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
+
+    let args: Vec<String> = env::args().collect();
+    let res_path = if args.len() > 1 {
+        Some(PathBuf::from(&args[1]))
+    } else {
+        None
+    };
+
+    //========================================================================
+    //========================================================================
+    // Window & GL context setup
+    // ========================================================================
+    // ========================================================================
+    let mut events_loop = winit::EventsLoop::new();
+    let context_builder = glutin::ContextBuilder::new()
+        .with_gl(glutin::GlRequest::GlThenGles {
+            opengl_version: (3, 3),
+            opengles_version: (3, 0),
+        });
+    let window_builder = winit::WindowBuilder::new()
+        .with_title(title)
+        .with_multitouch()
+        .with_dimensions(width, height);
+    let window = glutin::GlWindow::new(window_builder, context_builder, &events_loop)
+        .unwrap();
 
     unsafe {
-        gl_window.make_current().unwrap();
-        gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
-        gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+        window.make_current().ok();
     }
 
-    let context = nvg::ContextBuilder::new()
-        .stencil_strokes()
-        .build()
-        .expect("Initialization of NanoVG failed!");
+    let gl = match window.get_api() {
+        glutin::Api::OpenGl => unsafe {
+            gl::GlFns::load_with(|symbol| window.get_proc_address(symbol) as *const _)
+        },
+        glutin::Api::OpenGlEs => unsafe {
+            gl::GlesFns::load_with(|symbol| window.get_proc_address(symbol) as *const _)
+        },
+        glutin::Api::WebGl => unimplemented!(),
+    };
 
-    let iosevka_font = nvg::Font::from_file(
-        &context,
-        "Iosevka",
-        "data/fonts/iosevka-regular.ttf",
-    ).expect("Failed to load font");
 
-    let mut running = true;
+    //========================================================================
+    //========================================================================
+    // Webrender setup
+    //========================================================================
+    //========================================================================
+    println!("OpenGL version {}", gl.get_string(gl::VERSION));
+    println!("Shader resource path: {:?}", res_path);
+    let device_pixel_ratio = window.hidpi_factor();
+    println!("HiDPI factor: {}", device_pixel_ratio);
+
+    println!("Loading shaders...");
+    let opts = webrender::RendererOptions {
+        resource_override_path: res_path,
+        precache_shaders: false,
+        device_pixel_ratio,
+        clear_color: Some(ColorF::new(0.3, 0.0, 0.0, 1.0)),
+        //scatter_gpu_cache_updates: false,
+        debug_flags: webrender::DebugFlags::ECHO_DRIVER_MESSAGES,
+        ..webrender::RendererOptions::default()
+    };
+
+    let framebuffer_size = {
+        let (width, height) = window.get_inner_size().unwrap();
+        DeviceUintSize::new(width, height)
+    };
+    let notifier = Box::new(Notifier::new(events_loop.create_proxy()));
+    let (mut renderer, sender) = webrender::Renderer::new(gl.clone(), notifier, opts).unwrap();
+    let api = sender.create_api();
+    let document_id = api.add_document(framebuffer_size, 0);
+
+    let (external, output) = (None,None); //example.get_image_handlers(&*gl);
+
+    if let Some(output_image_handler) = output {
+        renderer.set_output_image_handler(output_image_handler);
+    }
+
+    if let Some(external_image_handler) = external {
+        renderer.set_external_image_handler(external_image_handler);
+    }
+
+    let epoch = Epoch(0);
+    let pipeline_id = PipelineId(0, 0);
+    let layout_size = framebuffer_size.to_f32() / euclid::TypedScale::new(device_pixel_ratio);
+    let mut builder = DisplayListBuilder::new(pipeline_id, layout_size);
+    let mut txn = Transaction::new();
+
+    //========================================================================
+    //========================================================================
+    // UI
+    //========================================================================
+    //========================================================================
     let mut ui = Ui::new();
-    ui.load_stylesheet("data/css/default.css").expect("failed to load default stylesheet");
-    debug!("HiDPI factor is {}", gl_window.hidpi_factor());
+    ui.load_stylesheet("data/css/default.css");
 
-    while running {
-        events_loop.poll_events(|event| match event {
-            glutin::Event::WindowEvent { event, .. } => {
-                ui.dispatch_event(&event);
-                match event {
-                    glutin::WindowEvent::CloseRequested => running = false,
-                    glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
-                    _ => {}
-                }
-            }
-            _ => {}
-        });
+    //========================================================================
+    //========================================================================
+    // Event loop
+    //========================================================================
+    //========================================================================
 
-        if !running {
-            break;
-        }
+    // initial render
+    f(&mut ui);
+    ui_render(
+        &mut ui,
+        &api,
+        &mut builder,
+        &mut txn,
+        framebuffer_size,
+        pipeline_id,
+        document_id,
+    );
+    txn.set_display_list(
+        epoch,
+        None,
+        layout_size,
+        builder.finalize(),
+        true,
+    );
+    txn.set_root_pipeline(pipeline_id);
+    txn.generate_frame();
+    api.send_transaction(document_id, txn);
 
-        let (width, height) = gl_window.get_inner_size().unwrap();
+    println!("Entering event loop");
+    events_loop.run_forever(|global_event| {
+        let mut txn = Transaction::new();
+        let mut custom_event = true;
 
-        unsafe {
-            gl::Viewport(0, 0, width as i32, height as i32);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
-        }
-
-        context.frame(
-            (width as f32, height as f32),
-            gl_window.hidpi_factor(),
-            |frame| {
-                f(&mut ui);
-                let mut renderer = NvgRenderer::new(frame, iosevka_font, 16.0);
-                ui.render((width as f32, height as f32), &mut renderer);
+        match global_event {
+            winit::Event::WindowEvent {
+                event: winit::WindowEvent::CloseRequested,
+                ..
+            } => return winit::ControlFlow::Break,
+            winit::Event::WindowEvent {
+                event: winit::WindowEvent::KeyboardInput {
+                    input: winit::KeyboardInput {
+                        state: winit::ElementState::Pressed,
+                        virtual_keycode: Some(key),
+                        ..
+                    },
+                    ..
+                },
+                ..
+            } => match key {
+                winit::VirtualKeyCode::Escape => return winit::ControlFlow::Break,
+                winit::VirtualKeyCode::P => renderer.toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG),
+                winit::VirtualKeyCode::O => renderer.toggle_debug_flags(webrender::DebugFlags::RENDER_TARGET_DBG),
+                winit::VirtualKeyCode::I => renderer.toggle_debug_flags(webrender::DebugFlags::TEXTURE_CACHE_DBG),
+                winit::VirtualKeyCode::S => renderer.toggle_debug_flags(webrender::DebugFlags::COMPACT_PROFILER),
+                winit::VirtualKeyCode::Q => renderer.toggle_debug_flags(
+                    webrender::DebugFlags::GPU_TIME_QUERIES | webrender::DebugFlags::GPU_SAMPLE_QUERIES
+                ),
+                winit::VirtualKeyCode::Key1 => txn.set_window_parameters(
+                    framebuffer_size,
+                    DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
+                    1.0
+                ),
+                winit::VirtualKeyCode::Key2 => txn.set_window_parameters(
+                    framebuffer_size,
+                    DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
+                    2.0
+                ),
+                winit::VirtualKeyCode::M => api.notify_memory_pressure(),
+                #[cfg(feature = "capture")]
+                winit::VirtualKeyCode::C => {
+                    let path: PathBuf = "../captures/example".into();
+                    //TODO: switch between SCENE/FRAME capture types
+                    // based on "shift" modifier, when `glutin` is updated.
+                    let bits = CaptureBits::all();
+                    api.save_capture(path, bits);
+                },
+                _ => {
+                    let win_event = match global_event {
+                        winit::Event::WindowEvent { event, .. } => event,
+                        _ => unreachable!()
+                    };
+                    custom_event = ui_event(&mut ui, win_event, &api, document_id)
+                },
             },
-        );
+            winit::Event::WindowEvent { event, .. } => custom_event = ui_event(&mut ui, event, &api, document_id),
+            _ => return winit::ControlFlow::Continue,
+        };
 
-        gl_window.swap_buffers().unwrap();
-    }
+        f(&mut ui);
+
+        if custom_event {
+            let mut builder = DisplayListBuilder::new(pipeline_id, layout_size);
+
+            ui_render(
+                &mut ui,
+                &api,
+                &mut builder,
+                &mut txn,
+                framebuffer_size,
+                pipeline_id,
+                document_id,
+            );
+            txn.set_display_list(
+                epoch,
+                None,
+                layout_size,
+                builder.finalize(),
+                true,
+            );
+            txn.generate_frame();
+        }
+        api.send_transaction(document_id, txn);
+
+        renderer.update();
+        renderer.render(framebuffer_size).unwrap();
+        let _ = renderer.flush_pipeline_info();
+
+        //example.draw_custom(&*gl);
+
+        window.swap_buffers().ok();
+        winit::ControlFlow::Continue
+    });
+
+    renderer.deinit();
 }
