@@ -12,6 +12,33 @@ use indexmap::{
 use glutin::{WindowEvent};
 use yoga;
 
+
+/*
+Proposed refactor:
+- ideally, no need for split borrows
+- internal state directly accessible as a member, with the correct type
+- use a DST for Item: Item<T: ?Sized + Behavior>
+- issue: cannot diff / incremental update when accessing item members through field access.
+        - fields are changed, but system cannot detect changes
+        - load and clone item: costly
+- rename UiContainer -> ItemProxy (if necessary)
+
+Refactor of the UI tree:
+- one single hash map
+- issue: cannot have a borrow of both an item and the hash map (to add children)
+    yet, it's important that child items have access to the state of the parents in the immediate path
+    inline access to the internal state is important for building widgets by composition
+    this is different with Virtual DOM approaches, where internal state is not exposed to the user in the
+    inline path.
+- do not store state directly in the visual tree: store state in a separate hash map
+
+- fundamentally:
+    UI element = Persistent internal state + persistent external state -> visual(s)
+    a UI element is a function that is called when all the parameters are available
+
+    ID -> (State, Value -> Visual)
+*/
+
 /// Data structure (indexmap) containing the children of a node.
 pub(super) struct ItemChildren(pub(super) IndexMap<ItemID,ItemNode>);
 

@@ -5,6 +5,7 @@ extern crate webrender;
 extern crate euclid;
 extern crate gleam;
 
+use self::euclid::vec2;
 use self::gleam::gl;
 use self::glutin::GlContext;
 use pretty_env_logger;
@@ -134,9 +135,29 @@ impl<'a> WRRenderer<'a>
             radius: BorderRadius::uniform(style.non_layout.border_radius),
         });
 
+        self.builder.push_border(&info, border_widths, border_details);
         self.builder.pop_clip_id();
 
-        self.builder.push_border(&info, border_widths, border_details);
+        // draw box shadow?
+        /*let rect = LayoutRect::zero();
+        let offset = vec2(10.0, 10.0);
+        let color = ColorF::new(1.0, 1.0, 1.0, 1.0);
+        let blur_radius = 0.0;
+        let spread_radius = 0.0;
+        let simple_border_radius = 8.0;
+        let box_shadow_type = BoxShadowClipMode::Inset;
+        let info = LayoutPrimitiveInfo::with_clip_rect(rect, bounds);
+
+        self.builder.push_box_shadow(
+            &info,
+            bounds,
+            offset,
+            color,
+            blur_radius,
+            spread_radius,
+            BorderRadius::uniform(simple_border_radius),
+            box_shadow_type,
+        );*/
     }
 }
 
@@ -200,7 +221,7 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
     let context_builder = glutin::ContextBuilder::new()
         .with_vsync(true)
         .with_gl(glutin::GlRequest::GlThenGles {
-            opengl_version: (3, 3),
+            opengl_version: (4, 6),
             opengles_version: (3, 0),
         });
     let window_builder = winit::WindowBuilder::new()
@@ -413,3 +434,18 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
 
     renderer.deinit();
 }
+
+// Supporting multi-window and other stuff
+// - Should be transparent to the user
+// - let ownership of the event loop to the user
+// - must provide an interface to create a window
+// - *** or just use winit+webrender internally
+// - pass ref to event_loop to Ui::new(&event_loop, context_parameters)
+// - Ui::set_context_parameters() for the GL (or Vulkan?) context of the created platform windows.
+// - Then, call Ui::platform_window(|ui| {
+//      window.width = XXX;
+//      window.height = XXX;
+//      window.title = XXX;
+//      window.show_decorations = XXX;
+// })
+// - depends on the simplification / refactor of UI specification
