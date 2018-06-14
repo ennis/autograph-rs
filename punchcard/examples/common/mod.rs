@@ -72,7 +72,8 @@ fn ui_event(
     document_id: DocumentId) -> bool
 {
     ui.dispatch_event(&event);
-    true
+    // don't redraw
+    false
 }
 
 struct WRRenderer<'a>
@@ -104,7 +105,6 @@ impl<'a> WRRenderer<'a>
                                         layout.width().max(1.0),
                                         layout.height().max(1.0)));
         let info = LayoutPrimitiveInfo::new(bounds);
-        debug!("layout {:?}", layout);
 
         let clip = ComplexClipRegion {
             rect: bounds,
@@ -151,10 +151,8 @@ impl<'a> Renderer for WRRenderer<'a>
     }
 
     fn draw_frame(&mut self, items: &[DrawItem]) {
-        debug!("RENDEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEER");
         let bounds = LayoutRect::new(LayoutPoint::zero(), self.builder.content_size());
         let info = LayoutPrimitiveInfo::new(bounds);
-        debug!("prim info {:?}", info);
         self.builder.push_stacking_context(
             &info,
             None,
@@ -309,68 +307,73 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
     api.send_transaction(document_id, txn);
 
     println!("Entering event loop");
-    events_loop.run_forever(|global_event| {
-        let mut txn = Transaction::new();
-        let mut custom_event = true;
 
-        match global_event {
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::CloseRequested,
-                ..
-            } => return winit::ControlFlow::Break,
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::KeyboardInput {
-                    input: winit::KeyboardInput {
-                        state: winit::ElementState::Pressed,
-                        virtual_keycode: Some(key),
+    loop {
+        let frame_time = measure_time(|| {
+            let mut txn = Transaction::new();
+
+            events_loop.poll_events(|global_event| {
+                match global_event {
+                    winit::Event::WindowEvent {
+                        event: winit::WindowEvent::CloseRequested,
                         ..
+                    } => {},
+                    winit::Event::WindowEvent {
+                        event: winit::WindowEvent::KeyboardInput {
+                            input: winit::KeyboardInput {
+                                state: winit::ElementState::Pressed,
+                                virtual_keycode: Some(key),
+                                ..
+                            },
+                            ..
+                        },
+                        ..
+                    } => match key {
+                        winit::VirtualKeyCode::Escape => {},
+                        winit::VirtualKeyCode::P => renderer.toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG),
+                        winit::VirtualKeyCode::O => renderer.toggle_debug_flags(webrender::DebugFlags::RENDER_TARGET_DBG),
+                        winit::VirtualKeyCode::I => renderer.toggle_debug_flags(webrender::DebugFlags::TEXTURE_CACHE_DBG),
+                        winit::VirtualKeyCode::S => renderer.toggle_debug_flags(webrender::DebugFlags::COMPACT_PROFILER),
+                        winit::VirtualKeyCode::Q => renderer.toggle_debug_flags(
+                            webrender::DebugFlags::GPU_TIME_QUERIES | webrender::DebugFlags::GPU_SAMPLE_QUERIES
+                        ),
+                        winit::VirtualKeyCode::Key1 => txn.set_window_parameters(
+                            framebuffer_size,
+                            DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
+                            1.0
+                        ),
+                        winit::VirtualKeyCode::Key2 => txn.set_window_parameters(
+                            framebuffer_size,
+                            DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
+                            2.0
+                        ),
+                        winit::VirtualKeyCode::M => api.notify_memory_pressure(),
+                        #[cfg(feature = "capture")]
+                        winit::VirtualKeyCode::C => {
+                            let path: PathBuf = "../captures/example".into();
+                            //TODO: switch between SCENE/FRAME capture types
+                            // based on "shift" modifier, when `glutin` is updated.
+                            let bits = CaptureBits::all();
+                            api.save_capture(path, bits);
+                        },
+                        _ => {
+                            let win_event = match global_event {
+                                winit::Event::WindowEvent { event, .. } => event,
+                                _ => unreachable!()
+                            };
+                            ui_event(&mut ui, win_event, &api, document_id);
+                        },
                     },
-                    ..
-                },
-                ..
-            } => match key {
-                winit::VirtualKeyCode::Escape => return winit::ControlFlow::Break,
-                winit::VirtualKeyCode::P => renderer.toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG),
-                winit::VirtualKeyCode::O => renderer.toggle_debug_flags(webrender::DebugFlags::RENDER_TARGET_DBG),
-                winit::VirtualKeyCode::I => renderer.toggle_debug_flags(webrender::DebugFlags::TEXTURE_CACHE_DBG),
-                winit::VirtualKeyCode::S => renderer.toggle_debug_flags(webrender::DebugFlags::COMPACT_PROFILER),
-                winit::VirtualKeyCode::Q => renderer.toggle_debug_flags(
-                    webrender::DebugFlags::GPU_TIME_QUERIES | webrender::DebugFlags::GPU_SAMPLE_QUERIES
-                ),
-                winit::VirtualKeyCode::Key1 => txn.set_window_parameters(
-                    framebuffer_size,
-                    DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
-                    1.0
-                ),
-                winit::VirtualKeyCode::Key2 => txn.set_window_parameters(
-                    framebuffer_size,
-                    DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
-                    2.0
-                ),
-                winit::VirtualKeyCode::M => api.notify_memory_pressure(),
-                #[cfg(feature = "capture")]
-                winit::VirtualKeyCode::C => {
-                    let path: PathBuf = "../captures/example".into();
-                    //TODO: switch between SCENE/FRAME capture types
-                    // based on "shift" modifier, when `glutin` is updated.
-                    let bits = CaptureBits::all();
-                    api.save_capture(path, bits);
-                },
-                _ => {
-                    let win_event = match global_event {
-                        winit::Event::WindowEvent { event, .. } => event,
-                        _ => unreachable!()
-                    };
-                    custom_event = ui_event(&mut ui, win_event, &api, document_id)
-                },
-            },
-            winit::Event::WindowEvent { event, .. } => custom_event = ui_event(&mut ui, event, &api, document_id),
-            _ => return winit::ControlFlow::Continue,
-        };
+                    winit::Event::WindowEvent { event, .. } => {
+                        ui_event(&mut ui, event, &api, document_id);
+                    },
+                    _ => {},
+                };
+            });
 
-        f(&mut ui);
 
-        if custom_event {
+            f(&mut ui);
+
             let mut builder = DisplayListBuilder::new(pipeline_id, layout_size);
 
             ui_render(
@@ -390,18 +393,18 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
                 true,
             );
             txn.generate_frame();
-        }
-        api.send_transaction(document_id, txn);
+            api.send_transaction(document_id, txn);
 
-        renderer.update();
-        renderer.render(framebuffer_size).unwrap();
-        let _ = renderer.flush_pipeline_info();
+            renderer.update();
+            renderer.render(framebuffer_size).unwrap();
+            let _ = renderer.flush_pipeline_info();
 
-        //example.draw_custom(&*gl);
+            //example.draw_custom(&*gl);
 
-        window.swap_buffers().ok();
-        winit::ControlFlow::Continue
-    });
+            window.swap_buffers().ok();
+        });
+        debug!("frame time: {}us", frame_time);
+    }
 
     renderer.deinit();
 }

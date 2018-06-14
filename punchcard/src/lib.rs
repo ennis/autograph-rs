@@ -171,7 +171,6 @@ impl Ui {
     ) -> bool {
         // check popups first
         for (k,node) in self.roots.0.iter().rev() {
-            debug!("testing {}", *k);
             if self.hit_test_rec(pos, node, chain) {
                 // got a match
                 break;
@@ -275,7 +274,7 @@ impl Ui {
     }
 }
 
-fn measure_time<F: FnOnce()>(f: F) -> u64 {
+pub fn measure_time<F: FnOnce()>(f: F) -> u64 {
     let start = time::PreciseTime::now();
     f();
     let duration = start.to(time::PreciseTime::now());
