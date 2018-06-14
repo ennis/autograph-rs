@@ -198,6 +198,7 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
     // ========================================================================
     let mut events_loop = winit::EventsLoop::new();
     let context_builder = glutin::ContextBuilder::new()
+        .with_vsync(true)
         .with_gl(glutin::GlRequest::GlThenGles {
             opengl_version: (3, 3),
             opengles_version: (3, 0),
@@ -404,6 +405,10 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
             window.swap_buffers().ok();
         });
         debug!("frame time: {}us", frame_time);
+        // target 60fps
+        /*if frame_time < 1_000_000 / 60 {
+            ::std::thread::sleep(::std::time::Duration::from_micros(1_000_000 / 60 - frame_time));
+        }*/
     }
 
     renderer.deinit();

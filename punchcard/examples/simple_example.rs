@@ -26,7 +26,7 @@ fn main() {
         ui.root(|ui| {
             ui.scroll("main", |ui| {
                 // ui.vbox("main", |ui| {
-                for i in 0..3 {
+                for i in 0..10 {
                     ui.floating_panel(format!("Floating {}", i), |ui| {
                         ui.text("panel contents");
                         ui.hbox(format!("{}", i), |ui| {
