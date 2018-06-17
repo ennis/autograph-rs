@@ -175,6 +175,71 @@ impl<'a> UiContainer<'a> {
 // => use a macro
 
 /*
+struct Slider<T: Interpolable>
+{
+    pos: f32,
+    min: f32,
+    max: f32,
+}
+
+impl<T: Interpolable> Component<(T,f32,f32)> for Slider2<T>
+{
+    fn render(&mut self, props: &mut T) -> VisualTree
+    {
+        // sync pos and value
+        visual_tree! {
+            @div<"slider"> {
+                @div<"slider-bar"> {
+                    @div<"slider-knob"> {
+                        @set_position(self.pos.percent());
+                    }
+                }
+            }
+        }
+    }
+}
+*/
+
+struct AppState
+{
+    a: f32,
+    b: f32,
+    c: f32,
+}
+
+// This is a component!
+// The first parameter must be some context struct.
+// A render() function cannot return a visual tree because components
+// are not bound yet.
+// UiSink: collects visual items.
+fn gui_for_app_state(ui: &mut UiSink, app: &mut AppState)
+{
+    ui! {ui,
+        @Slider(value=&mut app.a, min=0.0, max=1.0) {
+
+        };
+        @Slider(value=&mut app.b, min=0.0, max=1.0) {
+
+        };
+        @Slider(value=&mut app.c, min=0.0, max=1.0) {
+
+        };
+        @Button(label="clear", on_click=|| {
+            app.c = 0.0;
+        })
+    }
+    //---------------------------------
+    // Expands to:
+
+    ui.add_component::<Slider>(/* props */ SliderProps::new {
+        value: &mut app.a,
+        min: 0.0,
+        max: 1.0
+    }, |_| {});    // drops the ref!
+}
+
+
+/*
 fn slider2<'a>(label: S, value: &'a mut T, min: T, max: T) -> impl Renderable + 'a
 {
     ui! {
@@ -200,3 +265,51 @@ fn slider2<'a>(label: S, value: &'a mut T, min: T, max: T) -> impl Renderable + 
     }
 }
 */
+
+/*struct Slider<T: Interpolable>
+{
+    current_value:
+}*/
+
+/*impl<T: Interpolable> Component<T> for Slider<T>
+{
+    fn event(&mut self, event: &WindowEvent) {
+        //
+    }
+
+    fn render(&mut self, state: &mut T, children: &[DockPanel]) -> VisualTree {
+        // create the visual tree from the state
+        visual! {
+            @div<"slider"> {
+                @div<"slider-bar"> {
+                    @div<"slider-knob"> {
+                        for c in children {
+                            @c.render();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @DockArea {
+        @Dock {
+
+        }
+    }
+
+    DockArea: {
+        <internal state in scope>
+
+        event() {
+            <internal state in scope>
+        }
+
+        render() {
+            traverse tree in internal state
+            <child elements in scope>
+            <external state in scope>
+            add elements to the UI
+        }
+    }
+}*/

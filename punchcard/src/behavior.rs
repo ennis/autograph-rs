@@ -1,163 +1,26 @@
 //! Common item behaviors.
-use super::container::WindowEventExt;
-use super::input::InputState;
-use super::item::Item;
+use super::input::{WindowEventExt,InputState};
+use super::vdom::*;
 use super::layout::ContentMeasurement;
 use super::renderer::{DrawList, Renderer};
 use glutin::{ElementState, WindowEvent};
-use std::any::Any;
-
-/// A set of callbacks that describes the behavior of an item for all deferred processing:
-/// i.e., processing that happens outside the scope of the function calls that create or
-/// update the item (the _immediate path_).
-/// Typically, implementors of this trait are also used to store persistent internal state inside
-/// items.
-pub trait Behavior: Any {
-    /// One-time initialization.
-    fn init(&mut self, _item: &mut Item) {}
-
-    /// Draw the item to the specified renderer.
-    fn draw(&mut self, item: &mut Item, draw_list: &mut DrawList) {
-        draw_list.add_rect(item.layout.clone(), item.style.clone());
-    }
-
-    /// Measure the given item using the specified renderer.
-    fn measure(&mut self, _item: &mut Item, _renderer: &Renderer) -> ContentMeasurement {
-        ContentMeasurement {
-            width: None,
-            height: None,
-        }
-    }
-
-    /// Callback to handle an event passed to the item during the capturing phase.
-    fn capture_event(
-        &mut self,
-        _item: &mut Item,
-        _event: &WindowEvent,
-        _input_state: &mut InputState,
-    ) -> bool {
-        false
-    }
-
-    /// Callback to handle an event during bubbling phase.
-    fn event(
-        &mut self,
-        _item: &mut Item,
-        _event: &WindowEvent,
-        _input_state: &mut InputState,
-    ) -> bool {
-        false
-    }
-}
-
-/// A wrapper around ItemBehavior and Any traits. See:
-/// https://github.com/rust-lang/rfcs/issues/2035
-/// https://stackoverflow.com/questions/26983355
-pub(super) trait BehaviorAny: Behavior + Any {
-    fn as_mut_behavior(&mut self) -> &mut Behavior;
-    fn as_mut_any(&mut self) -> &mut Any;
-}
-
-impl<T> BehaviorAny for T
-where
-    T: Behavior + Any,
-{
-    fn as_mut_behavior(&mut self) -> &mut Behavior {
-        self
-    }
-
-    fn as_mut_any(&mut self) -> &mut Any {
-        self
-    }
-}
-
-//#[derive(Copy, Clone, Debug)]
-//pub struct DummyBehavior;
-
-impl Behavior for () {
-    //fn draw(&mut self, _item: &mut Item, _renderer: &mut Renderer) {}
-
-    fn measure(&mut self, _item: &mut Item, _renderer: &Renderer) -> ContentMeasurement {
-        ContentMeasurement {
-            width: None,
-            height: None,
-        }
-    }
-
-    fn capture_event(
-        &mut self,
-        _item: &mut Item,
-        _event: &WindowEvent,
-        _input_state: &mut InputState,
-    ) -> bool {
-        false
-    }
-
-    /// Callback to handle an event during bubbling phase.
-    fn event(
-        &mut self,
-        _item: &mut Item,
-        _event: &WindowEvent,
-        _input_state: &mut InputState,
-    ) -> bool {
-        false
-    }
-}
-
-struct Invisible;
-
-impl Behavior for Invisible {
-    fn draw(&mut self, _item: &mut Item, _draw_list: &mut DrawList) {}
-
-    fn measure(&mut self, _item: &mut Item, _renderer: &Renderer) -> ContentMeasurement {
-        ContentMeasurement {
-            width: None,
-            height: None,
-        }
-    }
-
-    fn capture_event(
-        &mut self,
-        _item: &mut Item,
-        _event: &WindowEvent,
-        _input_state: &mut InputState,
-    ) -> bool {
-        // capture nothing
-        false
-    }
-
-    fn event(
-        &mut self,
-        _item: &mut Item,
-        _event: &WindowEvent,
-        _input_state: &mut InputState,
-    ) -> bool {
-        // always bubble
-        false
-    }
-}
-
-/// InputBehavior: feed events, get info.
-/*pub struct InputBehavior
-{
-    pub clicked: bool,
-    pub drag: Option<DragState>
-}*/
 
 pub struct CheckboxBehavior {
     pub checked: bool,
 }
 
-impl CheckboxBehavior {
-    pub fn new() -> CheckboxBehavior {
-        CheckboxBehavior { checked: false }
+impl Default for CheckboxBehavior {
+    fn default() -> CheckboxBehavior {
+        CheckboxBehavior {
+            checked: false
+        }
     }
 }
 
-impl Behavior for CheckboxBehavior {
-    fn event(
+impl CheckboxBehavior {
+    pub fn event(
         &mut self,
-        _item: &mut Item,
+        _elem: &mut RetainedElement,
         event: &WindowEvent,
         _input_state: &mut InputState,
     ) -> bool {
@@ -182,16 +45,20 @@ pub struct DragBehavior {
     pub start_value: Option<(f32, f32)>,
 }
 
-impl DragBehavior {
-    pub fn new() -> DragBehavior {
+impl Default for DragBehavior {
+    fn default() -> DragBehavior {
         DragBehavior {
             drag: None,
             start_value: None,
             drag_started: true,
         }
     }
+}
 
-    pub fn handle_drag(&mut self, value: &mut (f32, f32)) -> bool {
+impl DragBehavior {
+
+    pub fn handle_drag(&mut self, value: &mut (f32, f32)) -> bool
+    {
         if self.drag_started {
             self.start_value = Some(*value);
             self.drag_started = false;
@@ -208,12 +75,10 @@ impl DragBehavior {
             false
         }
     }
-}
 
-impl Behavior for DragBehavior {
-    fn event(
+    pub fn event(
         &mut self,
-        _item: &mut Item,
+        _elem: &RetainedElement,
         event: &WindowEvent,
         input_state: &mut InputState,
     ) -> bool {

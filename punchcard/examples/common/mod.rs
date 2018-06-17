@@ -44,7 +44,7 @@ impl RenderNotifier for Notifier {
     }
 }
 
-fn ui_render(
+/*fn ui_render(
     ui: &mut Ui,
     api: &RenderApi,
     builder: &mut DisplayListBuilder,
@@ -64,9 +64,9 @@ fn ui_render(
 
     debug!("fb size= {:?}", framebuffer_size);
     ui.render((framebuffer_size.width as f32, framebuffer_size.height as f32), &mut wr_renderer);
-}
+}*/
 
-fn ui_event(
+/*fn ui_event(
     ui: &mut Ui,
     event: winit::WindowEvent,
     api: &RenderApi,
@@ -75,7 +75,7 @@ fn ui_event(
     ui.dispatch_event(&event);
     // don't redraw
     false
-}
+}*/
 
 struct WRRenderer<'a>
 {
@@ -200,7 +200,7 @@ impl<'a> Renderer for WRRenderer<'a>
 }
 
 
-pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut f: F)
+pub fn main_wrapper(title: &str, width: u32, height: u32, mut f: impl FnMut(&mut DomSink))
 {
     env::set_current_dir(env!("CARGO_MANIFEST_DIR"));
     pretty_env_logger::init();
@@ -307,8 +307,10 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
     //========================================================================
 
     // initial render
-    f(&mut ui);
-    ui_render(
+    let mut dom = DomSink::new(&mut ui);
+    f(&mut dom);
+
+    /*ui_render(
         &mut ui,
         &api,
         &mut builder,
@@ -316,7 +318,7 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
         framebuffer_size,
         pipeline_id,
         document_id,
-    );
+    );*/
     txn.set_display_list(
         epoch,
         None,
@@ -383,22 +385,22 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
                                 winit::Event::WindowEvent { event, .. } => event,
                                 _ => unreachable!()
                             };
-                            ui_event(&mut ui, win_event, &api, document_id);
+                            //ui_event(&mut ui, win_event, &api, document_id);
                         },
                     },
                     winit::Event::WindowEvent { event, .. } => {
-                        ui_event(&mut ui, event, &api, document_id);
+                        //ui_event(&mut ui, event, &api, document_id);
                     },
                     _ => {},
                 };
             });
 
 
-            f(&mut ui);
+            //f(&mut ui);
 
             let mut builder = DisplayListBuilder::new(pipeline_id, layout_size);
 
-            ui_render(
+            /*ui_render(
                 &mut ui,
                 &api,
                 &mut builder,
@@ -406,7 +408,7 @@ pub fn main_wrapper<F: FnMut(&mut Ui)>(title: &str, width: u32, height: u32, mut
                 framebuffer_size,
                 pipeline_id,
                 document_id,
-            );
+            );*/
             txn.set_display_list(
                 epoch,
                 None,

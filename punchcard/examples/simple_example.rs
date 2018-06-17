@@ -14,38 +14,26 @@ extern crate rand;
 extern crate time;
 
 use punchcard::*;
+
 use rand::Rng;
 
 mod common;
 
 fn main() {
-    common::main_wrapper("Simple example", 1280, 720, |ui| {
+    common::main_wrapper("Simple example", 1280, 720, |dom| {
         static mut DATA: u32 = 0;
         let data = unsafe { &mut DATA };
 
-        ui.root(|ui| {
-            ui.scroll("main", |ui| {
-                // ui.vbox("main", |ui| {
-                for i in 0..10 {
-                    ui.floating_panel(format!("Floating {}", i), |ui| {
-                        ui.text("panel contents");
-                        ui.hbox(format!("{}", i), |ui| {
-                            ui.collapsing_panel(format!("Panel {}", i), |ui| {
-                                for i in 0..10 {
-                                    ui.hbox(format!("{}", i), |ui| {
-                                        ui.text("hello");
-                                        ui.button("click");
-                                        ui.slider("slider0", data, 0, 50);
-                                        ui.slider("slider", data, 0, 50);
-                                    });
-                                }
-                            });
-                        });
-                    });
-
-                }
+        vbox(dom, |dom| {
+            hbox(dom, |dom| {
+                dom.text("contents");
+                dom.text("contents");
             });
+            dom.text("contents");
+            dom.text("contents");
         });
+
+        debug!("vdom={:?}", dom.children());
     });
 }
 

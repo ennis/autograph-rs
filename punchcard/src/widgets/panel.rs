@@ -1,15 +1,14 @@
 //! Layout panels (vbox and hbox), collapsible panels and floating panels.
-use super::super::*;
-use container::WindowEventExt;
+use super::*;
 
 impl<'a> UiContainer<'a> {
     ///
     /// Vertical layout box.
     ///
     pub fn vbox<S, F>(&mut self, id: S, f: F) -> ItemResult
-    where
-        S: Into<String>,
-        F: FnOnce(&mut UiContainer),
+        where
+            S: Into<String>,
+            F: FnOnce(&mut UiContainer),
     {
         struct VBox;
         impl Behavior for VBox {}
@@ -28,9 +27,9 @@ impl<'a> UiContainer<'a> {
     /// Horizontal layout box.
     ///
     pub fn hbox<S, F>(&mut self, id: S, f: F) -> ItemResult
-    where
-        S: Into<String>,
-        F: FnOnce(&mut UiContainer),
+        where
+            S: Into<String>,
+            F: FnOnce(&mut UiContainer),
     {
         struct HBox;
         impl Behavior for HBox {}
@@ -49,9 +48,9 @@ impl<'a> UiContainer<'a> {
     /// Collapsing header.
     ///
     pub fn collapsing_panel<S, F>(&mut self, id: S, f: F)
-    where
-        S: Into<String>,
-        F: FnOnce(&mut UiContainer),
+        where
+            S: Into<String>,
+            F: FnOnce(&mut UiContainer),
     {
         let label = id.into();
 
@@ -83,9 +82,9 @@ impl<'a> UiContainer<'a> {
     /// Very similar to collapsing panels.
     ///
     pub fn floating_panel<S, F>(&mut self, id: S, f: F)
-    where
-        S: Into<String>,
-        F: FnOnce(&mut UiContainer),
+        where
+            S: Into<String>,
+            F: FnOnce(&mut UiContainer),
     {
         let label = id.into();
 
@@ -157,3 +156,5 @@ impl<'a> UiContainer<'a> {
         );
     }
 }
+
+
