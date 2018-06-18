@@ -170,14 +170,14 @@ impl Default for FontStyles {
 }
 
 #[derive(Debug)]
-pub struct ComputedStyle {
+pub struct Styles {
     pub font: FontStyles,
     pub non_layout: NonLayoutStyles,
     pub layout: LayoutStyles,
     pub dyn_layout: DynamicLayoutStyles,
 }
 
-impl Default for ComputedStyle {
+impl Default for Styles {
     fn default() -> ComputedStyle {
         ComputedStyle {
             font: Default::default(),
@@ -188,7 +188,7 @@ impl Default for ComputedStyle {
     }
 }
 
-impl ComputedStyle {
+impl Styles {
     /// Apply CSS property.
     pub(super) fn apply_property(&mut self, prop: &css::PropertyDeclaration) {
         match prop {
@@ -327,7 +327,7 @@ impl ComputedStyle {
 
 /// Calculated style.
 /// Some components of style may be shared between items to reduce memory usage.
-#[derive(Clone, Debug)]
+/*#[derive(Clone, Debug)]
 pub struct CachedStyle {
     pub font: Rc<FontStyles>,
     pub non_layout: Rc<NonLayoutStyles>,
@@ -410,3 +410,4 @@ pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &CachedStyle) {
     ];
     node.apply_styles(&styles[..]);
 }
+*/

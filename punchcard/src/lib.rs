@@ -132,6 +132,9 @@ impl Ui {
         Ok(())
     }
 
+    /// Compute the styles if they need to be updated.
+    
+
 
     /// Update the DOM with the provided VDOM data
     pub fn update(&mut self, f: impl FnOnce(&mut DomSink))

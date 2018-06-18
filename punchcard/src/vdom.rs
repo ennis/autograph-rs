@@ -1,5 +1,8 @@
 use super::*;
+use super::style::Styles;
+
 use std::fmt::Debug;
+use std::rc::Rc;
 
 /// Bits of DOM.
 #[derive(Debug)]
@@ -7,6 +10,18 @@ pub enum Contents<T>
 {
     Div(Vec<T>),
     Text(String)
+}
+
+/// CSS styles that can be set dynamically.
+/// Everything else must be set through the CSS class.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub struct LayoutOverrides {
+    pub left: Option<yoga::StyleUnit>,
+    pub right: Option<yoga::StyleUnit>,
+    pub top: Option<yoga::StyleUnit>,
+    pub bottom: Option<yoga::StyleUnit>,
+    pub width: Option<yoga::StyleUnit>,
+    pub height: Option<yoga::StyleUnit>,
 }
 
 /// Data shared between the actual DOM and the VDOM.
@@ -29,6 +44,8 @@ pub struct RetainedData
 {
     /// Cached calculated layout.
     layout: Layout,
+    /// Resolved styles.
+    styles: Option<Rc<Styles>>,
     /// yoga Flexbox node
     flex: yoga::Node,
 }
@@ -40,7 +57,7 @@ impl VirtualElement
         VirtualElement {
             id,
             class: class.into(),
-            //layout_overrides: Default::default(),
+            layout_overrides: Default::default(),
             contents: Contents::Text(text.into()),
             extra: ()
         }
@@ -51,7 +68,7 @@ impl VirtualElement
         VirtualElement {
             id,
             class: class.into(),
-            //layout_overrides: Default::default(),
+            layout_overrides: Default::default(),
             contents: Contents::Div(children),
             extra: ()
         }
@@ -78,8 +95,10 @@ impl VirtualElement
             id: self.id,
             class: self.class,
             contents,
+            layout_overrides: self.layout_overrides,
             extra: RetainedData {
                 layout: Layout::default(),
+                styles: None,
                 flex
             }
         }
