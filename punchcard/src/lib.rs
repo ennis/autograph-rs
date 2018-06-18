@@ -132,9 +132,22 @@ impl Ui {
         Ok(())
     }
 
-    /// Update the DOM with the provided VDOM data
-    pub fn update(&mut self, vdom: VirtualElement)
-    {
 
+    /// Update the DOM with the provided VDOM data
+    pub fn update(&mut self, f: impl FnOnce(&mut DomSink))
+    {
+        let roots = {
+            let mut dom = DomSink::new(self);
+            f(&mut dom);
+            dom.into_elements()
+        };
+
+        let vdom = VirtualElement::new_div(0, "root", roots);
+
+        if let Some(ref mut dom) = self.dom {
+            dom.update(vdom);
+        } else {
+            self.dom = Some(vdom.into_retained());
+        }
     }
 }

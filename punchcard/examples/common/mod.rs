@@ -307,8 +307,8 @@ pub fn main_wrapper(title: &str, width: u32, height: u32, mut f: impl FnMut(&mut
     //========================================================================
 
     // initial render
-    let mut dom = DomSink::new(&mut ui);
-    f(&mut dom);
+    ui.update(|dom| f(dom));
+
 
     /*ui_render(
         &mut ui,
@@ -395,8 +395,7 @@ pub fn main_wrapper(title: &str, width: u32, height: u32, mut f: impl FnMut(&mut
                 };
             });
 
-
-            //f(&mut ui);
+            ui.update(|dom| f(dom));
 
             let mut builder = DisplayListBuilder::new(pipeline_id, layout_size);
 

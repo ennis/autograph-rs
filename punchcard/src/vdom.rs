@@ -2,7 +2,7 @@ use super::*;
 use std::fmt::Debug;
 
 /// Bits of DOM.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Contents<T>
 {
     Div(Vec<T>),
@@ -10,21 +10,21 @@ pub enum Contents<T>
 }
 
 /// Data shared between the actual DOM and the VDOM.
-#[derive(Debug, Clone)]
-pub struct Element<T: Debug + Clone>
+#[derive(Debug)]
+pub struct Element<T: Debug>
 {
     id: ElementID,
     class: String,
     contents: Contents<Element<T>>,
+    layout_overrides: LayoutOverrides,
     extra: T
-    //layout_overrides: LayoutOverrides,
 }
 
 pub type VirtualElement = Element<()>;
 pub type RetainedElement = Element<RetainedData>;
 
 /// Actual DOM node (persistent across frames).
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RetainedData
 {
     /// Cached calculated layout.
@@ -89,7 +89,7 @@ impl VirtualElement
 
 impl RetainedElement
 {
-    /// Unconditionally overwrite the node with
+    /// Unconditionally overwrite the node.
     pub fn overwrite(&mut self, vdom: VirtualElement)
     {
         self.id = vdom.id;
@@ -97,28 +97,37 @@ impl RetainedElement
 
     }
 
-    /// Update in place.
+    /// Update in place from a VDOM element.
     pub fn update(&mut self, vdom: VirtualElement) {
-        // compare IDs
-        if self.id != vdom.id {
-            self.overwrite(vdom);
-        }
-    }
+        let data = &mut self.extra;
 
-    pub fn update_child(&mut self, vdom: VirtualElement) {
+        // TODO compare classes and trigger restyle if necessary.
+        self.class = vdom.class;
 
-        match self.contents {
-            Contents::Text(s) => {
-                // replace everything
+        // update the contents
+        match vdom.contents {
+            Contents::Div(mut vchildren) => {
+                if let Contents::Div(ref mut children) = self.contents {
+                    update_element_list(data, children, vchildren);
+                } else {
+                    self.contents = {
+                        let mut children = Vec::new();
+                        update_element_list(data, &mut children, vchildren);
+                        Contents::Div(children)
+                    };
+                }
             },
-
+            Contents::Text(text) => {
+                self.contents = Contents::Text(text);
+            }
         }
-
     }
+
 }
 
-pub fn compare_element_list(parent: &mut RetainedElement, retained: &mut Vec<RetainedElement>, vdom: &mut Vec<VirtualElement>)
+pub fn update_element_list(parent: &mut RetainedData, retained: &mut Vec<RetainedElement>, mut vdom: Vec<VirtualElement>)
 {
+    //debug!("update_element_list retained={:#?}, vdom={:#?}", retained, vdom);
     let num_elem = vdom.len();
     'outer: for (vi,v) in vdom.drain(..).enumerate() {
         // the first vi elements are already updated.
@@ -127,8 +136,8 @@ pub fn compare_element_list(parent: &mut RetainedElement, retained: &mut Vec<Ret
                 // matching node, update in place
                 retained[ri].update(v);
                 // swap flex nodes
-                parent.extra.flex.remove_child(&mut retained[ri].extra.flex);
-                parent.extra.flex.insert_child(&mut retained[ri].extra.flex, vi);
+                parent.flex.remove_child(&mut retained[ri].extra.flex);
+                parent.flex.insert_child(&mut retained[ri].extra.flex, vi as u32);
                 // swap at the correct position
                 retained.swap(ri, vi);
                 continue 'outer;
@@ -136,8 +145,8 @@ pub fn compare_element_list(parent: &mut RetainedElement, retained: &mut Vec<Ret
         }
         // no matching element found in retained graph: insert a new one
         let mut new = v.into_retained();
-        parent.extra.flex.insert_child(&mut new.extra.flex, vi);
-        retained.push(v.into_retained());
+        parent.flex.insert_child(&mut new.extra.flex, vi as u32);
+        retained.push(new);
         // swap in position
         let last_index = retained.len()-1;
         retained.swap(last_index, vi);
@@ -195,17 +204,13 @@ impl<'a> DomSink<'a>
 
     pub fn collect_children(&mut self, id: ElementID, children: impl FnOnce(&mut DomSink)) -> Vec<VirtualElement>
     {
-        let children = {
-            let mut sink = DomSink {
-                ui: &mut self.ui,
-                children: Vec::new(),
-                id
-            };
-
-            children(&mut sink);
-            sink.children
+        let mut sink = DomSink {
+            ui: &mut self.ui,
+            children: Vec::new(),
+            id
         };
-        children
+        children(&mut sink);
+        sink.into_elements()
     }
 
     pub fn push(&mut self, elements: Vec<VirtualElement>) {
@@ -235,6 +240,10 @@ impl<'a> DomSink<'a>
         self.children.push(vdom);
         self.ui.id_stack.pop_id();
         self.children.last_mut().unwrap()
+    }
+
+    pub fn into_elements(self) -> Vec<VirtualElement> {
+        self.children
     }
 }
 
