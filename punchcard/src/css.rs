@@ -83,7 +83,7 @@ pub enum PropertyDeclaration {
     Width(yoga::StyleUnit),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum PseudoClass
 {
     Active,
@@ -91,11 +91,21 @@ pub enum PseudoClass
 }
 
 /// A CSS selector.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Selector {
     /// TODO
     class: String,
     pseudo_class: Option<PseudoClass>
+}
+
+impl Selector
+{
+    pub fn new(class: String) -> Selector {
+        Selector {
+            class,
+            pseudo_class: None
+        }
+    }
 }
 
 /// A CSS rule-set.
@@ -117,12 +127,12 @@ pub struct Stylesheet {
 }
 
 impl Stylesheet {
-    pub fn match_class(&self, class: &str) -> Option<&Rule> {
-        // TODO
+    pub fn match_rules(&self, selector: &Selector) -> Vec<&Rule> {
+        // TODO pseudo-classes
         self.rules
             .iter()
-            .filter(|rule| rule.selector.class == class)
-            .next()
+            .filter(|rule| rule.selector.class == selector.class)
+            .collect()
     }
 }
 

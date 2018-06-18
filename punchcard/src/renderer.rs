@@ -1,5 +1,7 @@
 use super::layout::Layout;
-use super::style::{CachedStyle};
+use super::style::{Styles};
+
+use std::rc::Rc;
 
 pub enum DrawItemKind {
     Text(String),
@@ -10,16 +12,16 @@ pub enum DrawItemKind {
 /// Item of a draw list.
 pub struct DrawItem {
     pub z_order: i32,
-    pub style: CachedStyle,
+    pub styles: Rc<Styles>,
     pub layout: Layout,
     pub kind: DrawItemKind,
 }
 
 impl DrawItem {
-    pub(super) fn new_rect(layout: Layout, style: CachedStyle, z_order: i32) -> DrawItem {
+    pub(super) fn new_rect(layout: Layout, styles: Rc<Styles>, z_order: i32) -> DrawItem {
         DrawItem {
             z_order,
-            style,
+            styles,
             layout,
             kind: DrawItemKind::Rect,
         }
@@ -28,12 +30,12 @@ impl DrawItem {
     pub(super) fn new_text(
         text: String,
         layout: Layout,
-        style: CachedStyle,
+        styles: Rc<Styles>,
         z_order: i32,
     ) -> DrawItem {
         DrawItem {
             z_order,
-            style,
+            styles,
             layout,
             kind: DrawItemKind::Text(text),
         }
@@ -42,7 +44,7 @@ impl DrawItem {
     pub(super) fn new_image(
         text: String,
         layout: Layout,
-        style: CachedStyle,
+        styles: Rc<Styles>,
         z_order: i32,
     ) -> DrawItem {
         unimplemented!()
@@ -78,20 +80,20 @@ impl DrawList {
         }
     }
 
-    pub fn add_rect(&mut self, layout: Layout, style: CachedStyle) {
+    pub fn add_rect(&mut self, layout: Layout, styles: Rc<Styles>) {
         let cur_z = self.get_z_order();
-        self.items.push(DrawItem::new_rect(layout, style, cur_z));
+        self.items.push(DrawItem::new_rect(layout, styles, cur_z));
     }
 
     pub fn add_text(
         &mut self,
         text: String,
         layout: Layout,
-        style: CachedStyle
+        styles: Rc<Styles>
     ) {
         let cur_z = self.get_z_order();
         self.items
-            .push(DrawItem::new_text(text, layout, style, cur_z));
+            .push(DrawItem::new_text(text, layout, styles, cur_z));
     }
 
     pub(super) fn sort(&mut self) {
@@ -110,7 +112,7 @@ pub trait Renderer {
     /// The full computed style must be available when measuring the text.
     /// This means that we need to compute the style inline during the UI update.
     /// This is not consistent with flexbox styles.
-    fn measure_text(&self, text: &str, style: &CachedStyle) -> f32;
+    fn measure_text(&self, text: &str, styles: &Styles) -> f32;
     /// Measures the dimensions of the image at the given path.
     fn measure_image(&self, image_path: &str) -> Option<(f32, f32)>;
 

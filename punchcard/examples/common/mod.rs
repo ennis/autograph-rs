@@ -89,14 +89,14 @@ struct WRRenderer<'a>
 
 impl<'a> WRRenderer<'a>
 {
-    fn draw_rect(&mut self, layout: &Layout, style: &CachedStyle) {
+    fn draw_rect(&mut self, layout: &Layout, styles: &Styles) {
         let fill_color = {
-            let (r, g, b, a) = style.non_layout.background_color;
+            let (r, g, b, a) = styles.non_layout.background_color;
             ColorF::new(r, g, b, a)
         };
 
         let border_color = {
-            let (r, g, b, a) = style.non_layout.border_color.top;
+            let (r, g, b, a) = styles.non_layout.border_color.top;
             ColorF::new(r, g, b, a)
         };
 
@@ -109,7 +109,7 @@ impl<'a> WRRenderer<'a>
 
         let clip = ComplexClipRegion {
             rect: bounds,
-            radii: BorderRadius::uniform(style.non_layout.border_radius),
+            radii: BorderRadius::uniform(styles.non_layout.border_radius),
             mode: ClipMode::Clip,
         };
         let clip_id = self.builder.define_clip(bounds, vec![clip], None);
@@ -122,17 +122,17 @@ impl<'a> WRRenderer<'a>
             style: BorderStyle::Solid,
         };
         let border_widths = BorderWidths {
-            top: style.non_layout.border_width.top.max(1.0),
-            left: style.non_layout.border_width.left.max(1.0),
-            bottom: style.non_layout.border_width.bottom.max(1.0),
-            right: style.non_layout.border_width.right.max(1.0)
+            top: styles.non_layout.border_width.top.max(1.0),
+            left: styles.non_layout.border_width.left.max(1.0),
+            bottom: styles.non_layout.border_width.bottom.max(1.0),
+            right: styles.non_layout.border_width.right.max(1.0)
         };
         let border_details = BorderDetails::Normal(NormalBorder {
             top: border_side,
             right: border_side,
             bottom: border_side,
             left: border_side,
-            radius: BorderRadius::uniform(style.non_layout.border_radius),
+            radius: BorderRadius::uniform(styles.non_layout.border_radius),
         });
 
         self.builder.push_border(&info, border_widths, border_details);
@@ -163,7 +163,8 @@ impl<'a> WRRenderer<'a>
 
 impl<'a> Renderer for WRRenderer<'a>
 {
-    fn measure_text(&self, text: &str, style: &CachedStyle) -> f32 {
+    fn measure_text(&self, text: &str, styles: &Styles) -> f32 {
+        // TODO measure text in webrender?
         0.0
     }
 
@@ -186,7 +187,7 @@ impl<'a> Renderer for WRRenderer<'a>
         for di in items {
             match di.kind {
                 DrawItemKind::Rect => {
-                    self.draw_rect(&di.layout, &di.style);
+                    self.draw_rect(&di.layout, &di.styles);
                 }
                 DrawItemKind::Image(_) => unimplemented!(),
                 DrawItemKind::Text(ref str) => {

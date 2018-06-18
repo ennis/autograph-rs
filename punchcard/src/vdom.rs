@@ -1,5 +1,5 @@
 use super::*;
-use super::style::Styles;
+use super::style::{apply_to_flex_node, Styles};
 
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -28,11 +28,11 @@ pub struct LayoutOverrides {
 #[derive(Debug)]
 pub struct Element<T: Debug>
 {
-    id: ElementID,
-    class: String,
-    contents: Contents<Element<T>>,
-    layout_overrides: LayoutOverrides,
-    extra: T
+    pub(super) id: ElementID,
+    pub(super) class: String,
+    pub(super) contents: Contents<Element<T>>,
+    pub(super) layout_overrides: LayoutOverrides,
+    pub(super) extra: T
 }
 
 pub type VirtualElement = Element<()>;
@@ -43,11 +43,13 @@ pub type RetainedElement = Element<RetainedData>;
 pub struct RetainedData
 {
     /// Cached calculated layout.
-    layout: Layout,
+    pub(super) layout: Layout,
+    /// Styles must be recalculated.
+    pub(super) styles_dirty: bool,
     /// Resolved styles.
-    styles: Option<Rc<Styles>>,
+    pub(super) styles: Option<Rc<Styles>>,
     /// yoga Flexbox node
-    flex: yoga::Node,
+    pub(super) flex: yoga::Node,
 }
 
 impl VirtualElement
@@ -74,7 +76,7 @@ impl VirtualElement
         }
     }
 
-    pub fn into_retained(self) -> RetainedElement
+    pub(super) fn into_retained(self) -> RetainedElement
     {
         let mut flex = yoga::Node::new();
 
@@ -99,6 +101,7 @@ impl VirtualElement
             extra: RetainedData {
                 layout: Layout::default(),
                 styles: None,
+                styles_dirty: true,
                 flex
             }
         }
@@ -108,16 +111,8 @@ impl VirtualElement
 
 impl RetainedElement
 {
-    /// Unconditionally overwrite the node.
-    pub fn overwrite(&mut self, vdom: VirtualElement)
-    {
-        self.id = vdom.id;
-        self.class = vdom.class;
-
-    }
-
     /// Update in place from a VDOM element.
-    pub fn update(&mut self, vdom: VirtualElement) {
+    pub(super) fn update(&mut self, vdom: VirtualElement) {
         let data = &mut self.extra;
 
         // TODO compare classes and trigger restyle if necessary.
@@ -141,10 +136,9 @@ impl RetainedElement
             }
         }
     }
-
 }
 
-pub fn update_element_list(parent: &mut RetainedData, retained: &mut Vec<RetainedElement>, mut vdom: Vec<VirtualElement>)
+fn update_element_list(parent: &mut RetainedData, retained: &mut Vec<RetainedElement>, mut vdom: Vec<VirtualElement>)
 {
     //debug!("update_element_list retained={:#?}, vdom={:#?}", retained, vdom);
     let num_elem = vdom.len();

@@ -1,6 +1,9 @@
 use super::css;
-use std::rc::Rc;
 use yoga;
+use warmy::{FSKey, Res, Store, StoreOpt};
+
+use std::rc::Rc;
+use std::collections::{HashMap, hash_map::{Entry, OccupiedEntry, VacantEntry}};
 
 /// Font description
 #[derive(Clone, Debug)]
@@ -178,8 +181,8 @@ pub struct Styles {
 }
 
 impl Default for Styles {
-    fn default() -> ComputedStyle {
-        ComputedStyle {
+    fn default() -> Styles {
+        Styles {
             font: Default::default(),
             non_layout: Default::default(),
             layout: Default::default(),
@@ -365,8 +368,9 @@ impl CachedStyle {
         layout_damaged
     }
 }
+*/
 
-pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &CachedStyle) {
+pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &Styles) {
     // TODO rewrite this with direct calls to methods of Node
     let styles = &[
         yoga::FlexStyle::AlignContent(style.layout.align_content),
@@ -410,4 +414,34 @@ pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &CachedStyle) {
     ];
     node.apply_styles(&styles[..]);
 }
-*/
+
+pub struct StyleCache
+{
+    cache: HashMap<css::Selector, Rc<Styles>>
+}
+
+impl StyleCache
+{
+    pub fn invalidate(&mut self)
+    {
+        self.cache.clear();
+    }
+
+    pub fn get_styles(&mut self, stylesheets: &[Res<css::Stylesheet>], selector: css::Selector) -> Rc<Styles>
+    {
+        self.cache.entry(selector.clone()).or_insert_with(|| {
+            let mut styles = Styles::default();
+            for stylesheet in stylesheets.iter() {
+                let stylesheet = stylesheet.borrow();
+                // TODO actually fetch all rules?
+                let rules = stylesheet.match_rules(&selector);
+                for rule in rules {
+                    for d in rule.declarations.iter() {
+                        styles.apply_property(d);
+                    }
+                }
+            }
+            Rc::new(styles)
+        }).clone()
+    }
+}
