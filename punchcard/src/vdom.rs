@@ -116,7 +116,10 @@ impl RetainedElement
         let data = &mut self.extra;
 
         // TODO compare classes and trigger restyle if necessary.
-        self.class = vdom.class;
+        if self.class != vdom.class {
+            data.styles_dirty = true;
+            self.class = vdom.class;
+        }
 
         // update the contents
         match vdom.contents {
