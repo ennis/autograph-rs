@@ -422,6 +422,13 @@ pub struct StyleCache
 
 impl StyleCache
 {
+    pub fn new() -> StyleCache
+    {
+        StyleCache {
+            cache: HashMap::new()
+        }
+    }
+
     pub fn invalidate(&mut self)
     {
         self.cache.clear();

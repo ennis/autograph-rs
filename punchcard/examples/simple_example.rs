@@ -33,9 +33,10 @@ fn main() {
             dom.text("contents");
         });
 
-        debug!("vdom={:?}", dom.children());
+        //debug!("vdom={:?}", dom.children());
     });
 }
+
 
 // with macros:
 /*@root {

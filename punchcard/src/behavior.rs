@@ -2,7 +2,7 @@
 use super::input::{WindowEventExt,InputState};
 use super::vdom::*;
 use super::layout::ContentMeasurement;
-use super::renderer::{DrawList, Renderer};
+use super::renderer::{Renderer};
 use glutin::{ElementState, WindowEvent};
 
 pub struct CheckboxBehavior {

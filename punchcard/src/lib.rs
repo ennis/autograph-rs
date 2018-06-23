@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate log;
+extern crate winit;
 extern crate glutin;
 #[macro_use]
 extern crate failure;
@@ -17,6 +18,9 @@ extern crate yoga;
 extern crate cssparser;
 extern crate warmy;
 extern crate winapi;
+extern crate webrender;
+extern crate gleam;
+extern crate euclid;
 
 use failure::Error;
 use std::path::{Path};
@@ -40,7 +44,7 @@ pub use self::css::Stylesheet;
 pub use self::id_stack::{IdStack, ElementID};
 pub use self::input::InputState;
 pub use self::layout::{ContentMeasurement, Layout};
-pub use self::renderer::{DrawItem, DrawItemKind, DrawList, Renderer};
+pub use self::renderer::{WindowID,Renderer};
 pub use self::style::{
     Background, Color, Styles, LinearGradient, RadialGradient, StyleCache
 };
@@ -128,8 +132,10 @@ pub struct Ui
     cursor_pos: (f32, f32),
     capture: Option<PointerCapture>,
     stylesheets: Vec<Res<css::Stylesheet>>,
+    style_cache: StyleCache,
     store: ResourceStore,
     dom: Option<RetainedElement>,
+    renderer: Renderer,
 }
 
 impl Ui
@@ -168,7 +174,7 @@ pub fn measure_time<F: FnOnce()>(f: F) -> u64 {
 
 impl Ui {
     /// Creates a new Ui object.
-    pub fn new() -> Ui {
+    pub fn new(main_window: &glutin::GlWindow, events_loop: &glutin::EventsLoop) -> Ui {
         let ui = Ui {
             id_stack: IdStack::new(0),
             components: HashMap::new(),
@@ -176,8 +182,10 @@ impl Ui {
             cursor_pos: (0.0, 0.0),
             capture: None,
             stylesheets: Vec::new(),
+            style_cache: StyleCache::new(),
             store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
-            dom: None
+            dom: None,
+            renderer: Renderer::new(main_window, events_loop)
         };
 
         ui
@@ -193,6 +201,23 @@ impl Ui {
         self.stylesheets.push(stylesheet);
         Ok(())
     }
+
+    /// Renders the UI.
+    pub fn render(&mut self, framebuffer_size: (u32,u32), device_pixel_ratio: f32) {
+        if let Some(ref mut dom) = self.dom {
+            update_styles(dom, &self.stylesheets[..], &mut self.style_cache, &self.renderer, false);
+            dom.extra.flex.
+            self.renderer.render_to_window(WindowID(0), framebuffer_size, device_pixel_ratio, dom);
+        }
+        // TODO: render side windows.
+    }
+
+    // issues with hit-testing:
+    // - how to generate the propagation path?
+    // - how to recover the RetainedElement?
+    // ... use petgraph for the retainedDOM? and access nodes by ID.
+    // ... or use an ID tree: https://github.com/maps4print/azul/blob/f141ce17c501c3fe8edd1db8a07428ae722a5c9e/src/id_tree.rs
+    // => Hit-test, then follow chain of parents to build the propagation path.
 
 /*
     fn set_focus(&mut self, path: Vec<ItemID>) {
