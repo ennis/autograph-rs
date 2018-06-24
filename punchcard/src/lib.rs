@@ -22,11 +22,7 @@ extern crate webrender;
 extern crate gleam;
 extern crate euclid;
 
-use failure::Error;
-use std::path::{Path};
-use std::collections::hash_map::HashMap;
-use std::any::Any;
-
+// modules
 mod css;
 mod id_stack;
 mod input;
@@ -37,89 +33,107 @@ mod vdom;
 mod component;
 mod behavior;
 mod panel;
+mod id_tree;
 
+// std uses
+use std::path::{Path};
+use std::collections::hash_map::HashMap;
+use std::any::Any;
+
+// external crate uses
+use glutin::{GlWindow, EventsLoop};
+use failure::Error;
+
+// self uses
+use self::input::{DispatchChain, DispatchTarget, PointerCapture};
+use self::id_tree::*;
+use self::renderer::{WebrenderContext, layout_and_render_dom};
+
+// self re-exports
 pub use self::component::*;
 pub use self::vdom::*;
+pub use self::panel::*;
 pub use self::css::Stylesheet;
 pub use self::id_stack::{IdStack, ElementID};
 pub use self::input::InputState;
 pub use self::layout::{ContentMeasurement, Layout};
-pub use self::renderer::{WindowID,Renderer};
 pub use self::style::{
     Background, Color, Styles, LinearGradient, RadialGradient, StyleCache
 };
 
+// external re-exports
 pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
 pub use yoga::prelude::*;
 pub use warmy::{FSKey, Res, Store, StoreOpt};
 
-pub use self::panel::*;
-
-use self::input::{DispatchChain, DispatchTarget, PointerCapture};
-//use self::style::apply_to_flex_node;
 
 /// The resource store type for all UI stuff (images, etc.)
 pub type ResourceStore = Store<()>;
 
-
 /// Update the styles for this element from stylesheets.
-fn update_styles(elt: &mut RetainedElement,
-                            stylesheets: &[Res<Stylesheet>],
-                            styles_cache: &mut StyleCache,
-                            renderer: &Renderer,
-                            force: bool)
+fn update_styles(arena: &mut Arena<RetainedNode>,
+                 id: NodeId,
+                 stylesheets: &[Res<Stylesheet>],
+                 styles_cache: &mut StyleCache,
+                 //renderer: &Renderer,
+                 force: bool)
 {
-    let dirty = elt.extra.styles_dirty;
-    if dirty || force {
-        let new_styles = styles_cache.get_styles(stylesheets, css::Selector::new(elt.class.clone()));
-        let layout_damaged = if let Some(ref mut styles) = elt.extra.styles {
-            let layout_damaged = styles.layout != new_styles.layout;
-            *styles = new_styles;
-            layout_damaged
-        }
-            else {
-                elt.extra.styles = Some(new_styles);
+    {
+        let node = &mut arena[id];
+        let data = node.data_mut();
+        let dirty = data.styles_dirty;
+        if dirty || force {
+            let new_styles = styles_cache.get_styles(stylesheets, css::Selector::new(data.class.clone()));
+            let layout_damaged = if let Some(ref mut styles) = data.styles {
+                let layout_damaged = styles.layout != new_styles.layout;
+                *styles = new_styles;
+                layout_damaged
+            } else {
+                data.styles = Some(new_styles);
                 true
             };
 
-        if layout_damaged {
-            style::apply_to_flex_node(&mut elt.extra.flex, elt.extra.styles.as_ref().unwrap());
+            if layout_damaged {
+                style::apply_to_flex_node(&mut data.flex, data.styles.as_ref().unwrap());
+            }
         }
+
+        data.styles_dirty = false;
+
+        if let Contents::Text(ref text) = data.contents {
+            // measure text
+            //renderer.measure_text(text, elt.extra.styles.as_ref().unwrap());
+        }
+
+        // apply layout overrides: they always have precedence over the computed styles
+        /*let m = node.measure(renderer);
+        m.width.map(|w| {
+            node.flexbox.set_width(w.point());
+        });
+        m.height.map(|h| {
+            node.flexbox.set_height(h.point());
+        });*/
+
+        data.layout_overrides
+            .left
+            .map(|v| data.flex.set_position(yoga::Edge::Left, v));
+        data.layout_overrides
+            .top
+            .map(|v| data.flex.set_position(yoga::Edge::Top, v));
+        data.layout_overrides
+            .width
+            .map(|v| data.flex.set_width(v));
+        data.layout_overrides
+            .height
+            .map(|v| data.flex.set_height(v));
+
+        // drop arena borrow
     }
 
-    elt.extra.styles_dirty = false;
-
-    if let Contents::Text(ref text) = elt.contents {
-        // measure text
-        renderer.measure_text(text, elt.extra.styles.as_ref().unwrap());
-    }
-
-    // apply layout overrides: they always have precedence over the computed styles
-    /*let m = node.measure(renderer);
-    m.width.map(|w| {
-        node.flexbox.set_width(w.point());
-    });
-    m.height.map(|h| {
-        node.flexbox.set_height(h.point());
-    });*/
-
-    elt.layout_overrides
-        .left
-        .map(|v| elt.extra.flex.set_position(yoga::Edge::Left, v));
-    elt.layout_overrides
-        .top
-        .map(|v| elt.extra.flex.set_position(yoga::Edge::Top, v));
-    elt.layout_overrides
-        .width
-        .map(|v| elt.extra.flex.set_width(v));
-    elt.layout_overrides
-        .height
-        .map(|v| elt.extra.flex.set_height(v));
-
-    if let Contents::Div(ref mut children) = elt.contents {
-        for child in children.iter_mut() {
-            update_styles(child, stylesheets, styles_cache, renderer, force);
-        }
+    let mut next = arena[id].first_child();
+    while let Some(id) = next {
+        update_styles(arena, id, stylesheets, styles_cache, force);
+        next = arena[id].next_sibling();
     }
 }
 
@@ -134,8 +148,11 @@ pub struct Ui
     stylesheets: Vec<Res<css::Stylesheet>>,
     style_cache: StyleCache,
     store: ResourceStore,
-    dom: Option<RetainedElement>,
-    renderer: Renderer,
+    dom_nodes: Arena<RetainedNode>,
+    dom_root: Option<NodeId>,
+    main_wr_context: WebrenderContext,
+    /// Owned windows (created by the UI).
+    side_windows: Vec<(GlWindow, WebrenderContext)>
 }
 
 impl Ui
@@ -184,8 +201,10 @@ impl Ui {
             stylesheets: Vec::new(),
             style_cache: StyleCache::new(),
             store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
-            dom: None,
-            renderer: Renderer::new(main_window, events_loop)
+            dom_nodes: Arena::new(),
+            dom_root: None,
+            main_wr_context: WebrenderContext::new(main_window, events_loop),
+            side_windows: Vec::new(),
         };
 
         ui
@@ -203,11 +222,12 @@ impl Ui {
     }
 
     /// Renders the UI.
-    pub fn render(&mut self, framebuffer_size: (u32,u32), device_pixel_ratio: f32) {
-        if let Some(ref mut dom) = self.dom {
-            update_styles(dom, &self.stylesheets[..], &mut self.style_cache, &self.renderer, false);
-            dom.extra.flex.
-            self.renderer.render_to_window(WindowID(0), framebuffer_size, device_pixel_ratio, dom);
+    pub fn render(&mut self, window: &glutin::GlWindow) {
+        // reload resources if necessary.
+        self.store.sync(&mut ());
+        if let Some(dom_root) = self.dom_root {
+            update_styles(&mut self.dom_nodes, dom_root, &self.stylesheets[..], &mut self.style_cache, false);
+            layout_and_render_dom(window, &mut self.main_wr_context, &mut self.dom_nodes, dom_root);
         }
         // TODO: render side windows.
     }
@@ -317,6 +337,10 @@ impl Ui {
         });
     }*/
 
+    /// Receives a window event.
+    pub fn event(&mut self, event: &WindowEvent)
+    {
+    }
 
     /// Update the DOM with the provided VDOM data
     pub fn update(&mut self, f: impl FnOnce(&mut DomSink))
@@ -324,15 +348,15 @@ impl Ui {
         let roots = {
             let mut dom = DomSink::new(self);
             f(&mut dom);
-            dom.into_elements()
+            dom.into_nodes()
         };
 
-        let vdom = VirtualElement::new_div(0, "root", roots);
+        let vdom = VirtualNode::new_element(0, "root", roots);
 
-        if let Some(ref mut dom) = self.dom {
-            dom.update(vdom);
+        if let Some(dom_root) = self.dom_root {
+            update_node(&mut self.dom_nodes, dom_root, vdom);
         } else {
-            self.dom = Some(vdom.into_retained());
+            self.dom_root = Some(vdom.into_retained(&mut self.dom_nodes, None));
         }
     }
 }

@@ -442,7 +442,11 @@ impl StyleCache
                 let stylesheet = stylesheet.borrow();
                 // TODO actually fetch all rules?
                 let rules = stylesheet.match_rules(&selector);
+                if rules.is_empty() {
+                    debug!("no rules for selector {:?}", selector);
+                }
                 for rule in rules {
+                    debug!("(selector {:?}) rule {:?}", selector, rule);
                     for d in rule.declarations.iter() {
                         styles.apply_property(d);
                     }

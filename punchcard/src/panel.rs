@@ -1,6 +1,18 @@
 //! Layout panels (vbox and hbox), collapsible panels and floating panels.
 use super::*;
 use super::behavior::*;
+use yoga::prelude::*;
+
+///
+/// Dummy.
+/// Just a dummy element with a fixed size for testing.
+///
+pub fn dummy(dom: &mut DomSink, size: (u32,u32))
+{
+    let node = dom.div("dummy", |_|{});
+    node.layout_overrides.width = Some((size.0 as f32).point());
+    node.layout_overrides.height = Some((size.1 as f32).point());
+}
 
 ///
 /// Vertical layout box.
@@ -41,7 +53,7 @@ impl Component for CollapsingHeader
 {
     /// Callback to handle an event during bubbling phase.
     fn event(&mut self,
-             _elem: &RetainedElement,
+             _elem: &RetainedNode,
              _event: &WindowEvent,
              _input_state: &mut InputState) -> bool
     {
@@ -89,7 +101,7 @@ impl Default for FloatingPanel {
 impl Component for FloatingPanel
 {
     fn event(&mut self,
-             elem: &RetainedElement,
+             elem: &RetainedNode,
              event: &WindowEvent,
              input_state: &mut InputState) -> bool
     {

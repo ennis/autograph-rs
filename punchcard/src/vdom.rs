@@ -5,10 +5,10 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 /// Bits of DOM.
-#[derive(Debug)]
-pub enum Contents<T>
+#[derive(Debug, Eq, PartialEq)]
+pub enum Contents
 {
-    Div(Vec<T>),
+    Element,
     Text(String)
 }
 
@@ -24,24 +24,12 @@ pub struct LayoutOverrides {
     pub height: Option<yoga::StyleUnit>,
 }
 
-/// Data shared between the actual DOM and the VDOM.
+/// Actual DOM node (persistent across frames).
 #[derive(Debug)]
-pub struct Element<T: Debug>
+pub struct RetainedNode
 {
     pub(super) id: ElementID,
     pub(super) class: String,
-    pub(super) contents: Contents<Element<T>>,
-    pub(super) layout_overrides: LayoutOverrides,
-    pub(super) extra: T
-}
-
-pub type VirtualElement = Element<()>;
-pub type RetainedElement = Element<RetainedData>;
-
-/// Actual DOM node (persistent across frames).
-#[derive(Debug)]
-pub struct RetainedData
-{
     /// Cached calculated layout.
     pub(super) layout: Layout,
     /// Styles must be recalculated.
@@ -50,127 +38,147 @@ pub struct RetainedData
     pub(super) styles: Option<Rc<Styles>>,
     /// yoga Flexbox node
     pub(super) flex: yoga::Node,
+    pub(super) contents: Contents,
+    pub(super) layout_overrides: LayoutOverrides,
 }
 
-impl VirtualElement
+impl RetainedNode
 {
-    pub fn new_text<S: Into<String>>(id: ElementID, class: &str, text: S) -> VirtualElement
+    pub(super) fn update_layout(&mut self, parent_layout: &Layout) -> Layout
     {
-        VirtualElement {
+        let layout = Layout::from_yoga_layout(parent_layout, self.flex.get_layout());
+        self.layout = layout;
+        debug!("calc layout: {:?}", layout);
+        layout
+    }
+}
+
+/// Virtual DOM node.
+pub struct VirtualNode
+{
+    pub(super) id: ElementID,
+    pub(super) class: String,
+    pub(super) layout_overrides: LayoutOverrides,
+    pub(super) contents: Contents,
+    pub(super) children: Vec<VirtualNode>
+}
+
+impl VirtualNode
+{
+    pub fn new_text<S: Into<String>>(id: ElementID, class: &str, text: S) -> VirtualNode
+    {
+        VirtualNode {
             id,
             class: class.into(),
             layout_overrides: Default::default(),
             contents: Contents::Text(text.into()),
-            extra: ()
+            children: Vec::new()
         }
     }
 
-    pub fn new_div(id: ElementID, class: &str, children: Vec<VirtualElement>) -> VirtualElement
+    pub fn new_element(id: ElementID, class: &str, children: Vec<VirtualNode>) -> VirtualNode
     {
-        VirtualElement {
+        VirtualNode {
             id,
             class: class.into(),
             layout_overrides: Default::default(),
-            contents: Contents::Div(children),
-            extra: ()
+            contents: Contents::Element,
+            children
         }
     }
 
-    pub(super) fn into_retained(self) -> RetainedElement
+    pub(super) fn into_retained(mut self, arena: &mut Arena<RetainedNode>, parent: Option<NodeId>) -> NodeId
     {
         let mut flex = yoga::Node::new();
 
-        let contents = match self.contents {
-            Contents::Text(s) => Contents::Text(s),
-            Contents::Div(mut children) => {
-                let mut child_index = 0;
-                Contents::Div(children.drain(..).map(|c| {
-                    let mut c = c.into_retained();
-                    flex.insert_child(&mut c.extra.flex, child_index);
-                    child_index += 1;
-                    c
-                }).collect())
-            }
-        };
+        if let Some(parent) = parent
+        {
+            let flex_parent = &mut arena[parent].data_mut().flex;
+            let child_count = flex_parent.child_count();
+            flex_parent.insert_child(&mut flex, child_count);
+        }
 
-        RetainedElement {
+        let node = RetainedNode {
             id: self.id,
             class: self.class,
-            contents,
+            contents: self.contents,
             layout_overrides: self.layout_overrides,
-            extra: RetainedData {
-                layout: Layout::default(),
-                styles: None,
-                styles_dirty: true,
-                flex
-            }
-        }
-    }
+            layout: Layout::default(),
+            styles: None,
+            styles_dirty: true,
+            flex
+        };
 
+        // add to parent
+        let node_id = arena.new_node(node);
+        if let Some(parent) = parent {
+            parent.append(node_id, arena);
+        }
+
+        // recursively add children
+        for c in self.children.drain(..) {
+            c.into_retained(arena, Some(node_id));
+        }
+
+        node_id
+    }
 }
 
-impl RetainedElement
+pub(super) fn update_node(arena: &mut Arena<RetainedNode>, id: NodeId, vn: VirtualNode)
 {
-    /// Update in place from a VDOM element.
-    pub(super) fn update(&mut self, vdom: VirtualElement) {
-        let data = &mut self.extra;
+    let recreate = match (&vn.contents, &arena[id].data().contents) {
+        (&Contents::Element, &Contents::Element) => false,
+        (&Contents::Text(_), &Contents::Text(_)) => false,
+        _ => true
+    };
 
-        // TODO compare classes and trigger restyle if necessary.
-        if self.class != vdom.class {
+    if recreate {
+        // drop the node and create another
+        let parent = arena[id].parent();
+        arena.remove_node(id);
+        //if let Some(parent) = parent {
+        vn.into_retained(arena, parent);
+        //}
+    }
+    else {
+        // update in place
+        let this = &mut arena[id];
+        let data = this.data_mut();
+        if data.class != vn.class {
             data.styles_dirty = true;
-            self.class = vdom.class;
+            data.class = vn.class;
         }
-
-        // update the contents
-        match vdom.contents {
-            Contents::Div(mut vchildren) => {
-                if let Contents::Div(ref mut children) = self.contents {
-                    update_element_list(data, children, vchildren);
-                } else {
-                    self.contents = {
-                        let mut children = Vec::new();
-                        update_element_list(data, &mut children, vchildren);
-                        Contents::Div(children)
-                    };
-                }
-            },
-            Contents::Text(text) => {
-                self.contents = Contents::Text(text);
-            }
+        if data.contents != vn.contents {
+            data.contents = vn.contents;
         }
     }
 }
 
-fn update_element_list(parent: &mut RetainedData, retained: &mut Vec<RetainedElement>, mut vdom: Vec<VirtualElement>)
+/// Update children in place.
+/// We need to look for matching IDs between the retained and the virtual DOM.
+/// Even if the position does not match, we must keep internal state for child elements with the same ID.
+/// Reordering children should not reset their internal states.
+fn update_children(arena: &mut Arena<RetainedNode>, parent: NodeId, mut vdom: Vec<VirtualNode>)
 {
     //debug!("update_element_list retained={:#?}, vdom={:#?}", retained, vdom);
     let num_elem = vdom.len();
-    'outer: for (vi,v) in vdom.drain(..).enumerate() {
-        // the first vi elements are already updated.
-        for ri in vi..retained.len() {
-            if retained[ri].id == v.id {
-                // matching node, update in place
-                retained[ri].update(v);
-                // swap flex nodes
-                parent.flex.remove_child(&mut retained[ri].extra.flex);
-                parent.flex.insert_child(&mut retained[ri].extra.flex, vi as u32);
-                // swap at the correct position
-                retained.swap(ri, vi);
-                continue 'outer;
-            }
-        }
-        // no matching element found in retained graph: insert a new one
-        let mut new = v.into_retained();
-        parent.flex.insert_child(&mut new.extra.flex, vi as u32);
-        retained.push(new);
-        // swap in position
-        let last_index = retained.len()-1;
-        retained.swap(last_index, vi);
-    }
-    // trim all extra elements
-    retained.truncate(num_elem);
-}
+    let mut next = arena[parent].first_child();
 
+    'outer: for (vi,vn) in vdom.drain(..).enumerate() {
+        if let Some(n) = next {
+            update_node(arena, n, vn);
+            next = arena[n].next_sibling();
+        } else {
+            vn.into_retained(arena, Some(parent));
+        }
+    }
+
+    // drop remaining nodes.
+    while let Some(n) = next {
+        next = arena[n].next_sibling();
+        arena.remove_node(n);
+    }
+}
 
 pub struct DomSink<'a>
 {
@@ -179,7 +187,7 @@ pub struct DomSink<'a>
     /// ID of the parent item in the logical tree.
     id: ElementID,
     /// Child visual elements
-    children: Vec<VirtualElement>,
+    children: Vec<VirtualNode>,
 }
 
 impl<'a> DomSink<'a>
@@ -192,11 +200,11 @@ impl<'a> DomSink<'a>
         }
     }
 
-    pub fn component<C, S, ChildrenFn, RenderFn>(&mut self, id: S, children: ChildrenFn, render: RenderFn) -> &mut VirtualElement
+    pub fn component<C, S, ChildrenFn, RenderFn>(&mut self, id: S, children: ChildrenFn, render: RenderFn) -> &mut VirtualNode
         where
             C: Component,
             S: Into<String>,
-            RenderFn: FnOnce(&mut C, Vec<VirtualElement>, &mut DomSink),
+            RenderFn: FnOnce(&mut C, Vec<VirtualNode>, &mut DomSink),
             ChildrenFn: FnOnce(&mut DomSink)
     {
         // 1. collect children
@@ -213,12 +221,12 @@ impl<'a> DomSink<'a>
         self.children.last_mut().unwrap()
     }
 
-    pub fn children(&self) -> &[VirtualElement]
+    pub fn children(&self) -> &[VirtualNode]
     {
         &self.children[..]
     }
 
-    pub fn collect_children(&mut self, id: ElementID, children: impl FnOnce(&mut DomSink)) -> Vec<VirtualElement>
+    pub fn collect_children(&mut self, id: ElementID, children: impl FnOnce(&mut DomSink)) -> Vec<VirtualNode>
     {
         let mut sink = DomSink {
             ui: &mut self.ui,
@@ -226,39 +234,39 @@ impl<'a> DomSink<'a>
             id
         };
         children(&mut sink);
-        sink.into_elements()
+        sink.into_nodes()
     }
 
-    pub fn push(&mut self, elements: Vec<VirtualElement>) {
-        self.children.extend(elements);
+    pub fn push(&mut self, nodes: Vec<VirtualNode>) {
+        self.children.extend(nodes);
     }
 
     /// Adds a text element.
-    pub fn text<S: Into<String>>(&mut self, text: S) -> &mut VirtualElement {
+    pub fn text<S: Into<String>>(&mut self, text: S) -> &mut VirtualNode {
         //self.children.push(Nde)
         let index = self.children.len();
         let id = self.ui.id_stack.push_id(&index);
-        let vdom = VirtualElement::new_text(id, "text", text.into());
+        let vdom = VirtualNode::new_text(id, "text", text.into());
         self.children.push(vdom);
         self.ui.id_stack.pop_id();
         self.children.last_mut().unwrap()
     }
 
     /// Adds a div
-    pub fn div(&mut self, class: &str, children: impl FnOnce(&mut DomSink)) -> &mut VirtualElement
+    pub fn div(&mut self, class: &str, children: impl FnOnce(&mut DomSink)) -> &mut VirtualNode
     {
         // compute the ID of this element
         // item ID = child index.
         let index = self.children.len();
         let id = self.ui.id_stack.push_id(&index);
         let children = self.collect_children(id, children);
-        let vdom = VirtualElement::new_div(id, class, children);
+        let vdom = VirtualNode::new_element(id, class, children);
         self.children.push(vdom);
         self.ui.id_stack.pop_id();
         self.children.last_mut().unwrap()
     }
 
-    pub fn into_elements(self) -> Vec<VirtualElement> {
+    pub fn into_nodes(self) -> Vec<VirtualNode> {
         self.children
     }
 }

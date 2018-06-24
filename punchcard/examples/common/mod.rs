@@ -117,71 +117,26 @@ pub fn main_wrapper(title: &str, width: u32, height: u32, mut f: impl FnMut(&mut
 
     println!("Entering event loop");
 
-    loop {
+    let mut should_close = false;
+
+    while !should_close {
         let frame_time = measure_time(|| {
-            events_loop.poll_events(|global_event| {
-                match global_event {
-                    winit::Event::WindowEvent {
-                        event: winit::WindowEvent::CloseRequested,
-                        ..
-                    } => {},
-                    winit::Event::WindowEvent {
-                        event: winit::WindowEvent::KeyboardInput {
-                            input: winit::KeyboardInput {
-                                state: winit::ElementState::Pressed,
-                                virtual_keycode: Some(key),
-                                ..
-                            },
-                            ..
-                        },
-                        ..
-                    } => match key {
-                        /*winit::VirtualKeyCode::Escape => {},
-                        winit::VirtualKeyCode::P => renderer.toggle_debug_flags(webrender::DebugFlags::PROFILER_DBG),
-                        winit::VirtualKeyCode::O => renderer.toggle_debug_flags(webrender::DebugFlags::RENDER_TARGET_DBG),
-                        winit::VirtualKeyCode::I => renderer.toggle_debug_flags(webrender::DebugFlags::TEXTURE_CACHE_DBG),
-                        winit::VirtualKeyCode::S => renderer.toggle_debug_flags(webrender::DebugFlags::COMPACT_PROFILER),
-                        winit::VirtualKeyCode::Q => renderer.toggle_debug_flags(
-                            webrender::DebugFlags::GPU_TIME_QUERIES | webrender::DebugFlags::GPU_SAMPLE_QUERIES
-                        ),
-                        winit::VirtualKeyCode::Key1 => txn.set_window_parameters(
-                            framebuffer_size,
-                            DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
-                            1.0
-                        ),
-                        winit::VirtualKeyCode::Key2 => txn.set_window_parameters(
-                            framebuffer_size,
-                            DeviceUintRect::new(DeviceUintPoint::zero(), framebuffer_size),
-                            2.0
-                        ),
-                        winit::VirtualKeyCode::M => api.notify_memory_pressure(),
-                        #[cfg(feature = "capture")]
-                        winit::VirtualKeyCode::C => {
-                            let path: PathBuf = "../captures/example".into();
-                            //TODO: switch between SCENE/FRAME capture types
-                            // based on "shift" modifier, when `glutin` is updated.
-                            let bits = CaptureBits::all();
-                            api.save_capture(path, bits);
-                        },*/
-                        _ => {
-                            let win_event = match global_event {
-                                winit::Event::WindowEvent { event, .. } => event,
-                                _ => unreachable!()
-                            };
-                            //ui_event(&mut ui, win_event, &api, document_id);
-                        },
-                    },
+            events_loop.poll_events(|ev| {
+                match ev {
                     winit::Event::WindowEvent { event, .. } => {
-                        //ui_event(&mut ui, event, &api, document_id);
-                    },
+                        match event {
+                            winit::WindowEvent::CloseRequested => should_close = true,
+                            _ => {
+                                ui.event(&event)
+                            }
+                        }
+                    }
                     _ => {},
                 };
             });
 
-            let device_pixel_ratio = window.hidpi_factor();
-            let framebuffer_size = window.get_inner_size().unwrap();
             ui.update(|dom| f(dom));
-            ui.render(framebuffer_size, device_pixel_ratio);
+            ui.render(&window);
             window.swap_buffers().ok();
         });
         debug!("frame time: {}us", frame_time);

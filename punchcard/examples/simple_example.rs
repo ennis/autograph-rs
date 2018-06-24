@@ -25,12 +25,12 @@ fn main() {
         let data = unsafe { &mut DATA };
 
         vbox(dom, |dom| {
-            hbox(dom, |dom| {
-                dom.text("contents");
-                dom.text("contents");
+            collapsing_panel(dom, "panel", |dom| {
+                dummy(dom, (300, 100));
+                dummy(dom, (300, 100));
             });
-            dom.text("contents");
-            dom.text("contents");
+            dummy(dom, (300, 100));
+            dummy(dom, (300, 100));
         });
 
         //debug!("vdom={:?}", dom.children());

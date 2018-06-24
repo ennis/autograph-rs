@@ -2,7 +2,6 @@
 use super::input::{WindowEventExt,InputState};
 use super::vdom::*;
 use super::layout::ContentMeasurement;
-use super::renderer::{Renderer};
 use glutin::{ElementState, WindowEvent};
 
 pub struct CheckboxBehavior {
@@ -20,7 +19,7 @@ impl Default for CheckboxBehavior {
 impl CheckboxBehavior {
     pub fn event(
         &mut self,
-        _elem: &mut RetainedElement,
+        _elem: &mut RetainedNode,
         event: &WindowEvent,
         _input_state: &mut InputState,
     ) -> bool {
@@ -78,7 +77,7 @@ impl DragBehavior {
 
     pub fn event(
         &mut self,
-        _elem: &RetainedElement,
+        _elem: &RetainedNode,
         event: &WindowEvent,
         input_state: &mut InputState,
     ) -> bool {

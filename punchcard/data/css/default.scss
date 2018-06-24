@@ -37,6 +37,12 @@ hbox {
     margin: 2px;
 }
 
+dummy
+{
+    background-color: #f5511f;
+    margin: 10px;
+}
+
 slider {
     flex-grow: 1.0;
     height: 20px;
@@ -83,26 +89,26 @@ scroll {
     border-width: 3px;
 }
 
-collapsing-panel {
+collapsing {
     flex-direction: column;
     flex-grow: 1.0;
     align-self: flex-start;
     margin: 2px;
 }
 
-collapsing-panel-header {
+collapsing-header {
     background-color: $panel-header;
     padding: 4px;
 }
 
-collapsing-panel-contents {
+collapsing-contents {
     padding: 4px;
     border-color: $panel-header;
     border-width: 1px;
     //border-radius: 2px;
 }
 
-floating-panel {
+floating {
     flex-direction: column;
     flex-grow: 1.0;
     align-self: flex-start;
@@ -130,7 +136,7 @@ floating-panel-close-button {
     height: 18px;
 }
 
-floating-panel-header {
+floating-header {
     //border-color: $panel-border;
     background-color: darken($secondary, 20);
     //border-radius: 5px;
@@ -138,11 +144,11 @@ floating-panel-header {
     height: 24px;
 }
 
-floating-panel-contents {
+floating-contents {
     padding: 6px;
 }
 
-floating-panel-resize-handle {
+floating-resize-handle {
     background-color: $accent;
     width: 15px;
     height: 15px;
