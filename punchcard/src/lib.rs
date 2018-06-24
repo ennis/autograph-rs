@@ -140,11 +140,12 @@ fn update_styles(arena: &mut Arena<RetainedNode>,
 /// All states
 pub struct Ui
 {
-    components: HashMap<ElementID, Box<Component>>,
+    components: HashMap<ElementID, Box<ComponentAny>>,
     id_stack: IdStack,
     _cur_frame: u64,
     cursor_pos: (f32, f32),
     capture: Option<PointerCapture>,
+    focus: Option<NodeId>,
     stylesheets: Vec<Res<css::Stylesheet>>,
     style_cache: StyleCache,
     store: ResourceStore,
@@ -157,20 +158,18 @@ pub struct Ui
 
 impl Ui
 {
-    pub fn get_component<C, NewFn>(&mut self, id: ElementID, new_fn: NewFn) -> Box<C>
+    pub fn get_component<C, NewFn>(&mut self, id: ElementID, new_fn: NewFn) -> Box<ComponentAny>
         where
             C: Component,
             NewFn: FnOnce() -> C
     {
-        self.components.remove(&id).map(|c| c.downcast().expect("invalid component type")).unwrap_or_else(|| {
+        self.components.remove(&id).unwrap_or_else(|| {
             let mut component = Box::new(new_fn());
             component
         })
     }
 
-    pub fn insert_component<C>(&mut self, id: ElementID, component: Box<C>)
-        where
-            C: Component
+    pub fn insert_component(&mut self, id: ElementID, component: Box<ComponentAny>)
     {
         self.components.insert(id, component);
     }
@@ -198,6 +197,7 @@ impl Ui {
             _cur_frame: 0,
             cursor_pos: (0.0, 0.0),
             capture: None,
+            focus: None,
             stylesheets: Vec::new(),
             style_cache: StyleCache::new(),
             store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
@@ -374,10 +374,11 @@ impl Ui {
         let (&id,rest) = chain.split_first().expect("empty dispatch chain");
         {
             // capture stage
-            let node = &self.dom_nodes[id];
-            if let Some(component) = self.components.get_mut(&node.data.id) {
+            let node = &mut self.dom_nodes[id];
+            let data = node.data_mut();
+            if let Some(component) = self.components.get_mut(&data.id) {
                 // don't forget to set the target ID here, it's not set to anything meaningful?
-                let result = component.capture_event(&node.data, event, input_state);
+                let result = component.capture_event(data, event, input_state);
                 Self::handle_event_result(&result, self.cursor_pos, id, &mut self.capture, &mut self.focus);
                 // handle input capture
                 if result.stop_propagation {
@@ -390,13 +391,14 @@ impl Ui {
 
         return if !captured {
             // bubbled back up to us
-            let node = &self.dom_nodes[id];
+            let node = &mut self.dom_nodes[id];
+            let data = node.data_mut();
             // XXX must query the hash map again.
             // This shouldn't be needed, as the components cannot be added or
             // removed during event dispatch.
             // TODO use interior mutability primitives to fix this.
-            if let Some(component) = self.components.get_mut(&node.data.id) {
-                let result = component.event(&node.data, event, input_state);
+            if let Some(component) = self.components.get_mut(&data.id) {
+                let result = component.event(data, event, input_state);
                 Self::handle_event_result(&result, self.cursor_pos, id, &mut self.capture, &mut self.focus);
                 result.stop_propagation
             } else {
@@ -412,7 +414,6 @@ impl Ui {
         if let Some(first) = chain.first() {
             {
                 let mut input_state = InputState {
-                    capturing: false,
                     focused: false,
                     capture: self.capture.clone(),
                     cursor_pos: self.cursor_pos
@@ -435,7 +436,7 @@ impl Ui {
             self.build_dispatch_chain(capture.id)
         } else {
             // not capturing, perform hit-test
-            let hits = renderer::hit_test(&mut self.main_wr_context, WorldPoint::new(pos.0, pos.1));
+            let hits = renderer::hit_test(&self.main_wr_context, WorldPoint::new(pos.0, pos.1));
             debug!("hits: {:?}", hits);
             if let Some(id) = hits.first() {
                 self.build_dispatch_chain(*id)

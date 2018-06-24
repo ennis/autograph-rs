@@ -270,7 +270,7 @@ pub(super) fn layout_and_render_dom(
 }
 
 /// Performs hit-testing on the context.
-pub(super) fn hit_test(ctx: &mut WebrenderContext, pos: WorldPoint) -> Vec<NodeId>
+pub(super) fn hit_test(ctx: &WebrenderContext, pos: WorldPoint) -> Vec<NodeId>
 {
     let hit_test_results = ctx.api.hit_test(
         ctx.document_id,

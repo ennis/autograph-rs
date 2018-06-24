@@ -101,7 +101,7 @@ impl DragBehavior {
                 true
             }
             &WindowEvent::CursorMoved { .. } => {
-                if input_state.capturing {
+                if input_state.is_capturing() {
                     let cursor_pos = input_state.cursor_pos();
                     if let Some(ref mut drag) = self.drag {
                         // continue drag, update offset
@@ -115,7 +115,7 @@ impl DragBehavior {
             _ => false,
         };
 
-        if !input_state.capturing {
+        if !input_state.is_capturing() {
             // drag end
             self.drag = None;
             self.start_value = None;

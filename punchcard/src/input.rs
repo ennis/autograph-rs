@@ -181,6 +181,10 @@ impl InputState {
         })*/
     }
 
+    pub fn is_capturing(&self) -> bool {
+        self.capture.is_some()
+    }
+
     /// Get the current cursor position.
     pub fn cursor_pos(&self) -> (f32, f32) {
         self.cursor_pos

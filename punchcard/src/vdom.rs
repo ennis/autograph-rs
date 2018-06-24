@@ -202,7 +202,7 @@ impl<'a> DomSink<'a>
 
     pub fn component<C, S, ChildrenFn, RenderFn>(&mut self, id: S, children: ChildrenFn, render: RenderFn) -> &mut VirtualNode
         where
-            C: Component,
+            C: Component+Default,
             S: Into<String>,
             RenderFn: FnOnce(&mut C, Vec<VirtualNode>, &mut DomSink),
             ChildrenFn: FnOnce(&mut DomSink)
@@ -213,8 +213,8 @@ impl<'a> DomSink<'a>
         let children = self.collect_children(id, children);
 
         // 2. render component
-        let mut component: Box<C> = self.ui.get_component(id, || { Default::default() });
-        render(&mut component, children, self);
+        let mut component = self.ui.get_component::<C,_>(id, || { Default::default() });
+        render(component.as_mut_any().downcast_mut().expect("unexpected component type"), children, self);
         self.ui.insert_component(id, component);
 
         self.ui.id_stack.pop_id();

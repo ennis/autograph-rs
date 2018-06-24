@@ -58,7 +58,7 @@ impl Component for CollapsingHeader
              _event: &WindowEvent,
              _input_state: &InputState) -> EventResult
     {
-        EventResult::Pass
+        EventResult::pass()
     }
 }
 

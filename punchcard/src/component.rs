@@ -5,6 +5,10 @@ use glutin::WindowEvent;
 
 pub trait Component: Any
 {
+    /*fn init() -> Self where Self: Sized + Default {
+        Default::default()
+    }*/
+
     /// One-time initialization.
     fn mount(&mut self, _elem: &RetainedNode)
     {
@@ -27,5 +31,21 @@ pub trait Component: Any
     {
         EventResult::pass()
     }
+}
 
+pub trait ComponentAny: Component + Any
+{
+    fn as_mut_any(&mut self) -> &mut Any;
+    fn as_mut_component(&mut self) -> &mut Component;
+}
+
+impl<T> ComponentAny for T where T: Component
+{
+    fn as_mut_any(&mut self) -> &mut Any {
+        self
+    }
+
+    fn as_mut_component(&mut self) -> &mut Component {
+        self
+    }
 }
