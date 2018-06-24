@@ -1,5 +1,7 @@
 //! Input handling.
 use super::{ElementID, Ui};
+use super::id_tree::{Arena, NodeId};
+use super::vdom::RetainedNode;
 use glutin::{ElementState, WindowEvent, MouseButton};
 
 /// Helper trait for window events.
@@ -38,8 +40,8 @@ impl WindowEventExt for WindowEvent {
 pub(super) struct PointerCapture {
     /// Where the mouse button was at capture.
     pub(super) origin: (f32, f32),
-    /// The path (hierarchy of IDs) to the element that is capturing the mouse pointer.
-    pub(super) id: ElementID,
+    /// The path (hierarchy of IDs) to the visual node that is capturing the mouse pointer.
+    pub(super) id: NodeId,
 }
 
 /// Describes the nature of the target of a dispatch chain.
@@ -95,36 +97,72 @@ impl<'a> DispatchChain<'a> {
     }
 }
 
+/// What should be done after passing an event.
+pub enum EventPropagation
+{
+    /// Pass along to other handlers in the chain.
+    Pass,
+    /// Stop propagation.
+    Stop,
+    /// Stop propagation and capture all subsequent events.
+    StopAndCapture,
+}
+
+pub struct EventResult
+{
+    pub(super) stop_propagation: bool,
+    pub(super) set_capture: bool,
+    pub(super) set_focus: bool
+}
+
+impl Default for EventResult {
+    fn default() -> Self {
+        EventResult {
+            stop_propagation: false,
+            set_capture: false,
+            set_focus: false
+        }
+    }
+}
+
+impl EventResult {
+    pub fn set_capture(self) -> Self {
+        EventResult {
+            set_capture: true,
+            .. self
+        }
+    }
+
+    pub fn set_focus(self) -> Self {
+        EventResult {
+            set_focus: true,
+            .. self
+        }
+    }
+
+    pub fn pass() -> Self {
+        Default::default()
+    }
+
+    pub fn stop() -> Self {
+        EventResult {
+            stop_propagation: true,
+            .. Default::default()
+        }
+    }
+}
+
 /// Struct passed to event handlers.
-pub struct InputState<'a> {
+pub struct InputState {
     /// TODO document
-    pub(super) ui: &'a mut Ui,
-    /// Dispatch chain that the event is travelling along.
-    pub(super) dispatch_chain: DispatchChain<'a>,
-    /// Whether the item received this event because it has been captured.
-    /// TODO make this private, replace with method.
-    pub capturing: bool,
+    pub(super) cursor_pos: (f32,f32),
+    pub(super) capture: Option<PointerCapture>,
     /// Whether the item received this event because it has focus.
     /// TODO make this private, replace with method.
     pub focused: bool,
 }
 
-impl<'a> InputState<'a> {
-    /// Signals that the current item in the dispatch chain should capture all events.
-    pub fn set_capture(&mut self) {
-        // TODO
-        unimplemented!()
-        //self.ui.set_capture(self.dispatch_chain.current_chain().into());
-        //self.capturing = true;
-    }
-
-    /// Signals that the current item should have focus.
-    pub fn set_focus(&mut self) {
-        // TODO
-        unimplemented!()
-        //self.ui.set_focus(self.dispatch_chain.current_chain().into());
-    }
-
+impl InputState {
     /// Get the pointer capture origin position.
     pub fn get_capture_origin(&self) -> Option<(f32, f32)> {
         // TODO
@@ -143,21 +181,8 @@ impl<'a> InputState<'a> {
         })*/
     }
 
-    /// Release the capture. This fails (silently) if the current item is not
-    /// capturing events.
-    pub fn release_capture(&mut self) {
-        // TODO
-        unimplemented!()
-        // check that we are capturing
-        /*if self.capturing {
-            self.ui.release_capture()
-        } else {
-            warn!("trying to release capture without capturing");
-        }*/
-    }
-
     /// Get the current cursor position.
     pub fn cursor_pos(&self) -> (f32, f32) {
-        self.ui.cursor_pos
+        self.cursor_pos
     }
 }

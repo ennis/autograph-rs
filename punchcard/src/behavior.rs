@@ -1,5 +1,5 @@
 //! Common item behaviors.
-use super::input::{WindowEventExt,InputState};
+use super::input::{WindowEventExt,InputState,EventResult};
 use super::vdom::*;
 use super::layout::ContentMeasurement;
 use glutin::{ElementState, WindowEvent};
@@ -22,11 +22,11 @@ impl CheckboxBehavior {
         _elem: &mut RetainedNode,
         event: &WindowEvent,
         _input_state: &mut InputState,
-    ) -> bool {
+    ) -> EventResult {
         if event.clicked() {
             self.checked = !self.checked;
         }
-        true
+        EventResult::stop()
     }
 }
 
@@ -79,17 +79,18 @@ impl DragBehavior {
         &mut self,
         _elem: &RetainedNode,
         event: &WindowEvent,
-        input_state: &mut InputState,
-    ) -> bool {
+        input_state: &InputState,
+    ) -> EventResult {
         //debug!("EVENT {:016X}", item.id);
         // drag behavior:
         // - on mouse button down: capture, set click pos
         // - on cursor move: update offset
+        let mut should_capture_inputs = false;
         let captured = match event {
             &WindowEvent::MouseInput { state, .. } => {
                 if state == ElementState::Pressed {
                     // capture events
-                    input_state.set_capture();
+                    should_capture_inputs = true;
                     // starting drag
                     self.drag_started = true;
                     self.drag = Some(DragState {
@@ -119,6 +120,11 @@ impl DragBehavior {
             self.drag = None;
             self.start_value = None;
         }
-        captured
+
+        if captured {
+            EventResult::stop().set_capture()
+        } else {
+            EventResult::pass()
+        }
     }
 }

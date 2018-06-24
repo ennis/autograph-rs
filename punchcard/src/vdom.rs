@@ -48,7 +48,7 @@ impl RetainedNode
     {
         let layout = Layout::from_yoga_layout(parent_layout, self.flex.get_layout());
         self.layout = layout;
-        debug!("calc layout: {:?}", layout);
+        //debug!("calc layout: {:?}", layout);
         layout
     }
 }
@@ -271,3 +271,21 @@ impl<'a> DomSink<'a>
     }
 }
 
+/// DOM helper macros.
+#[macro_export]
+macro_rules! dom {
+    // leaf DOM nodes with no params
+    ($sink:expr; @$component:ident ; ) => { $component($sink); };
+    ($sink:expr; @$component:ident ; $($rest:tt)* ) => { $component($sink); dom!($sink; $($rest)*); };
+    // leaf DOM nodes
+    ($sink:expr; @$component:ident ( $($e:expr),* ) ; ) => { $component($sink, $($e,)*); };
+    ($sink:expr; @$component:ident ( $($e:expr),* ) ; $($rest:tt)* ) => { $component($sink, $($e,)*); dom!($sink; $($rest)*); };
+    // inner nodes with no params
+    ($sink:expr; @$component:ident {  $($body:tt)* }) => { $component($sink, |sink| { dom!(sink; $($body)*); }); };
+    ($sink:expr; @$component:ident {  $($body:tt)* } $($rest:tt)* ) => { $component($sink, |sink| { dom!(sink; $($body)*); }); dom!($sink; $($rest)*); };
+    // inner nodes
+    ($sink:expr; @$component:ident ( $($e:expr),* ) {  $($body:tt)* }) => { $component($sink, $($e,)* |sink| { dom!(sink; $($body)*); }); };
+    ($sink:expr; @$component:ident ( $($e:expr),* ) {  $($body:tt)* } $($rest:tt)* ) => { $component($sink, $($e,)* |sink| { dom!(sink; $($body)*); }); dom!($sink; $($rest)*); };
+    // statements
+    ($sink:expr; $head:stmt ; $($rest:tt)* ) => { $head; $($rest:tt)* };
+}

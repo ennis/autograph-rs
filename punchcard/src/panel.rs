@@ -1,6 +1,7 @@
 //! Layout panels (vbox and hbox), collapsible panels and floating panels.
 use super::*;
 use super::behavior::*;
+use super::input::*;
 use yoga::prelude::*;
 
 ///
@@ -55,9 +56,9 @@ impl Component for CollapsingHeader
     fn event(&mut self,
              _elem: &RetainedNode,
              _event: &WindowEvent,
-             _input_state: &mut InputState) -> bool
+             _input_state: &InputState) -> EventResult
     {
-        false
+        EventResult::Pass
     }
 }
 
@@ -76,6 +77,20 @@ pub fn collapsing_panel(dom: &mut DomSink, title: impl Into<String>, f: impl FnO
             }
         });
     });
+}
+
+/// Adds children to the dom if condition is true. Equivalent to:
+/// ```
+/// if condition {
+///     f(dom);
+/// }
+/// ```
+/// This is a convenience function to be used within the dom!() macro,
+/// which does not handle if-statements.
+pub fn condition(dom: &mut DomSink, condition: bool, f: impl FnOnce(&mut DomSink)) {
+    if condition {
+        f(dom);
+    }
 }
 
 ///
@@ -103,7 +118,7 @@ impl Component for FloatingPanel
     fn event(&mut self,
              elem: &RetainedNode,
              event: &WindowEvent,
-             input_state: &mut InputState) -> bool
+             input_state: &InputState) -> EventResult
     {
         /*if event.mouse_down() {
             // TODO this should be done in render()

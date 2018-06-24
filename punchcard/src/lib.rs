@@ -55,7 +55,7 @@ pub use self::vdom::*;
 pub use self::panel::*;
 pub use self::css::Stylesheet;
 pub use self::id_stack::{IdStack, ElementID};
-pub use self::input::InputState;
+pub use self::input::{InputState, EventResult};
 pub use self::layout::{ContentMeasurement, Layout};
 pub use self::style::{
     Background, Color, Styles, LinearGradient, RadialGradient, StyleCache
@@ -140,7 +140,7 @@ fn update_styles(arena: &mut Arena<RetainedNode>,
 /// All states
 pub struct Ui
 {
-    components: HashMap<ElementID, Box<Any>>,
+    components: HashMap<ElementID, Box<Component>>,
     id_stack: IdStack,
     _cur_frame: u64,
     cursor_pos: (f32, f32),
@@ -226,7 +226,15 @@ impl Ui {
         // reload resources if necessary.
         self.store.sync(&mut ());
         if let Some(dom_root) = self.dom_root {
-            update_styles(&mut self.dom_nodes, dom_root, &self.stylesheets[..], &mut self.style_cache, false);
+            let force_restyle = if self.stylesheets_dirty() {
+                debug!("stylesheets dirty, forcing restyle");
+                self.style_cache.invalidate();
+                true
+            } else {
+                false
+            };
+
+            update_styles(&mut self.dom_nodes, dom_root, &self.stylesheets[..], &mut self.style_cache, force_restyle);
             layout_and_render_dom(window, &mut self.main_wr_context, &mut self.dom_nodes, dom_root);
         }
         // TODO: render side windows.
@@ -337,9 +345,118 @@ impl Ui {
         });
     }*/
 
+    fn build_dispatch_chain(&self, hit_id: NodeId) -> Vec<NodeId>
+    {
+        let mut node_ids = vec![hit_id];
+        let mut current = hit_id;
+        while let Some(id) = self.dom_nodes[current].parent() {
+            node_ids.push(id);
+            current = id;
+        }
+        node_ids
+    }
+
+    fn handle_event_result(result: &EventResult, cursor_pos: (f32,f32), id: NodeId, capture: &mut Option<PointerCapture>, focus: &mut Option<NodeId>)
+    {
+        if result.set_capture {
+            *capture = Some(PointerCapture {
+                id,
+                origin: cursor_pos
+            });
+        }
+        if result.set_focus {
+            *focus = Some(id);
+        }
+    }
+
+    fn dispatch_event_0(&mut self, event: &WindowEvent, chain: &[NodeId], input_state: &InputState) -> bool
+    {
+        let (&id,rest) = chain.split_first().expect("empty dispatch chain");
+        {
+            // capture stage
+            let node = &self.dom_nodes[id];
+            if let Some(component) = self.components.get_mut(&node.data.id) {
+                // don't forget to set the target ID here, it's not set to anything meaningful?
+                let result = component.capture_event(&node.data, event, input_state);
+                Self::handle_event_result(&result, self.cursor_pos, id, &mut self.capture, &mut self.focus);
+                // handle input capture
+                if result.stop_propagation {
+                    return true
+                }
+            }
+        }
+
+        let captured = self.dispatch_event_0(event, rest, input_state);
+
+        return if !captured {
+            // bubbled back up to us
+            let node = &self.dom_nodes[id];
+            // XXX must query the hash map again.
+            // This shouldn't be needed, as the components cannot be added or
+            // removed during event dispatch.
+            // TODO use interior mutability primitives to fix this.
+            if let Some(component) = self.components.get_mut(&node.data.id) {
+                let result = component.event(&node.data, event, input_state);
+                Self::handle_event_result(&result, self.cursor_pos, id, &mut self.capture, &mut self.focus);
+                result.stop_propagation
+            } else {
+                false
+            }
+        } else {
+            true
+        }
+    }
+
+    fn dispatch_event(&mut self, event: &WindowEvent, chain: &[NodeId])
+    {
+        if let Some(first) = chain.first() {
+            {
+                let mut input_state = InputState {
+                    capturing: false,
+                    focused: false,
+                    capture: self.capture.clone(),
+                    cursor_pos: self.cursor_pos
+                };
+                self.dispatch_event_0(event, chain, &mut input_state);
+            }
+            if let Some(ref capture) = self.capture {
+                debug!("after event, node {:?} is capturing", capture.id);
+            }
+        }
+    }
+
+    fn hit_test(&self, pos: (f32, f32)) -> Vec<NodeId>
+    {
+        use webrender::api::*;
+        // are we capturing?
+        if let Some(ref capture) = self.capture {
+            // yes, skip hit-test and send event directly to capture target.
+            debug!("capturing");
+            self.build_dispatch_chain(capture.id)
+        } else {
+            // not capturing, perform hit-test
+            let hits = renderer::hit_test(&mut self.main_wr_context, WorldPoint::new(pos.0, pos.1));
+            debug!("hits: {:?}", hits);
+            if let Some(id) = hits.first() {
+                self.build_dispatch_chain(*id)
+            } else {
+                Vec::new()
+            }
+        }
+    }
+
     /// Receives a window event.
     pub fn event(&mut self, event: &WindowEvent)
     {
+        match event {
+            WindowEvent::CursorMoved { device_id, position, modifiers } => {
+                // update cursor pos
+                self.cursor_pos = (position.0 as f32, position.1 as f32);
+                let dispatch_chain = self.hit_test(self.cursor_pos);
+
+            },
+            _ => {}
+        }
     }
 
     /// Update the DOM with the provided VDOM data

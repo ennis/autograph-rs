@@ -142,7 +142,7 @@ pub(super) fn render_node(builder: &mut DisplayListBuilder, txn: &mut Transactio
                 // TODO
             },
             Contents::Element => {
-                render_rect(builder, txn, &layout, data.styles.as_ref().expect("styles were not computed before render"));
+                render_rect(builder, txn, id, &layout, data.styles.as_ref().expect("styles were not computed before render"));
             }
         };
         // return layout, drop borrow of arena
@@ -156,7 +156,9 @@ pub(super) fn render_node(builder: &mut DisplayListBuilder, txn: &mut Transactio
     }
 }
 
-fn render_rect(builder: &mut DisplayListBuilder, txn: &mut Transaction, layout: &Layout, styles: &Styles) {
+const WR_DOM_NODE_MARKER: u16 = 3333;
+
+fn render_rect(builder: &mut DisplayListBuilder, txn: &mut Transaction, id: NodeId, layout: &Layout, styles: &Styles) {
     let fill_color = {
         let (r, g, b, a) = styles.non_layout.background_color;
         ColorF::new(r, g, b, a)
@@ -172,7 +174,9 @@ fn render_rect(builder: &mut DisplayListBuilder, txn: &mut Transaction, layout: 
                                  LayoutSize::new(
                                      layout.width().max(1.0),
                                      layout.height().max(1.0)));
-    let info = LayoutPrimitiveInfo::new(bounds);
+    let mut info = LayoutPrimitiveInfo::new(bounds);
+    // set tag for hit-testing
+    info.tag = Some((id.as_u64(), WR_DOM_NODE_MARKER));
 
     let clip = ComplexClipRegion {
         rect: bounds,
@@ -182,7 +186,7 @@ fn render_rect(builder: &mut DisplayListBuilder, txn: &mut Transaction, layout: 
     let clip_id = builder.define_clip(bounds, vec![clip], None);
     builder.push_clip_id(clip_id);
 
-    debug!("rect={:?}, fill={:?}", info, fill_color);
+    //debug!("rect={:?}, fill={:?}", info, fill_color);
     builder.push_rect(&info, fill_color);
 
     let border_side = BorderSide {
@@ -219,7 +223,7 @@ pub(super) fn layout_and_render_dom(
     let device_pixel_ratio = window.hidpi_factor();
     let layout_size = framebuffer_size.to_f32() / euclid::TypedScale::new(device_pixel_ratio);
     let root_layout = Layout { top: 0.0, left: 0.0, right: layout_size.width, bottom: layout_size.height };
-    debug!("root layout: {:?}", root_layout);
+    //debug!("root layout: {:?}", root_layout);
 
     let mut builder = DisplayListBuilder::new(ctx.pipeline_id, layout_size);
     let mut txn = Transaction::new();
@@ -263,6 +267,24 @@ pub(super) fn layout_and_render_dom(
 
     //renderer.render(framebuffer_size).unwrap();
     //let _ = renderer.flush_pipeline_info();
+}
+
+/// Performs hit-testing on the context.
+pub(super) fn hit_test(ctx: &mut WebrenderContext, pos: WorldPoint) -> Vec<NodeId>
+{
+    let hit_test_results = ctx.api.hit_test(
+        ctx.document_id,
+        Some(ctx.pipeline_id),
+        pos,
+        HitTestFlags::FIND_ALL);
+
+    hit_test_results.items.iter().filter_map(|item| {
+        if item.tag.1 == WR_DOM_NODE_MARKER {
+            Some(NodeId::from_u64(item.tag.0))
+        } else {
+            None
+        }
+    }).collect::<Vec<_>>()
 }
 
 //#[derive(Copy,Clone,Debug, Ord, PartialOrd, PartialEq, Eq)]

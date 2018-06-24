@@ -19,19 +19,51 @@ use rand::Rng;
 
 mod common;
 
+
+
 fn main() {
     common::main_wrapper("Simple example", 1280, 720, |dom| {
         static mut DATA: u32 = 0;
         let data = unsafe { &mut DATA };
 
-        vbox(dom, |dom| {
+        /*vbox(dom, |dom| {
             collapsing_panel(dom, "panel", |dom| {
-                dummy(dom, (300, 100));
-                dummy(dom, (300, 100));
+                hbox(dom, |dom| {
+                    dummy(dom, (55, 20));
+                    dummy(dom, (55, 20));
+                    dummy(dom, (55, 20));
+                    dummy(dom, (55, 20));
+                    dummy(dom, (55, 20));
+                });
             });
-            dummy(dom, (300, 100));
-            dummy(dom, (300, 100));
-        });
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+        });*/
+
+        // this actually works
+        dom! (dom;
+            @vbox {
+                @collapsing_panel("panel") {
+                    @hbox {
+                        @dummy((55,20));
+                        @dummy((55,20));
+                        @dummy((55,20));
+                        @dummy((55,20));
+                        @dummy((55,20));
+                    }
+                }
+                @condition(true) {
+                    @dummy((55,20));
+                    @dummy((55,20));
+                    @dummy((55,20));
+                    @dummy((55,20));
+                    @dummy((55,20));
+                }
+            }
+        );
 
         //debug!("vdom={:?}", dom.children());
     });

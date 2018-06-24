@@ -7,6 +7,17 @@ pub struct NodeId {
     index: usize,  // FIXME: use NonZero to optimize the size of Option<NodeId>
 }
 
+impl NodeId
+{
+    pub fn as_u64(&self) -> u64 {
+        self.index as u64
+    }
+
+    pub fn from_u64(index: u64) -> NodeId {
+        NodeId { index: index as usize }
+    }
+}
+
 #[derive(Clone)]
 pub struct Node<T> {
     // Keep these private (with read-only accessors) so that we can keep them consistent.
