@@ -372,22 +372,30 @@ impl Ui {
     fn dispatch_event_0(&mut self, event: &WindowEvent, chain: &[NodeId], input_state: &InputState) -> bool
     {
         let (&id,rest) = chain.split_first().expect("empty dispatch chain");
-        {
-            // capture stage
-            let node = &mut self.dom_nodes[id];
-            let data = node.data_mut();
-            if let Some(component) = self.components.get_mut(&data.id) {
-                // don't forget to set the target ID here, it's not set to anything meaningful?
-                let result = component.capture_event(data, event, input_state);
-                Self::handle_event_result(&result, self.cursor_pos, id, &mut self.capture, &mut self.focus);
-                // handle input capture
-                if result.stop_propagation {
-                    return true
-                }
-            }
-        }
 
-        let captured = self.dispatch_event_0(event, rest, input_state);
+        let captured = {
+            if !rest.is_empty() {
+                // capture stage
+                {
+                    let node = &mut self.dom_nodes[id];
+                    let data = node.data_mut();
+                    if let Some(component) = self.components.get_mut(&data.id) {
+                        // don't forget to set the target ID here, it's not set to anything meaningful?
+                        let result = component.capture_event(data, event, input_state);
+                        Self::handle_event_result(&result, self.cursor_pos, id, &mut self.capture, &mut self.focus);
+                        // handle input capture
+                        if result.stop_propagation {
+                            return true
+                        }
+                    }
+                }
+                // dispatch further in the chain.
+                self.dispatch_event_0(event, rest, input_state)
+            } else {
+                false
+            }
+        };
+
 
         return if !captured {
             // bubbled back up to us
@@ -412,14 +420,13 @@ impl Ui {
     fn dispatch_event(&mut self, event: &WindowEvent, chain: &[NodeId])
     {
         if let Some(first) = chain.first() {
-            {
-                let mut input_state = InputState {
-                    focused: false,
-                    capture: self.capture.clone(),
-                    cursor_pos: self.cursor_pos
-                };
-                self.dispatch_event_0(event, chain, &mut input_state);
-            }
+            debug!("dispatching event to: {:?}", chain);
+            let mut input_state = InputState {
+                focused: false,
+                capture: self.capture.clone(),
+                cursor_pos: self.cursor_pos
+            };
+            self.dispatch_event_0(event, chain, &mut input_state);
             if let Some(ref capture) = self.capture {
                 debug!("after event, node {:?} is capturing", capture.id);
             }
@@ -454,7 +461,7 @@ impl Ui {
                 // update cursor pos
                 self.cursor_pos = (position.0 as f32, position.1 as f32);
                 let dispatch_chain = self.hit_test(self.cursor_pos);
-
+                self.dispatch_event(event, &dispatch_chain[..]);
             },
             _ => {}
         }

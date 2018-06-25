@@ -200,7 +200,7 @@ impl<'a> DomSink<'a>
         }
     }
 
-    pub fn component<C, S, ChildrenFn, RenderFn>(&mut self, id: S, children: ChildrenFn, render: RenderFn) -> &mut VirtualNode
+    pub fn component<C, S, ChildrenFn, RenderFn>(&mut self, id: S, children: ChildrenFn, render: RenderFn)
         where
             C: Component+Default,
             S: Into<String>,
@@ -214,11 +214,22 @@ impl<'a> DomSink<'a>
 
         // 2. render component
         let mut component = self.ui.get_component::<C,_>(id, || { Default::default() });
-        render(component.as_mut_any().downcast_mut().expect("unexpected component type"), children, self);
+        let rendered = {
+            let component_ref = component.as_mut_any().downcast_mut().expect("unexpected component type");
+            self.collect_children(id, move |dom| {
+                render(component_ref, children, dom);
+            })
+            // drop borrow of component through component_ref
+        };
+        // create vdom node for component
+        // let class empty because it's a wrapper node.
+        // XXX or should we? maybe this can be a concrete element instead of a dummy one.
+        let vdom = VirtualNode::new_element(id, "", rendered);
+        self.children.push(vdom);
         self.ui.insert_component(id, component);
 
-        self.ui.id_stack.pop_id();
-        self.children.last_mut().unwrap()
+        self.ui.id_stack.pop_id()
+        //self.children.last_mut().expect("what?")
     }
 
     pub fn children(&self) -> &[VirtualNode]
