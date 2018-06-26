@@ -9,7 +9,10 @@ hbox {
 
 dummy {
   background-color: #f5511f;
-  margin: 3px; }
+  border-width: 1px;
+  border-color: #911b00;
+  margin: 3px;
+  box-shadow: 1px 1px 0px 0px #ff9476 inset; }
 
 slider {
   flex-grow: 1.0;

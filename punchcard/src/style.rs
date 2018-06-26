@@ -4,6 +4,7 @@ use warmy::{FSKey, Res, Store, StoreOpt};
 
 use std::rc::Rc;
 use std::collections::{HashMap, hash_map::{Entry, OccupiedEntry, VacantEntry}};
+use webrender::api::BoxShadowClipMode;
 
 /// Font description
 #[derive(Clone, Debug)]
@@ -38,6 +39,17 @@ pub enum Background {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct BoxShadow
+{
+    pub color: Color,
+    pub horizontal_offset: f32,
+    pub vertical_offset: f32,
+    pub blur_radius: f32,
+    pub spread: f32,
+    pub clip_mode: BoxShadowClipMode,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct BoxProperty<T: Clone + PartialEq> {
     pub top: T,
     pub right: T,
@@ -64,6 +76,7 @@ pub struct NonLayoutStyles {
     pub border_color: BoxProperty<Color>,
     pub border_width: BoxProperty<f32>,
     pub border_radius: f32,
+    pub box_shadow: Option<BoxShadow>
 }
 
 impl Default for NonLayoutStyles {
@@ -73,6 +86,7 @@ impl Default for NonLayoutStyles {
             border_color: BoxProperty::all((0.0, 0.0, 0.0, 0.0)),
             border_width: BoxProperty::all(0.0),
             border_radius: 0.0,
+            box_shadow: None
         }
     }
 }
@@ -226,6 +240,9 @@ impl Styles {
             }
             css::PropertyDeclaration::BorderRadius(radius) => {
                 self.non_layout.border_radius = *radius;
+            }
+            css::PropertyDeclaration::BoxShadow(box_shadow) => {
+                self.non_layout.box_shadow = box_shadow.clone();
             }
 
             // Layout-altering styles

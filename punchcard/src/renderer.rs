@@ -206,8 +206,32 @@ fn render_rect(builder: &mut DisplayListBuilder, txn: &mut Transaction, id: Node
         left: border_side,
         radius: BorderRadius::uniform(styles.non_layout.border_radius),
     });
-
     builder.push_border(&info, border_widths, border_details);
+
+    if let Some(ref box_shadow) = styles.non_layout.box_shadow {
+        // draw box shadow?
+        let rect = LayoutRect::zero();
+        let simple_box_bounds = bounds;
+        let offset = vec2(box_shadow.vertical_offset, box_shadow.horizontal_offset);
+        let color = {
+            let (r, g, b, a) = box_shadow.color;
+            ColorF::new(r, g, b, a)
+        };
+        let simple_border_radius = 0.0;
+        let info = LayoutPrimitiveInfo::with_clip_rect(rect, bounds);
+
+        builder.push_box_shadow(
+            &info,
+            simple_box_bounds,
+            offset,
+            color,
+            box_shadow.blur_radius,
+            box_shadow.spread,
+            BorderRadius::uniform(simple_border_radius),
+            box_shadow.clip_mode,
+        );
+    }
+
     builder.pop_clip_id();
 }
 
