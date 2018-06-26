@@ -87,6 +87,32 @@ impl VirtualNode
         }
     }
 
+    pub fn set_width(&mut self, width: f32) -> &mut Self
+    {
+        self.layout_overrides.width = Some(width.point());
+        self
+    }
+
+    pub fn set_height(&mut self, height: f32) -> &mut Self
+    {
+        self.layout_overrides.height = Some(height.point());
+        self
+    }
+
+    pub fn set_size(&mut self, size: (f32,f32)) -> &mut Self
+    {
+        self.layout_overrides.width = Some(size.0.point());
+        self.layout_overrides.height = Some(size.1.point());
+        self
+    }
+
+    pub fn set_position(&mut self, pos: (f32,f32)) -> &mut Self
+    {
+        self.layout_overrides.left = Some(pos.0.point());
+        self.layout_overrides.top = Some(pos.1.point());
+        self
+    }
+
     pub(super) fn into_retained(mut self, arena: &mut Arena<RetainedNode>, parent: Option<NodeId>) -> NodeId
     {
         let mut flex = yoga::Node::new();
@@ -133,6 +159,7 @@ pub(super) fn update_node(arena: &mut Arena<RetainedNode>, id: NodeId, vn: Virtu
     };
 
     if recreate {
+        debug!("RECREATE");
         // drop the node and create another
         let parent = arena[id].parent();
         arena.remove_node(id);
@@ -142,15 +169,23 @@ pub(super) fn update_node(arena: &mut Arena<RetainedNode>, id: NodeId, vn: Virtu
     }
     else {
         // update in place
-        let this = &mut arena[id];
-        let data = this.data_mut();
-        if data.class != vn.class {
-            data.styles_dirty = true;
-            data.class = vn.class;
+        {
+            let this = &mut arena[id];
+            let data = this.data_mut();
+            if data.class != vn.class {
+                data.styles_dirty = true;
+                data.class = vn.class;
+            }
+            if data.contents != vn.contents {
+                data.contents = vn.contents;
+            }
+            if data.layout_overrides != vn.layout_overrides {
+                debug!("LAYOUT OVERRIDE {:?} -> {:?}", data.layout_overrides, vn.layout_overrides);
+                data.layout_overrides = vn.layout_overrides;
+            }
         }
-        if data.contents != vn.contents {
-            data.contents = vn.contents;
-        }
+        update_children(arena, id, vn.children);
+        //data.id = vn.id;
     }
 }
 
@@ -200,36 +235,66 @@ impl<'a> DomSink<'a>
         }
     }
 
-    pub fn component<C, S, ChildrenFn, RenderFn>(&mut self, id: S, children: ChildrenFn, render: RenderFn)
+    ///
+    /// Instantiates a component which has no children.
+    pub fn component<C, S, R, RenderFn>(&mut self, id: S, component_init: C, render_fn: RenderFn) -> R
         where
             C: Component+Default,
             S: Into<String>,
-            RenderFn: FnOnce(&mut C, Vec<VirtualNode>, &mut DomSink),
+            RenderFn: FnOnce(&mut C, &mut DomSink) -> R
+    {
+        let id_str = id.into();
+        let id = self.ui.id_stack.push_id(&id_str);
+        let mut component = self.ui.get_component::<C,_>(id, move || { component_init });
+        let (render_result, rendered) = {
+            let c = component.as_mut_any().downcast_mut().expect("unexpected component type");
+            let res = self.collect_children(id, |dom| {render_fn(c, dom)});
+            c.post_frame();
+            res
+            // drop borrow of component through component_ref
+        };
+        // create vdom node for component
+        let vdom = VirtualNode::new_element(id, "", rendered);
+        self.children.push(vdom);
+        self.ui.insert_component(id, component);
+        self.ui.id_stack.pop_id();
+        render_result
+    }
+
+    ///
+    /// Instantiates a component with a list of children.
+    /// The child elements can be manipulated in render().
+    /// TODO bikeshed the name.
+    pub fn aggregate_component<C, S, R, ChildrenFn, RenderFn>(&mut self, id: S, component_init: C, children_fn: ChildrenFn, render_fn: RenderFn) -> R
+        where
+            C: Component+Default,
+            S: Into<String>,
+            RenderFn: FnOnce(&mut C, Vec<VirtualNode>, &mut DomSink) -> R,
             ChildrenFn: FnOnce(&mut DomSink)
     {
         // 1. collect children
         let id_str = id.into();
         let id = self.ui.id_stack.push_id(&id_str);
-        let children = self.collect_children(id, children);
+        let (_,children) = self.collect_children(id, children_fn);
 
         // 2. render component
-        let mut component = self.ui.get_component::<C,_>(id, || { Default::default() });
-        let rendered = {
-            let component_ref = component.as_mut_any().downcast_mut().expect("unexpected component type");
-            self.collect_children(id, move |dom| {
-                render(component_ref, children, dom);
-            })
+        let mut component = self.ui.get_component::<C,_>(id, move || { component_init });
+        let (render_result, rendered) = {
+            let c = component.as_mut_any().downcast_mut().expect("unexpected component type");
+            let res = self.collect_children(id, |dom| {
+                render_fn(c, children, dom)
+            });
+            c.post_frame();
+            res
             // drop borrow of component through component_ref
         };
         // create vdom node for component
         // let class empty because it's a wrapper node.
-        // XXX or should we? maybe this can be a concrete element instead of a dummy one.
         let vdom = VirtualNode::new_element(id, "", rendered);
         self.children.push(vdom);
         self.ui.insert_component(id, component);
-
-        self.ui.id_stack.pop_id()
-        //self.children.last_mut().expect("what?")
+        self.ui.id_stack.pop_id();
+        render_result
     }
 
     pub fn children(&self) -> &[VirtualNode]
@@ -237,15 +302,17 @@ impl<'a> DomSink<'a>
         &self.children[..]
     }
 
-    pub fn collect_children(&mut self, id: ElementID, children: impl FnOnce(&mut DomSink)) -> Vec<VirtualNode>
+    pub fn collect_children<R, F>(&mut self, id: ElementID, children_fn: F) -> (R, Vec<VirtualNode>)
+    where
+        F: FnOnce(&mut DomSink) -> R
     {
         let mut sink = DomSink {
             ui: &mut self.ui,
             children: Vec::new(),
             id
         };
-        children(&mut sink);
-        sink.into_nodes()
+        let result = children_fn(&mut sink);
+        (result, sink.into_nodes())
     }
 
     pub fn push(&mut self, nodes: Vec<VirtualNode>) {
@@ -270,7 +337,7 @@ impl<'a> DomSink<'a>
         // item ID = child index.
         let index = self.children.len();
         let id = self.ui.id_stack.push_id(&index);
-        let children = self.collect_children(id, children);
+        let (_,children) = self.collect_children(id, children);
         let vdom = VirtualNode::new_element(id, class, children);
         self.children.push(vdom);
         self.ui.id_stack.pop_id();

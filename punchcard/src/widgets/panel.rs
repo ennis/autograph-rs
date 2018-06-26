@@ -6,25 +6,21 @@ use prelude::*;
 /// Just a dummy element with a fixed size for testing.
 ///
 #[derive(Default)]
-struct Dummy
-{
-}
+struct Dummy;
 
-impl Component for Dummy
+/*impl Component for Dummy
 {
-    fn event(&mut self, _elem: &RetainedNode, event: &WindowEvent, input_state: &InputState) -> EventResult {
-        debug!("dummy: event received={:?}; cursor pos={:?}", event, input_state.cursor_pos);
+    fn event(&mut self, elem: &RetainedNode, event: &WindowEvent, input_state: &InputState) -> EventResult {
+        //debug!("dummy({:016X}): event received={:?}", elem.id, event);
         EventResult::pass()
     }
-}
+}*/
 
 pub fn dummy(dom: &mut DomSink, size: (u32,u32))
 {
-    dom.component::<Dummy,_,_,_>("dummy", |_|{}, |state,children,dom| {
-        let node = dom.div("dummy", |_|{});
-        node.layout_overrides.width = Some((size.0 as f32).point());
-        node.layout_overrides.height = Some((size.1 as f32).point());
-    });
+    //dom.component("dummy", Dummy, |state,dom| {
+    dom.div("dummy", |_|{}).set_size((size.0 as f32, size.1 as f32));
+    //});
 }
 
 ///

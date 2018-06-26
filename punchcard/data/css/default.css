@@ -8,11 +8,11 @@ hbox {
   margin: 2px; }
 
 dummy {
-  background-color: #f500ea;
-  border-width: 4px;
-  border-radius: 8px;
-  border-color: #009114;
-  margin: 3px; }
+  background-color: #f5e725;
+  border-width: 1px;
+  border-color: #91891f;
+  margin: 3px;
+  box-shadow: 2px 2px 0px 0px #fcff83 inset; }
 
 slider {
   flex-grow: 1.0;
@@ -38,6 +38,7 @@ slider-knob {
 button {
   background-color: #474747;
   border-width: 2px;
+  width: 100px;
   height: 24px;
   border-color: #848484;
   padding: 4px;

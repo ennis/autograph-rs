@@ -14,6 +14,11 @@ pub trait Component: Any
     {
     }
 
+    /// Called once per frame.
+    fn post_frame(&mut self)
+    {
+    }
+
     /// Callback to handle an event passed to the item during the capturing phase.
     fn capture_event(&mut self,
                      _elem: &RetainedNode,

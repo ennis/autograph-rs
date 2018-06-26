@@ -9,6 +9,8 @@ pub struct FloatingPanel {
     collapsed: bool,
     /// Position drag.
     drag: DragBehavior,
+    /// Position
+    position: (f32, f32)
 }
 
 impl Default for FloatingPanel {
@@ -16,6 +18,7 @@ impl Default for FloatingPanel {
         FloatingPanel {
             collapsed: false,
             drag: DragBehavior::default(),
+            position: (0.0, 0.0)
         }
     }
 }
@@ -39,7 +42,8 @@ impl Component for FloatingPanel
 pub fn floating_panel(dom: &mut DomSink, title: impl Into<String>, f: impl FnOnce(&mut DomSink))
 {
     let title = title.into();
-    dom.component::<FloatingPanel,_,_,_>(title.clone(), f, |state,children,dom| {
+    dom.aggregate_component(title.clone(), FloatingPanel::default(), f, |state,children,dom| {
+        state.drag.handle_drag(&mut state.position);
         dom.div("floating", |dom| {
             dom.div("floating-header", |dom| {
                 dom.text(title);
@@ -49,6 +53,7 @@ pub fn floating_panel(dom: &mut DomSink, title: impl Into<String>, f: impl FnOnc
                     dom.push(children);
                 });
             }
-        });
+        }).set_position(state.position);
+        //debug!("position: {},{}", state.position.0, state.position.1);
     });
 }

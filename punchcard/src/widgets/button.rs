@@ -4,22 +4,20 @@ use prelude::*;
 ///
 /// Button.
 ///
-#[derive(Default)]
-struct Button
+pub fn button(dom: &mut DomSink) -> bool
 {
-}
-
-impl Component for Button
-{
-    fn event(&mut self, _elem: &RetainedNode, event: &WindowEvent, input_state: &InputState) -> EventResult {
-        EventResult::pass()
-    }
-}
-
-pub fn button(dom: &mut DomSink, size: (u32,u32))
-{
-    dom.component::<Button,_,_,_>("button", |_|{}, |state,children,dom| {
+    dom.component("button", ButtonBehavior::default(), |state, dom| {
         let node = dom.div("button", |_|{});
-    });
+        state.clicked()
+    })
 }
+
+///
+/// Alternative to button(), if you prefer mutable refs.
+///
+pub fn button_alt(dom: &mut DomSink, clicked: &mut bool)
+{
+    *clicked = button(dom);
+}
+
 

@@ -139,7 +139,7 @@ pub fn main_wrapper(title: &str, width: u32, height: u32, mut f: impl FnMut(&mut
             ui.render(&window);
             window.swap_buffers().ok();
         });
-        debug!("frame time: {}us", frame_time);
+        //debug!("frame time: {}us", frame_time);
         // target 60fps
         /*if frame_time < 1_000_000 / 60 {
             ::std::thread::sleep(::std::time::Duration::from_micros(1_000_000 / 60 - frame_time));

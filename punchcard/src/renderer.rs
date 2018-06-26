@@ -204,28 +204,6 @@ fn render_rect(builder: &mut DisplayListBuilder, txn: &mut Transaction, id: Node
     builder.push_rect(&info, fill_color);
 
     //--------------------------
-    // BORDER
-    let border_side = BorderSide {
-        color: border_color,
-        style: BorderStyle::Solid,
-    };
-    let border_widths = BorderWidths {
-        top: styles.non_layout.border_width.top.max(1.0),
-        left: styles.non_layout.border_width.left.max(1.0),
-        bottom: styles.non_layout.border_width.bottom.max(1.0),
-        right: styles.non_layout.border_width.right.max(1.0)
-    };
-    let border_details = BorderDetails::Normal(NormalBorder {
-        top: border_side,
-        right: border_side,
-        bottom: border_side,
-        left: border_side,
-        radius: BorderRadius::uniform(styles.non_layout.border_radius),
-    });
-
-    builder.push_border(&info, border_widths, border_details);
-
-    //--------------------------
     // BOX SHADOW - INSET
     if let Some(ref box_shadow) = styles.non_layout.box_shadow {
         // draw box shadow?
@@ -251,12 +229,31 @@ fn render_rect(builder: &mut DisplayListBuilder, txn: &mut Transaction, id: Node
         );
     }
 
+    //--------------------------
+    // BORDER
+    let border_side = BorderSide {
+        color: border_color,
+        style: BorderStyle::Solid,
+    };
+    let border_widths = BorderWidths {
+        top: styles.non_layout.border_width.top.max(1.0),
+        left: styles.non_layout.border_width.left.max(1.0),
+        bottom: styles.non_layout.border_width.bottom.max(1.0),
+        right: styles.non_layout.border_width.right.max(1.0)
+    };
+    let border_details = BorderDetails::Normal(NormalBorder {
+        top: border_side,
+        right: border_side,
+        bottom: border_side,
+        left: border_side,
+        radius: BorderRadius::uniform(styles.non_layout.border_radius),
+    });
+
+    builder.push_border(&info, border_widths, border_details);
+
     builder.pop_clip_id();
     // OUT OF CLIP
     //--------------------------------------------------------------
-
-
-
 
 }
 

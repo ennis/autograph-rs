@@ -32,7 +32,7 @@ impl Component for CollapsingHeader
 pub fn collapsing_panel(dom: &mut DomSink, title: impl Into<String>, f: impl FnOnce(&mut DomSink))
 {
     let title = title.into();
-    dom.component::<CollapsingHeader,_,_,_>(title.clone(), f, |state,children,dom| {
+    dom.aggregate_component(title.clone(), CollapsingHeader::default(), f, |state,children,dom| {
         dom.div("collapsing", |dom| {
             dom.div("collapsing-header", |dom| {
                 dom.text(title);

@@ -167,6 +167,7 @@ impl Ui
             NewFn: FnOnce() -> C
     {
         self.components.remove(&id).unwrap_or_else(|| {
+            debug!("NEW COMPONENT");
             let mut component = Box::new(new_fn());
             component
         })
@@ -423,7 +424,6 @@ impl Ui {
     fn dispatch_event(&mut self, event: &WindowEvent, chain: &[NodeId])
     {
         if let Some(first) = chain.first() {
-            debug!("dispatching event to: {:?}", chain);
             let mut input_state = InputState {
                 focused: false,
                 capture: self.capture.clone(),
@@ -447,7 +447,6 @@ impl Ui {
         } else {
             // not capturing, perform hit-test
             let hits = renderer::hit_test(&self.main_wr_context, WorldPoint::new(pos.0, pos.1));
-            debug!("hits: {:?}", hits);
             if let Some(id) = hits.first() {
                 self.build_dispatch_chain(*id)
             } else {
@@ -463,11 +462,36 @@ impl Ui {
             WindowEvent::CursorMoved { device_id, position, modifiers } => {
                 // update cursor pos
                 self.cursor_pos = (position.0 as f32, position.1 as f32);
+            },
+            &WindowEvent::MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            } => {
+                if state == ElementState::Released {
+                    // implicit capture release
+                    debug!("implicit capture release");
+                    self.capture = None;
+                }
+            }
+            WindowEvent::MouseWheel { .. } => {},
+            WindowEvent::KeyboardInput { device_id, input } => {
+                debug!("Keyboard input UNIMPLEMENTED {:?}", input);
+            }
+            _ => {}
+        }
+
+        match event {
+            WindowEvent::CursorMoved { .. } |
+            WindowEvent::MouseInput { .. } |
+            WindowEvent::MouseWheel { .. } => {
                 let dispatch_chain = self.hit_test(self.cursor_pos);
                 self.dispatch_event(event, &dispatch_chain[..]);
             },
             _ => {}
         }
+
     }
 
     /// Update the DOM with the provided VDOM data
@@ -478,6 +502,9 @@ impl Ui {
             f(&mut dom);
             dom.into_nodes()
         };
+
+        let id_stack_len = self.id_stack.0.len();
+        assert!(id_stack_len == 1, "ID stack had incorrect length: {}", id_stack_len);
 
         let vdom = VirtualNode::new_element(0, "root", roots);
 

@@ -26,8 +26,8 @@ fn main() {
         static mut DATA: u32 = 0;
         let data = unsafe { &mut DATA };
 
-        /*vbox(dom, |dom| {
-            collapsing_panel(dom, "panel", |dom| {
+        vbox(dom, |dom| {
+            floating_panel(dom, "panel", |dom| {
                 hbox(dom, |dom| {
                     dummy(dom, (55, 20));
                     dummy(dom, (55, 20));
@@ -41,10 +41,13 @@ fn main() {
             dummy(dom, (55, 20));
             dummy(dom, (55, 20));
             dummy(dom, (55, 20));
-        });*/
+            if button(dom) {
+                debug!("BUTT");
+            }
+        });
 
         // this actually works
-        dom! (dom;
+        /*dom! (dom;
             @vbox {
                 @collapsing_panel("panel") {
                     @hbox {
@@ -63,7 +66,7 @@ fn main() {
                     @dummy((55,20));
                 }
             }
-        );
+        );*/
 
         //debug!("vdom={:?}", dom.children());
     });
