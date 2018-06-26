@@ -9,7 +9,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 extern crate indexmap;
-extern crate nanovg as nvg;
 extern crate num;
 extern crate petgraph;
 extern crate rand;

@@ -1,7 +1,7 @@
 use cssparser::Color as CssColor;
 use cssparser::{
     AtRuleParser, CowRcStr, DeclarationListParser, DeclarationParser, ParseError, Parser,
-    ParserInput, QualifiedRuleParser, RuleListParser,
+    ParserInput, QualifiedRuleParser, RuleListParser, SourceLocation
 };
 use cssparser::{Token, RGBA};
 use failure::{Compat, Error};
@@ -216,6 +216,7 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
     fn parse_block<'t>(
         &mut self,
         prelude: Self::Prelude,
+        _location: SourceLocation,
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
         let mut decl_list_parser =

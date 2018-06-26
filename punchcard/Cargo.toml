@@ -16,7 +16,7 @@ lazy_static = "*"
 smallvec = "*"
 libc = "*"
 log = "*"
-winit = "*"
+winit = "0.15.1"
 glutin = "*"
 failure = "*"
 petgraph="*"
@@ -29,15 +29,11 @@ warmy="*"
 winapi="*"
 user32-sys="*"
 kernel32-sys="*"
-euclid="*"
+euclid="0.17.3"
 gleam="*"
 
 [dependencies.webrender]
 git = "https://github.com/servo/webrender"
-
-[dependencies.nanovg]
-path = "../ext/nanovg-rs"
-features = ["gl3"]
 
 [dependencies.yoga]
 path = "../ext/yoga-rs"
