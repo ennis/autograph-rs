@@ -1,21 +1,29 @@
 pub mod button;
 pub mod panel;
-pub mod scroll;
-pub mod slider;
-pub mod text;
-pub mod text_edit;
+pub mod collapsing;
+pub mod floating;
+//pub mod scroll;
+//pub mod slider;
+//pub mod text;
+//pub mod text_edit;
 
+use super::*;
 pub use self::button::*;
 pub use self::panel::*;
-pub use self::scroll::*;
-pub use self::slider::*;
-pub use self::text::*;
-pub use self::text_edit::*;
+pub use self::collapsing::*;
+pub use self::floating::*;
 
-/// Unused for now.
-pub struct ItemResult {
-    /// The item was clicked since the last call
-    pub clicked: bool,
-    /// The mouse is hovering over the item
-    pub hover: bool,
+/// Adds children to the dom if condition is true. Equivalent to:
+/// ```
+/// if condition {
+///     f(dom);
+/// }
+/// ```
+/// This is a convenience function to be used within the dom!() macro,
+/// which does not handle if-statements.
+pub fn condition(dom: &mut DomSink, condition: bool, f: impl FnOnce(&mut DomSink)) {
+    if condition {
+        f(dom);
+    }
 }
+

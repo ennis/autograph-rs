@@ -32,8 +32,10 @@ mod style;
 mod vdom;
 mod component;
 mod behavior;
-mod panel;
+//mod panel;
 mod id_tree;
+mod widgets;
+mod prelude;
 
 // std uses
 use std::path::{Path};
@@ -60,6 +62,7 @@ pub use self::layout::{ContentMeasurement, Layout};
 pub use self::style::{
     Background, Color, Styles, LinearGradient, RadialGradient, StyleCache
 };
+pub use self::widgets::*;
 
 // external re-exports
 pub use glutin::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};

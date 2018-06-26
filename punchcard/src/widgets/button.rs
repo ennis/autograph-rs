@@ -1,19 +1,25 @@
 //! Buttons
-use super::super::*;
+use prelude::*;
 
-impl<'a> UiContainer<'a> {
-    ///
-    /// Button.
-    ///
-    pub fn button<S>(&mut self, label: S)
-    where
-        S: Into<String>,
-    {
-        let label = label.into();
-        struct Button;
-        impl Behavior for Button {}
-        self.item(label.clone(), "button", Button, |ui, _, _| {
-            ui.text_class(label, "button-label");
-        });
+///
+/// Button.
+///
+#[derive(Default)]
+struct Button
+{
+}
+
+impl Component for Button
+{
+    fn event(&mut self, _elem: &RetainedNode, event: &WindowEvent, input_state: &InputState) -> EventResult {
+        EventResult::pass()
     }
 }
+
+pub fn button(dom: &mut DomSink, size: (u32,u32))
+{
+    dom.component::<Button,_,_,_>("button", |_|{}, |state,children,dom| {
+        let node = dom.div("button", |_|{});
+    });
+}
+

@@ -8,11 +8,11 @@ hbox {
   margin: 2px; }
 
 dummy {
-  background-color: #f5511f;
-  border-width: 1px;
-  border-color: #911b00;
-  margin: 3px;
-  box-shadow: 1px 1px 0px 0px #ff9476 inset; }
+  background-color: #f500ea;
+  border-width: 4px;
+  border-radius: 8px;
+  border-color: #009114;
+  margin: 3px; }
 
 slider {
   flex-grow: 1.0;
