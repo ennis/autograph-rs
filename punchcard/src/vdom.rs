@@ -93,9 +93,21 @@ impl VirtualNode
         self
     }
 
+    pub fn set_width_percent(&mut self, width_percent: f32) -> &mut Self
+    {
+        self.layout_overrides.width = Some(width_percent.percent());
+        self
+    }
+
     pub fn set_height(&mut self, height: f32) -> &mut Self
     {
         self.layout_overrides.height = Some(height.point());
+        self
+    }
+
+    pub fn set_height_percent(&mut self, height_percent: f32) -> &mut Self
+    {
+        self.layout_overrides.height = Some(height_percent.percent());
         self
     }
 
@@ -110,6 +122,18 @@ impl VirtualNode
     {
         self.layout_overrides.left = Some(pos.0.point());
         self.layout_overrides.top = Some(pos.1.point());
+        self
+    }
+
+    pub fn set_x_percent(&mut self, x_percent: f32) -> &mut Self
+    {
+        self.layout_overrides.left = Some(x_percent.percent());
+        self
+    }
+
+    pub fn set_y_percent(&mut self, y_percent: f32) -> &mut Self
+    {
+        self.layout_overrides.top = Some(y_percent.percent());
         self
     }
 
@@ -239,7 +263,7 @@ impl<'a> DomSink<'a>
     /// Instantiates a component which has no children.
     pub fn component<C, S, R, RenderFn>(&mut self, id: S, component_init: C, render_fn: RenderFn) -> R
         where
-            C: Component+Default,
+            C: Component,
             S: Into<String>,
             RenderFn: FnOnce(&mut C, &mut DomSink) -> R
     {
@@ -254,7 +278,7 @@ impl<'a> DomSink<'a>
     /// TODO bikeshed the name.
     pub fn aggregate_component<C, S, R, ChildrenFn, RenderFn>(&mut self, id: S, component_init: C, children_fn: ChildrenFn, render_fn: RenderFn) -> R
         where
-            C: Component+Default,
+            C: Component,
             S: Into<String>,
             RenderFn: FnOnce(&mut C, Vec<VirtualNode>, &mut DomSink) -> R,
             ChildrenFn: FnOnce(&mut DomSink)

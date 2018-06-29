@@ -3,7 +3,7 @@ pub mod panel;
 pub mod collapsing;
 pub mod floating;
 //pub mod scroll;
-//pub mod slider;
+pub mod slider;
 //pub mod text;
 //pub mod text_edit;
 
@@ -12,6 +12,7 @@ pub use self::button::*;
 pub use self::panel::*;
 pub use self::collapsing::*;
 pub use self::floating::*;
+pub use self::slider::*;
 
 /// Adds children to the dom if condition is true. Equivalent to:
 /// ```

@@ -28,12 +28,20 @@ fn main() {
 
         vbox(dom, |dom| {
             floating_panel(dom, "panel", |dom| {
-                hbox(dom, |dom| {
-                    dummy(dom, (55, 20));
-                    dummy(dom, (55, 20));
-                    dummy(dom, (55, 20));
-                    dummy(dom, (55, 20));
-                    dummy(dom, (55, 20));
+                vbox(dom, |dom| {
+                    hbox(dom, |dom| {
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
+                    });
+                    slider(dom, "slider1", data, 0, 50);
+                    slider(dom, "slider2", data, 0, 50);
+                    slider(dom, "slider3", data, 0, 50);
+                    slider(dom, "slider4", data, 0, 50);
+                    slider(dom, "slider5", data, 0, 50);
+                    slider(dom, "slider6", data, 0, 50);
                 });
             });
             dummy(dom, (55, 20));

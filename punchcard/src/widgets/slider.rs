@@ -1,5 +1,5 @@
 //! Sliders.
-use super::super::*;
+use prelude::*;
 use std::fmt::Display;
 
 pub trait Interpolable: Copy + 'static {
@@ -40,126 +40,109 @@ impl Interpolable for u32 {
     }
 }
 
-impl<'a> UiContainer<'a> {
-    ///
-    /// Slider with a f32 backing value.
-    ///
-    pub fn slider<S, T: Interpolable + Display>(&mut self, label: S, value: &mut T, min: T, max: T)
-    where
-        S: Into<String>,
+struct Slider<T: Interpolable>
+{
+    value: T,
+    min: T,
+    max: T,
+    dirty: bool,
+}
+
+impl<T: Interpolable> Slider<T> {
+    fn new(value: T, min: T, max: T) -> Slider<T>
+    {
+        Slider {
+            value,
+            min,
+            max,
+            dirty: false,
+        }
+    }
+
+    fn sync(&mut self, value: &mut T) {
+        if self.dirty {
+            *value = self.value;
+        } else {
+            self.value = *value;
+        }
+        self.dirty = false;
+    }
+
+    fn set_ratio(&mut self, ratio: f32) {
+        let value = <T as Interpolable>::lerp(self.min, self.max, ratio);
+        self.set_value(value);
+    }
+
+    fn set_value(&mut self, value: T) {
+        self.value = value;
+        self.dirty = true;
+    }
+
+    fn ratio(&self) -> f32 {
+        <T as Interpolable>::ratio(self.min, self.max, self.value)
+    }
+}
+
+
+impl<T: Interpolable + Display> Component for Slider<T> {
+    fn event(&mut self,
+             elem: &RetainedNode,
+             event: &WindowEvent,
+             input_state: &InputState) -> EventResult
     {
         use num::clamp;
 
-        //=====================================
-        // slider
-        struct Slider<T: Interpolable> {
-            value: T,
-            min: T,
-            max: T,
-            dirty: bool,
+        // update the slider current value from the current cursor position
+        let mut update_slider_pos = |layout: &Layout, cursor_pos: (f32, f32)| {
+            let (cx, _) = cursor_pos;
+            self.set_ratio(clamp((cx - layout.left) / layout.width(), 0.0, 1.0));
         };
 
-        impl<T: Interpolable> Slider<T> {
-            fn sync(&mut self, value: &mut T) {
-                if self.dirty {
-                    *value = self.value;
+        // debug!("Slider capture {:016X} {:?}", itemid, event);
+        match event {
+            // clicked inside the slider layout rect
+            &WindowEvent::MouseInput {
+                state, ..
+            } => {
+                if state == ElementState::Pressed {
+                    // capture events
+                    update_slider_pos(&elem.layout, input_state.cursor_pos());
+                    EventResult::stop().set_capture()
+                }
+                else {
+                    //debug!("slider event");
+                    EventResult::stop()
+                }
+            }
+            &WindowEvent::CursorMoved { .. } => {
+                if input_state.is_capturing() {
+                    update_slider_pos(&elem.layout, input_state.cursor_pos());
+                    EventResult::stop().set_capture()
                 } else {
-                    self.value = *value;
-                }
-                self.dirty = false;
-            }
-
-            fn set_ratio(&mut self, ratio: f32) {
-                let value = <T as Interpolable>::lerp(self.min, self.max, ratio);
-                self.set_value(value);
-            }
-
-            fn set_value(&mut self, value: T) {
-                self.value = value;
-                self.dirty = true;
-            }
-
-            fn ratio(&self) -> f32 {
-                <T as Interpolable>::ratio(self.min, self.max, self.value)
-            }
-        }
-
-        impl<T: Interpolable + Display> Behavior for Slider<T> {
-            fn event(
-                &mut self,
-                item: &mut Item,
-                event: &WindowEvent,
-                input_state: &mut InputState,
-            ) -> bool {
-                // update the slider current value from the current cursor position
-                let mut update_slider_pos = |layout: &Layout, cursor_pos: (f32, f32)| {
-                    let (cx, _) = cursor_pos;
-                    self.set_ratio(clamp((cx - layout.left) / layout.width(), 0.0, 1.0));
-                    debug!("slider pos={}", self.value);
-                };
-
-                // debug!("Slider capture {:016X} {:?}", itemid, event);
-                match event {
-                    // clicked inside the slider layout rect
-                    &WindowEvent::MouseInput {
-                        state: elem_state, ..
-                    } => {
-                        if elem_state == ElementState::Pressed {
-                            // capture events
-                            input_state.set_capture();
-                            update_slider_pos(&item.layout, input_state.cursor_pos());
-                        }
-                        //debug!("slider event");
-                        true
-                    }
-                    &WindowEvent::CursorMoved { .. } => {
-                        if input_state.capturing {
-                            update_slider_pos(&item.layout, input_state.cursor_pos());
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    _ => false,
+                    EventResult::pass()
                 }
             }
+            _ => EventResult::pass(),
         }
-
-        //=====================================
-        // knob
-        struct Knob;
-        impl Behavior for Knob {}
-
-        //=====================================
-        // bar
-        struct Bar;
-        impl Behavior for Bar {}
-
-        //=====================================
-        // hierarchy
-        self.item(
-            label,
-            "slider",
-            Slider {
-                value: *value,
-                min,
-                max,
-                dirty: false,
-            },
-            |ui, _, slider| {
-                slider.min = min;
-                slider.max = max;
-                slider.sync(value);
-
-                ui.item("bar", "slider-bar", Bar, |ui, _, _| {
-                    ui.item("knob", "slider-knob", Knob, |_, item, _| {
-                        item.set_position(Some((100.0 * slider.ratio()).percent()), None);
-                    });
-                });
-            },
-        );
     }
 }
+
+
+pub fn slider<S: Into<String>, T: Interpolable + Display>(dom: &mut DomSink, label: S, value: &mut T, min: T, max: T)
+{
+    let label = label.into();
+    dom.component(label.clone(), Slider::new(*value, min, max), |state,dom| {
+        state.min = min;
+        state.max = max;
+        state.sync(value);
+        dom.div("slider", |dom| {
+            dom.div("slider-bar", |dom| {
+                dom.div("slider-knob", |dom| {}).set_x_percent(100.0*state.ratio());
+            });
+        });
+    });
+}
+
 
 // reduce visual noise:
 //      |ui, item, state| -> |item|
@@ -199,7 +182,7 @@ impl<T: Interpolable> Component<(T,f32,f32)> for Slider2<T>
     }
 }
 */
-
+/*
 struct AppState
 {
     a: f32,
@@ -237,7 +220,7 @@ fn gui_for_app_state(ui: &mut UiSink, app: &mut AppState)
         max: 1.0
     }, |_| {});    // drops the ref!
 }
-
+*/
 
 /*
 fn slider2<'a>(label: S, value: &'a mut T, min: T, max: T) -> impl Renderable + 'a
