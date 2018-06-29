@@ -10,7 +10,8 @@ pub struct FloatingPanel {
     /// Position drag.
     drag: DragBehavior,
     /// Position
-    position: (f32, f32)
+    position: (f32, f32),
+    size: (f32, f32)
 }
 
 impl Default for FloatingPanel {
@@ -18,7 +19,8 @@ impl Default for FloatingPanel {
         FloatingPanel {
             collapsed: false,
             drag: DragBehavior::default(),
-            position: (0.0, 0.0)
+            position: (0.0, 0.0),
+            size: (120.0, 120.0)
         }
     }
 }
@@ -53,7 +55,29 @@ pub fn floating_panel(dom: &mut DomSink, title: impl Into<String>, f: impl FnOnc
                     dom.push(children);
                 });
             }
-        }).set_position(state.position);
-        //debug!("position: {},{}", state.position.0, state.position.1);
+            draggable_handle(dom, "floating-resize-handle", &mut state.size);
+        }).set_position(state.position).set_size(state.size);
+        //debug!("position={},{} size={}x{}", state.position.0, state.position.1, state.size.0, state.size.1);
+    });
+}
+
+#[derive(Default)]
+struct DraggableHandle
+{
+    drag: DragBehavior
+}
+
+impl Component for DraggableHandle
+{
+    fn event(&mut self, elem: &RetainedNode, event: &WindowEvent, input_state: &InputState) -> EventResult {
+        self.drag.event(elem, event, input_state)
+    }
+}
+
+pub fn draggable_handle(dom: &mut DomSink, class: &str, value: &mut (f32,f32))
+{
+    dom.component("handle", DraggableHandle::default(), |state,dom| {
+        state.drag.handle_drag(value);
+        dom.div(class, |_|{});
     });
 }

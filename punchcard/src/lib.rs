@@ -155,7 +155,8 @@ pub struct Ui
     dom_root: Option<NodeId>,
     main_wr_context: WebrenderContext,
     /// Owned windows (created by the UI).
-    side_windows: Vec<(GlWindow, WebrenderContext)>
+    side_windows: Vec<(GlWindow, WebrenderContext)>,
+    dump_next_event_dispatch_chain: bool
 }
 
 impl Ui
@@ -208,6 +209,7 @@ impl Ui {
             dom_root: None,
             main_wr_context: WebrenderContext::new(main_window, events_loop),
             side_windows: Vec::new(),
+            dump_next_event_dispatch_chain: false
         };
 
         ui
@@ -243,6 +245,52 @@ impl Ui {
         // TODO: render side windows.
     }
 
+
+    fn dump_dom_0(&self,
+                id: NodeId,
+                dispatch_chain: Option<&[NodeId]>,
+                level: usize)
+    {
+        let node = &self.dom_nodes[id];
+        let data = node.data();
+
+        let is_in_dispatch_chain = if let Some(chain) = dispatch_chain {
+            chain.contains(&id)
+        } else { false };
+
+        let is_component = self.components.get(&data.id).is_some();
+
+        // + <type> nodeid class ElementId= Layout
+        println!("{:indent$} {} {}{} {} {} {:016X} ({},{}:{}x{})", "",
+                 if is_in_dispatch_chain { "✓" } else { "-" },
+                 match data.contents {
+                     Contents::Element => "div",
+                     Contents::Text(_) => "text"
+                 },
+                 if is_component { "*" } else { "" },
+                 id.as_u64(),
+                 if data.class.is_empty() { "<empty>" } else { data.class.as_ref() },
+                 data.id,
+                 data.layout.left,
+                 data.layout.top,
+                 data.layout.width(),
+                 data.layout.height(),
+                 indent=level*2);
+
+        let mut next = node.first_child();
+        while let Some(id) = next {
+            self.dump_dom_0(id, dispatch_chain, level+1);
+            next = self.dom_nodes[id].next_sibling();
+        }
+    }
+
+    fn dump_dom(&self, dispatch_chain: Option<&[NodeId]>)
+    {
+        if let Some(dom_root) = self.dom_root {
+            self.dump_dom_0(dom_root, dispatch_chain, 0);
+        }
+    }
+
     // issues with hit-testing:
     // - how to generate the propagation path?
     // - how to recover the RetainedElement?
@@ -270,82 +318,6 @@ impl Ui {
     fn release_capture(&mut self) {
         debug!("release capture");
         self.capture = None;
-    }
-
-    /// Check if the given item is capturing pointer events.
-    fn is_item_capturing(&self, id: ItemID) -> bool {
-        if let Some(ref capture) = self.capture {
-            *capture.id_path.last().expect("path was empty") == id
-        } else {
-            false
-        }
-    }*/
-
-    /*fn hit_test_item_rec(
-        &self,
-        pos: (f32, f32),
-        node: &ItemNode,
-        path: &[ItemID],
-        chain: &mut Vec<ItemID>,
-    ) -> bool {
-        if let Some((x, xs)) = path.split_first() {
-            chain.push(node.item.id);
-            self.hit_test_item_rec(pos, &node.children[x], xs, chain)
-        } else {
-            self.hit_test_rec(pos, node, chain)
-        }
-    }*/
-
-    /*fn hit_test_rec(&self, pos: (f32, f32), node: &ItemNode, chain: &mut Vec<ItemID>) -> bool {
-        if node.hit_test(pos) {
-            chain.push(node.item.id);
-            for (_, child) in node.children.0.iter() {
-                if self.hit_test_rec(pos, child, chain) {
-                    break;
-                }
-            }
-            true
-        } else {
-            false
-        }
-    }
-
-    fn hit_test(
-        &self,
-        pos: (f32, f32),
-        chain: &mut Vec<ItemID>,
-    ) -> bool {
-        // check popups first
-        for (k,node) in self.roots.0.iter().rev() {
-            // debug!("testing {}", *k);
-            if self.hit_test_rec(pos, node, chain) {
-                // got a match
-                break;
-            }
-            chain.clear();
-        }
-
-        // a popup matched
-        !chain.is_empty()
-    }*/
-
-
-
-    /*fn render_item(
-        &mut self,
-        node: &mut ItemNode,
-        parent_layout: &Layout,
-        draw_list: &mut DrawList,
-    ) {
-        let layout = Layout::from_yoga_layout(parent_layout, node.flexbox.get_layout());
-        node.item.layout = layout;
-        //debug!("layout {:?}", layout);
-        draw_list.with_z_order(node.item.z_order, |draw_list| {
-            node.draw(draw_list);
-            for (_, child) in node.children.0.iter_mut() {
-                self.render_item(child, &layout, draw_list);
-            }
-        });
     }*/
 
     fn build_dispatch_chain(&self, hit_id: NodeId) -> Vec<NodeId>
@@ -356,6 +328,7 @@ impl Ui {
             node_ids.push(id);
             current = id;
         }
+        node_ids.reverse();
         node_ids
     }
 
@@ -374,6 +347,7 @@ impl Ui {
 
     fn dispatch_event_0(&mut self, event: &WindowEvent, chain: &[NodeId], input_state: &InputState) -> bool
     {
+        //debug!("dispatch[{:?}]", chain);
         let (&id,rest) = chain.split_first().expect("empty dispatch chain");
 
         let captured = {
@@ -429,9 +403,9 @@ impl Ui {
                 cursor_pos: self.cursor_pos
             };
             self.dispatch_event_0(event, chain, &mut input_state);
-            if let Some(ref capture) = self.capture {
+            /*if let Some(ref capture) = self.capture {
                 debug!("after event, node {:?} is capturing", capture.id);
-            }
+            }*/
         }
     }
 
@@ -441,7 +415,7 @@ impl Ui {
         // are we capturing?
         if let Some(ref capture) = self.capture {
             // yes, skip hit-test and send event directly to capture target.
-            debug!("capturing");
+            //debug!("capturing");
             self.build_dispatch_chain(capture.id)
         } else {
             // not capturing, perform hit-test
@@ -476,6 +450,15 @@ impl Ui {
             }
             WindowEvent::MouseWheel { .. } => {},
             WindowEvent::KeyboardInput { device_id, input } => {
+                match input.virtual_keycode {
+                    Some(VirtualKeyCode::F12) => {
+                        self.dump_dom(None);
+                    },
+                    Some(VirtualKeyCode::F11) => {
+                        self.dump_next_event_dispatch_chain = true;
+                    }
+                    _ => {}
+                };
                 debug!("Keyboard input UNIMPLEMENTED {:?}", input);
             }
             _ => {}
@@ -486,6 +469,10 @@ impl Ui {
             WindowEvent::MouseInput { .. } |
             WindowEvent::MouseWheel { .. } => {
                 let dispatch_chain = self.hit_test(self.cursor_pos);
+                if self.dump_next_event_dispatch_chain {
+                    self.dump_dom(Some(&dispatch_chain[..]));
+                    self.dump_next_event_dispatch_chain = false;
+                }
                 self.dispatch_event(event, &dispatch_chain[..]);
             },
             _ => {}

@@ -159,7 +159,7 @@ pub(super) fn update_node(arena: &mut Arena<RetainedNode>, id: NodeId, vn: Virtu
     };
 
     if recreate {
-        debug!("RECREATE");
+         debug!("RECREATE");
         // drop the node and create another
         let parent = arena[id].parent();
         arena.remove_node(id);
@@ -180,7 +180,7 @@ pub(super) fn update_node(arena: &mut Arena<RetainedNode>, id: NodeId, vn: Virtu
                 data.contents = vn.contents;
             }
             if data.layout_overrides != vn.layout_overrides {
-                debug!("LAYOUT OVERRIDE {:?} -> {:?}", data.layout_overrides, vn.layout_overrides);
+                //debug!("LAYOUT OVERRIDE {:?} -> {:?}", data.layout_overrides, vn.layout_overrides);
                 data.layout_overrides = vn.layout_overrides;
             }
         }
@@ -243,22 +243,9 @@ impl<'a> DomSink<'a>
             S: Into<String>,
             RenderFn: FnOnce(&mut C, &mut DomSink) -> R
     {
-        let id_str = id.into();
-        let id = self.ui.id_stack.push_id(&id_str);
-        let mut component = self.ui.get_component::<C,_>(id, move || { component_init });
-        let (render_result, rendered) = {
-            let c = component.as_mut_any().downcast_mut().expect("unexpected component type");
-            let res = self.collect_children(id, |dom| {render_fn(c, dom)});
-            c.post_frame();
-            res
-            // drop borrow of component through component_ref
-        };
-        // create vdom node for component
-        let vdom = VirtualNode::new_element(id, "", rendered);
-        self.children.push(vdom);
-        self.ui.insert_component(id, component);
-        self.ui.id_stack.pop_id();
-        render_result
+        self.aggregate_component(id, component_init, |_|{}, move |state,children,dom| {
+            render_fn(state,dom)
+        })
     }
 
     ///
@@ -279,7 +266,7 @@ impl<'a> DomSink<'a>
 
         // 2. render component
         let mut component = self.ui.get_component::<C,_>(id, move || { component_init });
-        let (render_result, rendered) = {
+        let (render_result, mut rendered) = {
             let c = component.as_mut_any().downcast_mut().expect("unexpected component type");
             let res = self.collect_children(id, |dom| {
                 render_fn(c, children, dom)
@@ -288,10 +275,15 @@ impl<'a> DomSink<'a>
             res
             // drop borrow of component through component_ref
         };
+        assert!(rendered.len() <= 1, "A component cannot render more than one element (rendered.len() = {})", rendered.len());
         // create vdom node for component
         // let class empty because it's a wrapper node.
-        let vdom = VirtualNode::new_element(id, "", rendered);
-        self.children.push(vdom);
+        if rendered.len() == 1 {
+            let mut vdom = rendered.pop().unwrap();
+            // HACK: correct the ID of the vdom node so that it matches the one of the component.
+            vdom.id = id;
+            self.children.push(vdom);
+        }
         self.ui.insert_component(id, component);
         self.ui.id_stack.pop_id();
         render_result
