@@ -31,6 +31,7 @@ user32-sys="*"
 kernel32-sys="*"
 euclid="0.17.3"
 gleam="*"
+rusttype="*"
 
 [dependencies.webrender]
 git = "https://github.com/servo/webrender"

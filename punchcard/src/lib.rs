@@ -20,6 +20,7 @@ extern crate winapi;
 extern crate webrender;
 extern crate gleam;
 extern crate euclid;
+extern crate rusttype;
 
 // modules
 mod css;
@@ -149,6 +150,7 @@ pub struct Ui
     capture: Option<PointerCapture>,
     focus: Option<NodeId>,
     stylesheets: Vec<Res<css::Stylesheet>>,
+    //font_collections: Vec<Res<rusttype::FontCollection>>,
     style_cache: StyleCache,
     store: ResourceStore,
     dom_nodes: Arena<RetainedNode>,

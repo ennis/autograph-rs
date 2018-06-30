@@ -6,10 +6,10 @@ authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 [dependencies]
 lazy_static = "0.2.8"
 log = "*"
-quote = "*"
-syn = "*"
-darling = "*"
-proc-macro2 = "*"
+quote = "0.6"
+syn = "0.13"
+darling = "0.6"
+proc-macro2 = "0.3"
 memoffset="*"
 
 [lib]
