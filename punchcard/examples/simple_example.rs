@@ -3,60 +3,83 @@ extern crate punchcard;
 #[macro_use]
 extern crate log;
 extern crate pretty_env_logger;
-extern crate glutin;
 #[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
-extern crate gl;
-extern crate indexmap;
-extern crate nanovg as nvg;
 extern crate num;
-extern crate petgraph;
 extern crate rand;
 extern crate time;
-extern crate yoga;
-extern crate cssparser;
-extern crate warmy;
-extern crate winapi;
 
 use punchcard::*;
+
 use rand::Rng;
 
 mod common;
 
+
+
 fn main() {
-    common::gui_test(|ui| {
+    common::main_wrapper("Simple example", 1280, 720, |dom| {
         static mut DATA: u32 = 0;
         let data = unsafe { &mut DATA };
 
-        ui.root(|ui| {
-            ui.scroll("main", |ui| {
-                // ui.vbox("main", |ui| {
-                for i in 0..10 {
-                    ui.floating_panel(format!("Floating {}", i), |ui| {
-                        ui.text("panel contents");
-                        ui.hbox(format!("{}", i), |ui| {
-                            ui.collapsing_panel(format!("Panel {}", i), |ui| {
-                                for i in 0..10 {
-                                    ui.hbox(format!("{}", i), |ui| {
-                                        ui.text("hello");
-                                        ui.button("click");
-                                        ui.slider("slider0", data, 0, 50);
-                                        ui.slider("slider", data, 0, 50);
-                                    });
-                                }
-                            });
-                        });
+        vbox(dom, |dom| {
+            floating_panel(dom, "panel", |dom| {
+                vbox(dom, |dom| {
+                    hbox(dom, |dom| {
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
+                        dummy(dom, (55, 20));
                     });
-
-                }
+                    slider(dom, "slider1", data, 0, 50);
+                    slider(dom, "slider2", data, 0, 50);
+                    slider(dom, "slider3", data, 0, 50);
+                    slider(dom, "slider4", data, 0, 50);
+                    slider(dom, "slider5", data, 0, 50);
+                    slider(dom, "slider6", data, 0, 50);
+                });
             });
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+            dummy(dom, (55, 20));
+            if button(dom) {
+                debug!("BUTT");
+            }
         });
+
+        // this actually works
+        /*dom! (dom;
+            @vbox {
+                @collapsing_panel("panel") {
+                    @hbox {
+                        @dummy((55,20));
+                        @dummy((55,20));
+                        @dummy((55,20));
+                        @dummy((55,20));
+                        @dummy((55,20));
+                    }
+                }
+                @condition(true) {
+                    @dummy((55,20));
+                    @dummy((55,20));
+                    @dummy((55,20));
+                    @dummy((55,20));
+                    @dummy((55,20));
+                }
+            }
+        );*/
+
+        //debug!("vdom={:?}", dom.children());
     });
 }
+
 
 // with macros:
 /*@root {

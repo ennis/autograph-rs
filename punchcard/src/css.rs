@@ -1,7 +1,7 @@
 use cssparser::Color as CssColor;
 use cssparser::{
     AtRuleParser, CowRcStr, DeclarationListParser, DeclarationParser, ParseError, Parser,
-    ParserInput, QualifiedRuleParser, RuleListParser,
+    ParserInput, QualifiedRuleParser, RuleListParser, SourceLocation
 };
 use cssparser::{Token, RGBA};
 use failure::{Compat, Error};
@@ -11,6 +11,7 @@ use yoga;
 use yoga::prelude::*;
 
 use super::style::*;
+use webrender::api::BoxShadowClipMode;
 
 /// A CSS declaration
 #[derive(Clone, Debug)]
@@ -37,6 +38,8 @@ pub enum PropertyDeclaration {
     BorderTopWidth(f32),
     /// Borders.
     BorderRadius(f32),
+    /// Box shadows.
+    BoxShadow(Option<BoxShadow>),
     /// Flex styles.
     AlignContent(yoga::Align),
     AlignItems(yoga::Align),
@@ -83,7 +86,7 @@ pub enum PropertyDeclaration {
     Width(yoga::StyleUnit),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum PseudoClass
 {
     Active,
@@ -91,11 +94,21 @@ pub enum PseudoClass
 }
 
 /// A CSS selector.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Selector {
     /// TODO
     class: String,
     pseudo_class: Option<PseudoClass>
+}
+
+impl Selector
+{
+    pub fn new(class: String) -> Selector {
+        Selector {
+            class,
+            pseudo_class: None
+        }
+    }
 }
 
 /// A CSS rule-set.
@@ -117,12 +130,12 @@ pub struct Stylesheet {
 }
 
 impl Stylesheet {
-    pub fn match_class(&self, class: &str) -> Option<&Rule> {
-        // TODO
+    pub fn match_rules(&self, selector: &Selector) -> Vec<&Rule> {
+        // TODO pseudo-classes
         self.rules
             .iter()
-            .filter(|rule| rule.selector.class == class)
-            .next()
+            .filter(|rule| rule.selector.class == selector.class)
+            .collect()
     }
 }
 
@@ -203,6 +216,7 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
     fn parse_block<'t>(
         &mut self,
         prelude: Self::Prelude,
+        _location: SourceLocation,
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
         let mut decl_list_parser =
@@ -339,6 +353,52 @@ fn parse_box_width<'i, 't>(
         _ => unreachable!(),
     }
 }
+
+/// Box shadow property parser.
+fn parse_box_shadow<'i, 't>(
+    parser: &mut Parser<'i, 't>,
+) -> Result<
+    Option<BoxShadow>,
+    ParseError<'i, PropertyParseErrorKind<'i>>,
+> {
+    if parser.try(|parser| parser.expect_ident_matching("none")).is_ok() {
+        Ok(None)
+    } else {
+        // full form
+        let p0 = parse_style_unit(parser)?.to_px().ok_or(parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
+        debug!("p0");
+        let p1 = parse_style_unit(parser)?.to_px().ok_or(parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
+        debug!("p1");
+        let p2 = parse_style_unit(parser)?.to_px().ok_or(parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
+        debug!("p2");
+        let p3 = parse_style_unit(parser)?.to_px().ok_or(parser.new_custom_error(PropertyParseErrorKind::UnsupportedUnit))?;
+        debug!("p3");
+        let p4 = CssColor::parse(parser)?.to_color();
+        debug!("p4");
+        let p5 = parser.expect_ident_cloned().ok();
+        debug!("p5");
+
+        let mode = if let Some(ref ident) = p5 {
+            match ident.as_ref() {
+                "inset" => BoxShadowClipMode::Inset,
+                "outset" => BoxShadowClipMode::Outset,
+                _ => return Err(parser.new_custom_error(PropertyParseErrorKind::Other)),
+            }
+        } else {
+            BoxShadowClipMode::Outset
+        };
+
+        Ok(Some(BoxShadow {
+            horizontal_offset: p0,
+            vertical_offset: p1,
+            blur_radius: p2,
+            spread: p3,
+            color: p4,
+            clip_mode: mode,
+        }))
+    }
+}
+
 
 struct PropertyDeclarationParser {
     declarations: Vec<PropertyDeclaration>,
@@ -495,6 +555,13 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
                 ));
                 Ok(())
             }
+            // box shadow
+            "box-shadow" => {
+                self.declarations.push(PropertyDeclaration::BoxShadow(
+                    parse_box_shadow(parser)?
+                ));
+                Ok(())
+            },
             // flexbox properties
             "flex-direction" => {
                 let ident = parser.expect_ident_cloned()?;

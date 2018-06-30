@@ -1,6 +1,10 @@
 use super::css;
-use std::rc::Rc;
 use yoga;
+use warmy::{FSKey, Res, Store, StoreOpt};
+
+use std::rc::Rc;
+use std::collections::{HashMap, hash_map::{Entry, OccupiedEntry, VacantEntry}};
+use webrender::api::BoxShadowClipMode;
 
 /// Font description
 #[derive(Clone, Debug)]
@@ -35,6 +39,17 @@ pub enum Background {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct BoxShadow
+{
+    pub color: Color,
+    pub horizontal_offset: f32,
+    pub vertical_offset: f32,
+    pub blur_radius: f32,
+    pub spread: f32,
+    pub clip_mode: BoxShadowClipMode,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct BoxProperty<T: Clone + PartialEq> {
     pub top: T,
     pub right: T,
@@ -61,6 +76,7 @@ pub struct NonLayoutStyles {
     pub border_color: BoxProperty<Color>,
     pub border_width: BoxProperty<f32>,
     pub border_radius: f32,
+    pub box_shadow: Option<BoxShadow>
 }
 
 impl Default for NonLayoutStyles {
@@ -70,6 +86,7 @@ impl Default for NonLayoutStyles {
             border_color: BoxProperty::all((0.0, 0.0, 0.0, 0.0)),
             border_width: BoxProperty::all(0.0),
             border_radius: 0.0,
+            box_shadow: None
         }
     }
 }
@@ -170,16 +187,16 @@ impl Default for FontStyles {
 }
 
 #[derive(Debug)]
-pub struct ComputedStyle {
+pub struct Styles {
     pub font: FontStyles,
     pub non_layout: NonLayoutStyles,
     pub layout: LayoutStyles,
     pub dyn_layout: DynamicLayoutStyles,
 }
 
-impl Default for ComputedStyle {
-    fn default() -> ComputedStyle {
-        ComputedStyle {
+impl Default for Styles {
+    fn default() -> Styles {
+        Styles {
             font: Default::default(),
             non_layout: Default::default(),
             layout: Default::default(),
@@ -188,7 +205,7 @@ impl Default for ComputedStyle {
     }
 }
 
-impl ComputedStyle {
+impl Styles {
     /// Apply CSS property.
     pub(super) fn apply_property(&mut self, prop: &css::PropertyDeclaration) {
         match prop {
@@ -223,6 +240,9 @@ impl ComputedStyle {
             }
             css::PropertyDeclaration::BorderRadius(radius) => {
                 self.non_layout.border_radius = *radius;
+            }
+            css::PropertyDeclaration::BoxShadow(box_shadow) => {
+                self.non_layout.box_shadow = box_shadow.clone();
             }
 
             // Layout-altering styles
@@ -327,7 +347,7 @@ impl ComputedStyle {
 
 /// Calculated style.
 /// Some components of style may be shared between items to reduce memory usage.
-#[derive(Clone, Debug)]
+/*#[derive(Clone, Debug)]
 pub struct CachedStyle {
     pub font: Rc<FontStyles>,
     pub non_layout: Rc<NonLayoutStyles>,
@@ -365,8 +385,9 @@ impl CachedStyle {
         layout_damaged
     }
 }
+*/
 
-pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &CachedStyle) {
+pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &Styles) {
     // TODO rewrite this with direct calls to methods of Node
     let styles = &[
         yoga::FlexStyle::AlignContent(style.layout.align_content),
@@ -409,4 +430,46 @@ pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &CachedStyle) {
         yoga::FlexStyle::Position(style.layout.position),
     ];
     node.apply_styles(&styles[..]);
+}
+
+pub struct StyleCache
+{
+    cache: HashMap<css::Selector, Rc<Styles>>
+}
+
+impl StyleCache
+{
+    pub fn new() -> StyleCache
+    {
+        StyleCache {
+            cache: HashMap::new()
+        }
+    }
+
+    pub fn invalidate(&mut self)
+    {
+        self.cache.clear();
+    }
+
+    pub fn get_styles(&mut self, stylesheets: &[Res<css::Stylesheet>], selector: css::Selector) -> Rc<Styles>
+    {
+        self.cache.entry(selector.clone()).or_insert_with(|| {
+            let mut styles = Styles::default();
+            for stylesheet in stylesheets.iter() {
+                let stylesheet = stylesheet.borrow();
+                // TODO actually fetch all rules?
+                let rules = stylesheet.match_rules(&selector);
+                if rules.is_empty() {
+                    debug!("no rules for selector {:?}", selector);
+                }
+                for rule in rules {
+                    debug!("(selector {:?}) rule {:?}", selector, rule);
+                    for d in rule.declarations.iter() {
+                        styles.apply_property(d);
+                    }
+                }
+            }
+            Rc::new(styles)
+        }).clone()
+    }
 }

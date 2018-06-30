@@ -1,21 +1,23 @@
 //! Buttons
-use super::super::*;
-use super::super::behavior::ButtonBehavior;
+use prelude::*;
 
-impl<'a> UiContainer<'a> {
-    ///
-    /// Button.
-    ///
-    pub fn button<S>(&mut self, label: S)
-    where
-        S: Into<String>,
-    {
-        let label = label.into();
-        self.item(label.clone(), "button", ButtonBehavior::new(), |ui, item, state| {
-            ui.text_class(label, "button-label");
-            if state.clicked() {
-                debug!("button clicked {:016X}", item.id);
-            }
-        });
-    }
+///
+/// Button.
+///
+pub fn button(dom: &mut DomSink) -> bool
+{
+    dom.component("button", ButtonBehavior::default(), |state, dom| {
+        let node = dom.div("button", |_|{});
+        state.clicked()
+    })
 }
+
+///
+/// Alternative to button(), if you prefer mutable refs.
+///
+pub fn button_alt(dom: &mut DomSink, clicked: &mut bool)
+{
+    *clicked = button(dom);
+}
+
+

@@ -33,5 +33,25 @@ pass DeferredDebug(frame: &'pass gfx::Frame, target: &'pass Arc<gfx::Framebuffer
 }
 }
 
+#[derive(FrameGraphResources)]
+struct DeferredDebug
+{
+    #[access(read)]
+    diffuse: gfx::Texture2D,
+    #[access(read)]
+    normals: gfx::Texture2D,
+    #[access(read)]
+    material_id: gfx::Texture2D,
+    #[access(read)]
+    depth: gfx::Texture2D,
+}
+
+impl FrameGraphCallbacks for DeferredDebug
+{
+    fn execute<'pass>(frame: &'pass gfx::Frame, target: &'pass Arc<gfx::Framebuffer>) {
+
+    }
+}
+
 pub use self::DeferredDebug::*;
 
