@@ -17,10 +17,7 @@ extern crate yoga;
 extern crate cssparser;
 extern crate warmy;
 extern crate winapi;
-extern crate webrender;
-extern crate gleam;
-extern crate euclid;
-extern crate rusttype;
+extern crate nanovg;
 
 // modules
 mod css;
@@ -155,9 +152,9 @@ pub struct Ui
     store: ResourceStore,
     dom_nodes: Arena<RetainedNode>,
     dom_root: Option<NodeId>,
-    main_wr_context: WebrenderContext,
+    main_renderer: Renderer,
     /// Owned windows (created by the UI).
-    side_windows: Vec<(GlWindow, WebrenderContext)>,
+    side_windows: Vec<(GlWindow, Renderer)>,
     dump_next_event_dispatch_chain: bool
 }
 
@@ -209,7 +206,7 @@ impl Ui {
             store: ResourceStore::new(StoreOpt::default()).expect("unable to create the store"),
             dom_nodes: Arena::new(),
             dom_root: None,
-            main_wr_context: WebrenderContext::new(main_window, events_loop),
+            main_renderer: Renderer::new(main_window, events_loop),
             side_windows: Vec::new(),
             dump_next_event_dispatch_chain: false
         };
@@ -242,7 +239,7 @@ impl Ui {
             };
 
             update_styles(&mut self.dom_nodes, dom_root, &self.stylesheets[..], &mut self.style_cache, force_restyle);
-            layout_and_render_dom(window, &mut self.main_wr_context, &mut self.dom_nodes, dom_root);
+            self.renderer.layout_and_render_dom(window, &mut self.dom_nodes, dom_root);
         }
         // TODO: render side windows.
     }

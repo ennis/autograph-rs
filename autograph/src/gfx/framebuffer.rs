@@ -51,7 +51,7 @@ impl FramebufferObject {
         let pixel_size = window.get_inner_size().unwrap();
         FramebufferObject {
             gctx: gctx.clone(),
-            size: pixel_size,
+            size: (pixel_size.width as u32, pixel_size.height as u32),
             attachments: Vec::new(),
             depth_attachment: OwnedFramebufferAttachment::Default,
             obj: 0,

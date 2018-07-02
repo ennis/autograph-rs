@@ -16,8 +16,8 @@ lazy_static = "*"
 smallvec = "*"
 libc = "*"
 log = "*"
-winit = "0.15.1"
-glutin = "*"
+winit = "0.15"
+glutin = "0.15"
 failure = "*"
 petgraph="*"
 rand="*"
@@ -38,4 +38,7 @@ git = "https://github.com/servo/webrender"
 
 [dependencies.yoga]
 path = "../ext/yoga-rs"
+
+[dependencies.nanovg]
+path = "../ext/nanovg-rs"
 

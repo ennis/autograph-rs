@@ -397,7 +397,7 @@ fn main() {
     let mut event_loop = glutin::EventsLoop::new();
     let window_builder = glutin::WindowBuilder::new()
         .with_title("Autograph test")
-        .with_dimensions(1280, 720);
+        .with_dimensions((1280, 720).into());
     let context_builder = glutin::ContextBuilder::new()
         .with_gl_profile(glutin::GlProfile::Core)
         .with_gl_debug_flag(true)
@@ -442,7 +442,7 @@ fn main() {
                 // should close
                 match event {
                     glutin::Event::WindowEvent { event, .. } => match event {
-                        glutin::WindowEvent::Closed => running = false,
+                        glutin::WindowEvent::CloseRequested => running = false,
                         _ => (),
                     },
                     _ => (),
@@ -472,8 +472,8 @@ fn main() {
 
             // Create an IMGUI frame
             let ui = imgui.frame(
-                window.get_inner_size().unwrap(),
-                window.get_inner_size().unwrap(),
+                window.get_inner_size().unwrap().into(),
+                window.get_inner_size().unwrap().into(),
                 dt,
             );
 

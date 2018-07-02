@@ -10,11 +10,11 @@ extern crate syn;
 extern crate quote;
 
 use darling::FromField;
-use proc_macro::TokenStream;
+use proc_macro2::{Span, TokenStream};
 //use autograph::gfx::shader_interface::*;
 
 #[proc_macro_derive(BufferLayout)]
-pub fn buffer_layout_derive(input: TokenStream) -> TokenStream {
+pub fn buffer_layout_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
 
     let result = match ast.data {
@@ -42,7 +42,7 @@ fn process_buffer_layout_struct(ast: &syn::DeriveInput, fields: &syn::Fields) ->
         let field_name = f
             .ident
             .clone()
-            .unwrap_or(syn::Ident::from(format!("unnamed_{}", i)));
+            .unwrap_or(syn::Ident::new(&format!("unnamed_{}", i), Span::call_site()));
         let field_offset = if let Some(ref name) = f.ident {
             quote!(offset_of!(#struct_name,#name))
         } else {
@@ -80,7 +80,7 @@ fn process_buffer_layout_struct(ast: &syn::DeriveInput, fields: &syn::Fields) ->
 }
 
 #[proc_macro_derive(VertexType, attributes(rename))]
-pub fn vertex_type_derive(input: TokenStream) -> TokenStream {
+pub fn vertex_type_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
 
     let result = match ast.data {
@@ -109,7 +109,7 @@ fn process_vertex_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenS
         let field_name = f
             .ident
             .clone()
-            .unwrap_or(syn::Ident::from(format!("unnamed_{}", i)));
+            .unwrap_or(syn::Ident::new(&format!("unnamed_{}", i), Span::call_site()));
         let field_offset = if let Some(ref name) = f.ident {
             quote!(offset_of!(#struct_name,#name))
         } else {
@@ -160,7 +160,7 @@ fn process_vertex_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenS
     ShaderInterface,
     attributes(uniform_constant, texture_binding, vertex_buffer, index_buffer, uniform_buffer)
 )]
-pub fn shader_interface_derive(input: TokenStream) -> TokenStream {
+pub fn shader_interface_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("Couldn't parse item");
 
     let result = match ast.data {
@@ -266,7 +266,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     match *fields {
         syn::Fields::Named(ref fields) => {
             for f in fields.named.iter() {
-                let field_name = f.ident.unwrap();
+                let field_name = f.ident.clone().unwrap();
                 let mut seen_interface_attr = false;
                 for a in f.attrs.iter() {
                     let meta = a.interpret_meta();
@@ -276,7 +276,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
                         continue;
                     };
 
-                    match meta.name().as_ref() {
+                    match meta.name().to_string().as_ref() {
                         "uniform_constant" => {
                             if seen_interface_attr {
                                 error_multiple_interface_attrs();
@@ -347,7 +347,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
             let name = u
                 .rename
                 .as_ref()
-                .map_or(u.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+                .map_or(u.ident.clone().unwrap(), |s| syn::Ident::new(s.as_str(), Span::call_site()));
             let index_tokens = make_option_tokens(&u.index);
             let ty = &u.ty;
 
@@ -369,11 +369,11 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let mut texture_binding_items = Vec::new();
     let mut texture_bind_statements = Vec::new();
     for texbind in texture_bindings.iter() {
-        let orig_name = texbind.ident.unwrap();
+        let orig_name = texbind.ident.clone().unwrap();
         let name = texbind
             .rename
             .as_ref()
-            .map_or(texbind.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+            .map_or(texbind.ident.clone().unwrap(), |s| syn::Ident::new(s.as_str(), Span::call_site()));
         let index_tokens = make_option_tokens(&texbind.index);
         let ty = &texbind.ty;
 
@@ -407,7 +407,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
             let name = vb
                 .rename
                 .as_ref()
-                .map_or(vb.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+                .map_or(vb.ident.clone().unwrap(), |s| syn::Ident::new(s.as_str(), Span::call_site()));
             let index_tokens = make_option_tokens(&vb.index);
             let ty = &vb.ty;
 
@@ -428,11 +428,11 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
     let mut uniform_buffer_items = Vec::new();
     let mut uniform_buffer_bind_statements = Vec::new();
     for ub in uniform_buffers.iter() {
-        let orig_name = ub.ident.unwrap();
+        let orig_name = ub.ident.clone().unwrap();
         let name = ub
             .rename
             .as_ref()
-            .map_or(ub.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+            .map_or(ub.ident.clone().unwrap(), |s| syn::Ident::new(s.as_str(), Span::call_site()));
         let index_tokens = make_option_tokens(&ub.index);
         let ty = &ub.ty;
 
@@ -463,7 +463,7 @@ fn process_struct(ast: &syn::DeriveInput, fields: &syn::Fields) -> TokenStream {
             let name = rt
                 .rename
                 .as_ref()
-                .map_or(rt.ident.unwrap(), |s| syn::Ident::from(s.as_str()));
+                .map_or(rt.ident.clone().unwrap(), |s| syn::Ident::new(s.as_str(), Span::call_site()));
             let index_tokens = make_option_tokens(&rt.index);
             let ty = &rt.ty;
             quote! {

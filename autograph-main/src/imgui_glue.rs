@@ -189,7 +189,7 @@ pub fn init(
             imgui_sys::ImFontAtlas_AddFontFromFileTTF(
                 imgui_io.fonts,
                 path.as_ptr(),
-                20.0,
+                16.0,
                 0 as *const _,
                 0 as *const _,
             );
@@ -243,8 +243,8 @@ pub fn handle_event(
                     }
                 }
                 &CursorMoved {
-                    position: (x, y), ..
-                } => mouse_state.pos = (x as i32, y as i32),
+                    position, ..
+                } => mouse_state.pos = position.into(),
                 &MouseInput { state, button, .. } => match button {
                     MouseButton::Left => mouse_state.pressed.0 = state == ElementState::Pressed,
                     MouseButton::Right => mouse_state.pressed.1 = state == ElementState::Pressed,
@@ -255,12 +255,12 @@ pub fn handle_event(
                     delta: MouseScrollDelta::LineDelta(_, y),
                     phase: TouchPhase::Moved,
                     ..
-                }
-                | &MouseWheel {
-                    delta: MouseScrollDelta::PixelDelta(_, y),
+                } => mouse_state.wheel = y,
+                &MouseWheel {
+                    delta: MouseScrollDelta::PixelDelta(pos),
                     phase: TouchPhase::Moved,
                     ..
-                } => mouse_state.wheel = y,
+                } => mouse_state.wheel = pos.y as f32,
                 &ReceivedCharacter(c) => imgui.add_input_character(c),
                 _ => (),
             }

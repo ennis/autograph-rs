@@ -4,3 +4,6 @@
 [submodule "ext/yoga-rs"]
 	path = ext/yoga-rs
 	url = https://github.com/ennis/yoga-rs
+[submodule "ext/darling"]
+	path = ext/darling
+	url = https://github.com/TedDriggs/darling
