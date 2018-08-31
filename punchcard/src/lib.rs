@@ -33,6 +33,7 @@ mod behavior;
 mod id_tree;
 mod widgets;
 mod prelude;
+mod hit_test;
 
 // std uses
 use std::path::{Path};
@@ -46,7 +47,7 @@ use failure::Error;
 // self uses
 use self::input::{DispatchChain, DispatchTarget, PointerCapture};
 use self::id_tree::*;
-use self::renderer::{WebrenderContext, layout_and_render_dom};
+use self::renderer::Renderer;
 
 // self re-exports
 pub use self::component::*;
@@ -55,7 +56,7 @@ pub use self::panel::*;
 pub use self::css::Stylesheet;
 pub use self::id_stack::{IdStack, ElementID};
 pub use self::input::{InputState, EventResult};
-pub use self::layout::{ContentMeasurement, Layout};
+pub use self::layout::{ContentMeasurement, Bounds};
 pub use self::style::{
     Background, Color, Styles, LinearGradient, RadialGradient, StyleCache
 };
@@ -152,9 +153,11 @@ pub struct Ui
     store: ResourceStore,
     dom_nodes: Arena<RetainedNode>,
     dom_root: Option<NodeId>,
+    /// The Renderer for this Ui. Handles rendering and hit-testing.
     main_renderer: Renderer,
     /// Owned windows (created by the UI).
     side_windows: Vec<(GlWindow, Renderer)>,
+    /// Debug: should we dump the next event's dispatch chain.
     dump_next_event_dispatch_chain: bool
 }
 
@@ -239,7 +242,7 @@ impl Ui {
             };
 
             update_styles(&mut self.dom_nodes, dom_root, &self.stylesheets[..], &mut self.style_cache, force_restyle);
-            self.renderer.layout_and_render_dom(window, &mut self.dom_nodes, dom_root);
+            self.main_renderer.layout_and_render_dom(window, &mut self.dom_nodes, dom_root);
         }
         // TODO: render side windows.
     }
@@ -260,7 +263,7 @@ impl Ui {
         let is_component = self.components.get(&data.id).is_some();
 
         // + <type> nodeid class ElementId= Layout
-        println!("{:indent$} {} {}{} {} {} {:016X} ({},{}:{}x{})", "",
+        println!("{:indent$} {} {}{} {} {} {:016X}", "",
                  if is_in_dispatch_chain { "✓" } else { "-" },
                  match data.contents {
                      Contents::Element => "div",
@@ -270,10 +273,10 @@ impl Ui {
                  id.as_u64(),
                  if data.class.is_empty() { "<empty>" } else { data.class.as_ref() },
                  data.id,
-                 data.layout.left,
+                 /*data.layout.left,
                  data.layout.top,
                  data.layout.width(),
-                 data.layout.height(),
+                 data.layout.height(),*/
                  indent=level*2);
 
         let mut next = node.first_child();
@@ -399,7 +402,8 @@ impl Ui {
             let mut input_state = InputState {
                 focused: false,
                 capture: self.capture.clone(),
-                cursor_pos: self.cursor_pos
+                cursor_pos: self.cursor_pos,
+                frame_index: 0  // TODO
             };
             self.dispatch_event_0(event, chain, &mut input_state);
             /*if let Some(ref capture) = self.capture {
@@ -410,20 +414,23 @@ impl Ui {
 
     fn hit_test(&self, pos: (f32, f32)) -> Vec<NodeId>
     {
-        use webrender::api::*;
-        // are we capturing?
-        if let Some(ref capture) = self.capture {
-            // yes, skip hit-test and send event directly to capture target.
-            //debug!("capturing");
-            self.build_dispatch_chain(capture.id)
-        } else {
-            // not capturing, perform hit-test
-            let hits = renderer::hit_test(&self.main_wr_context, WorldPoint::new(pos.0, pos.1));
-            if let Some(id) = hits.first() {
-                self.build_dispatch_chain(*id)
+        if let Some(dom_root) = self.dom_root {
+            // are we capturing?
+            if let Some(ref capture) = self.capture {
+                // yes, skip hit-test and send event directly to capture target.
+                //debug!("capturing");
+                self.build_dispatch_chain(capture.id)
             } else {
-                Vec::new()
+                // not capturing, perform hit-test
+                let hits = self.main_renderer.hit_test(pos);
+                if let Some(id) = hits.first() {
+                    self.build_dispatch_chain(*id)
+                } else {
+                    Vec::new()
+                }
             }
+        } else {
+            Vec::new()
         }
     }
 
@@ -433,7 +440,7 @@ impl Ui {
         match event {
             WindowEvent::CursorMoved { device_id, position, modifiers } => {
                 // update cursor pos
-                self.cursor_pos = (position.0 as f32, position.1 as f32);
+                self.cursor_pos = (position.x as f32, position.y as f32);
             },
             &WindowEvent::MouseInput {
                 device_id,

@@ -4,7 +4,6 @@ use warmy::{FSKey, Res, Store, StoreOpt};
 
 use std::rc::Rc;
 use std::collections::{HashMap, hash_map::{Entry, OccupiedEntry, VacantEntry}};
-use webrender::api::BoxShadowClipMode;
 
 /// Font description
 #[derive(Clone, Debug)]
@@ -36,6 +35,13 @@ pub struct RadialGradient {
 pub enum Background {
     LinearGradient(LinearGradient),
     RadialGradient(RadialGradient),
+}
+
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
+pub enum BoxShadowClipMode
+{
+    Inset,
+    Outset,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -186,6 +192,8 @@ impl Default for FontStyles {
     }
 }
 
+/// Struct that contains all the computed style properties of a node.
+/// Note that computed properties are shared between nodes that have the same style selector.
 #[derive(Debug)]
 pub struct Styles {
     pub font: FontStyles,
@@ -206,7 +214,7 @@ impl Default for Styles {
 }
 
 impl Styles {
-    /// Apply CSS property.
+    /// Apply CSS property over these styles.
     pub(super) fn apply_property(&mut self, prop: &css::PropertyDeclaration) {
         match prop {
             // Non-layout styles
@@ -345,9 +353,9 @@ impl Styles {
     }
 }
 
-/// Calculated style.
+/*/// Calculated style.
 /// Some components of style may be shared between items to reduce memory usage.
-/*#[derive(Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct CachedStyle {
     pub font: Rc<FontStyles>,
     pub non_layout: Rc<NonLayoutStyles>,
@@ -387,6 +395,7 @@ impl CachedStyle {
 }
 */
 
+/// Applies the styles relevant to flexbox layout to the specified yoga node.
 pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &Styles) {
     // TODO rewrite this with direct calls to methods of Node
     let styles = &[
@@ -432,6 +441,7 @@ pub(super) fn apply_to_flex_node(node: &mut yoga::Node, style: &Styles) {
     node.apply_styles(&styles[..]);
 }
 
+/// Holds styles that are loaded from a CSS stylesheet.
 pub struct StyleCache
 {
     cache: HashMap<css::Selector, Rc<Styles>>
@@ -439,6 +449,7 @@ pub struct StyleCache
 
 impl StyleCache
 {
+    /// Creates a new style cache.
     pub fn new() -> StyleCache
     {
         StyleCache {
@@ -446,29 +457,38 @@ impl StyleCache
         }
     }
 
+    /// Invalidates all styles in the cache (clears the cache).
     pub fn invalidate(&mut self)
     {
         self.cache.clear();
     }
 
+    /// Computes the style from the given selector. If the style is not already present
+    /// in the cache, compute it from the provided stylesheets.
     pub fn get_styles(&mut self, stylesheets: &[Res<css::Stylesheet>], selector: css::Selector) -> Rc<Styles>
     {
         self.cache.entry(selector.clone()).or_insert_with(|| {
+            // style not found in cache: compute it
             let mut styles = Styles::default();
+            // look into all stylesheets, in the provided order ...
             for stylesheet in stylesheets.iter() {
                 let stylesheet = stylesheet.borrow();
+                // ... for rules that match the provided selector.
                 // TODO actually fetch all rules?
                 let rules = stylesheet.match_rules(&selector);
                 if rules.is_empty() {
                     debug!("no rules for selector {:?}", selector);
                 }
+                // Now, apply all matching rules incrementally over the computed style
                 for rule in rules {
                     debug!("(selector {:?}) rule {:?}", selector, rule);
+                    // apply all declarations in the rule
                     for d in rule.declarations.iter() {
                         styles.apply_property(d);
                     }
                 }
             }
+            // wrap in Rc and add to cache
             Rc::new(styles)
         }).clone()
     }

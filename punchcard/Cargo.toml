@@ -16,8 +16,8 @@ lazy_static = "*"
 smallvec = "*"
 libc = "*"
 log = "*"
-winit = "0.15"
-glutin = "0.15"
+winit = "*"
+glutin = "*"
 failure = "*"
 petgraph="*"
 rand="*"
@@ -29,12 +29,8 @@ warmy="*"
 winapi="*"
 user32-sys="*"
 kernel32-sys="*"
-euclid="0.17.3"
 gleam="*"
 rusttype="*"
-
-[dependencies.webrender]
-git = "https://github.com/servo/webrender"
 
 [dependencies.yoga]
 path = "../ext/yoga-rs"

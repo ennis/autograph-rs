@@ -24,14 +24,24 @@ pub struct LayoutOverrides {
     pub height: Option<yoga::StyleUnit>,
 }
 
+#[derive(Clone,Debug)]
+pub(super) struct ClipInfo
+{
+    pub z: i32,
+    /// If set, the node does not appear in the hit-test results.
+    pub no_hits: bool,
+    /// If set, the element clips its children
+    pub clip: bool
+}
+
 /// Actual DOM node (persistent across frames).
 #[derive(Debug)]
 pub struct RetainedNode
 {
     pub(super) id: ElementID,
     pub(super) class: String,
-    /// Cached calculated layout.
-    pub(super) layout: Layout,
+    /// Cached calculated bounds.
+    pub(super) bounds: Bounds,
     /// Styles must be recalculated.
     pub(super) styles_dirty: bool,
     /// Resolved styles.
@@ -40,17 +50,23 @@ pub struct RetainedNode
     pub(super) flex: yoga::Node,
     pub(super) contents: Contents,
     pub(super) layout_overrides: LayoutOverrides,
+    pub(super) clip_info: ClipInfo
 }
 
 impl RetainedNode
 {
-    pub(super) fn update_layout(&mut self, parent_layout: &Layout) -> Layout
+    /*pub(super) fn get_bounds(&self) -> Layout
+    {
+        Layout::from_yoga_layout(parent_bounds, data.flex.get_layout())
+    }*/
+
+   /* pub(super) fn update_layout(&mut self, parent_layout: &Layout) -> Layout
     {
         let layout = Layout::from_yoga_layout(parent_layout, self.flex.get_layout());
         self.layout = layout;
         //debug!("calc layout: {:?}", layout);
         layout
-    }
+    }*/
 }
 
 /// Virtual DOM node.
@@ -153,10 +169,15 @@ impl VirtualNode
             class: self.class,
             contents: self.contents,
             layout_overrides: self.layout_overrides,
-            layout: Layout::default(),
+            //layout: Layout::default(),
             styles: None,
             styles_dirty: true,
-            flex
+            flex,
+            clip_info: ClipInfo {
+                clip: true,
+                no_hits: false,
+                z: 0
+            }
         };
 
         // add to parent
@@ -300,8 +321,6 @@ impl<'a> DomSink<'a>
             // drop borrow of component through component_ref
         };
         assert!(rendered.len() <= 1, "A component cannot render more than one element (rendered.len() = {})", rendered.len());
-        // create vdom node for component
-        // let class empty because it's a wrapper node.
         if rendered.len() == 1 {
             let mut vdom = rendered.pop().unwrap();
             // HACK: correct the ID of the vdom node so that it matches the one of the component.

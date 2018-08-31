@@ -21,8 +21,8 @@ impl Component for CollapsingHeader
 {
     /// Callback to handle an event during bubbling phase.
     fn event(&mut self,
-             _elem: &RetainedNode,
              _event: &WindowEvent,
+             _bounds: &Bounds,
              _input_state: &InputState) -> EventResult
     {
         EventResult::pass()

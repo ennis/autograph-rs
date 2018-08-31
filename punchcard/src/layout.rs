@@ -1,16 +1,16 @@
 use yoga;
 
 #[derive(Copy, Clone, Debug, Default)]
-pub struct Layout {
+pub struct Bounds {
     pub left: f32,
     pub top: f32,
     pub right: f32,
     pub bottom: f32,
 }
 
-impl Layout {
-    pub fn from_yoga_layout(parent: &Layout, layout: yoga::Layout) -> Layout {
-        Layout {
+impl Bounds {
+    pub fn from_yoga_layout(parent: &Bounds, layout: yoga::Layout) -> Bounds {
+        Bounds {
             left: parent.left + layout.left(),
             top: parent.top + layout.top(),
             right: parent.left + layout.left() + layout.width(),

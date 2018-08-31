@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 /// The dimensions of a texture.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u8)]
 pub enum TextureDimensions {
     Tex1D,
     Tex2D,
@@ -20,18 +21,20 @@ pub enum TextureDimensions {
 
 bitflags! {
     #[derive(Default)]
-    pub struct TextureOptions: u32 {
+    pub struct TextureOptions: u8 {
         ///
         const SPARSE_STORAGE = 0b00000001;
     }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u8)]
 pub enum MipMaps {
     Auto,
-    Count(u32),
+    Count(u8),
 }
 
+//2+2+4+4+4+2+2+1 = 21 bytes
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TextureDesc {
     /// Texture dimensions.
@@ -46,7 +49,7 @@ pub struct TextureDesc {
     pub depth: u32,
     /// Number of samples for multisample textures.
     /// 0 means that the texture will not be allocated with multisampling.
-    pub sample_count: u32,
+    pub sample_count: u8,
     /// Number of mipmap levels that should be allocated for this texture.
     /// See also: `get_texture_mip_map_count`
     pub mip_map_count: MipMaps,
@@ -79,7 +82,7 @@ pub struct Texture2DDesc {
     pub height: u32,
     /// Number of samples for multisample textures.
     /// 0 means that the texture will not be allocated with multisampling.
-    pub sample_count: u32,
+    pub sample_count: u8,
     /// Number of mipmap levels that should be allocated for this texture.
     /// See also: `get_texture_mip_map_count`
     pub mip_map_count: MipMaps,
@@ -433,8 +436,8 @@ impl Drop for TextureObject {
 /// # References
 ///
 /// https://stackoverflow.com/questions/9572414/how-many-mipmaps-does-a-texture-have-in-opengl
-fn get_texture_mip_map_count(width: u32, height: u32) -> u32 {
-    1 + f32::floor(f32::log2(max(width, height) as f32)) as u32
+fn get_texture_mip_map_count(width: u32, height: u32) -> u8 {
+    1 + f32::floor(f32::log2(max(width, height) as f32)) as u8
 }
 
 /// A texture whose precise type is unknown at compile time

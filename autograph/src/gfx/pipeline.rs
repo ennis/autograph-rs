@@ -186,7 +186,7 @@ impl GraphicsPipelineBuilder {
     }
 }
 
-/// A type representing a collection of shaders with an associated interface type
+/// A type representing a collection of shaders and pipeline state with an associated interface type.
 /// The interface is checked against the provided pipeline on creation.
 pub struct TypedGraphicsPipeline<T: ShaderInterface> {
     pub(super) binder: Box<InterfaceBinder<T>>,
@@ -213,3 +213,11 @@ impl GraphicsPipeline {
         untyped_pipeline.ver
     }
 }*/
+
+
+// GraphicsPipeline
+// Frame + Pipeline -> DrawCmdBuilder
+//
+// Typed:
+// Frame + Pipeline + Interface
+//      call: Binder + DrawCmdBuilder

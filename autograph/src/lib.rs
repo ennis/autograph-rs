@@ -20,6 +20,7 @@ extern crate pretty_env_logger;
 extern crate regex;
 extern crate smallvec;
 extern crate typed_arena;
+extern crate remotery;
 #[macro_use]
 extern crate log;
 #[macro_use]

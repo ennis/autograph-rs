@@ -23,9 +23,17 @@ extern crate imgui_sys;
 extern crate autograph_derive;
 extern crate image;
 extern crate nfd;
+extern crate remotery;
 
 mod imgui_glue;
 mod main_loop;
+
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+use std::thread;
 
 use autograph::cache::Cache;
 use autograph::camera::*;
@@ -37,20 +45,15 @@ use autograph::id_table::{IdTable, ID};
 use autograph::rect_transform::*;
 use autograph::scene_loader;
 use autograph::scene_object::{SceneMesh, SceneObject, SceneObjects};
-use glutin::GlContext;
-use nalgebra::*;
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
-use std::sync::Arc;
-
 use autograph::gfx::glsl::GraphicsPipelineBuilderExt;
 use autograph::gfx::DrawUtilsExt;
 use autograph::gfx::GraphicsPipelineBuilder;
 
+use glutin::GlContext;
+use nalgebra::*;
 use failure::Error;
 use image::GenericImage;
-use main_loop::MainLoop;
+use main_loop::{MainLoop,profile_cpu_scope};
 
 const UPLOAD_BUFFER_SIZE: usize = 3 * 1024 * 1024;
 
@@ -387,12 +390,14 @@ impl<'c> State<'c> {
     }
 }
 
+
 //==================================================================================================
 //==================================================================================================
 //==================================================================================================
 fn main() {
     // Init logger
     pretty_env_logger::init().unwrap();
+
     // Init glutin, window with OpenGL context parameters
     let mut event_loop = glutin::EventsLoop::new();
     let window_builder = glutin::WindowBuilder::new()

@@ -21,6 +21,7 @@ nfd = "*"
 time="*"
 
 [dependencies]
+remotery = "*"
 derive_deref = "*"
 memoffset = "*"
 failure = "*"

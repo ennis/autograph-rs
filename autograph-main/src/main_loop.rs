@@ -8,6 +8,8 @@ use std::cell::RefCell;
 use std::sync::Arc;
 use time;
 
+use remotery::{Remotery, RemoteryScope, SampleFlags};
+
 // Scaffolding for the application
 pub struct MainLoop<'a> {
     window: &'a glutin::GlWindow,
@@ -17,6 +19,12 @@ pub struct MainLoop<'a> {
 }
 
 const PRINT_FPS_EVERY_SECONDS: i64 = 3;
+
+pub fn profile_cpu_scope(name: &str, f: impl FnOnce()) {
+    Remotery::begin_cpu_sample(name, SampleFlags::Default);
+    f();
+    Remotery::end_cpu_sample();
+}
 
 impl<'a> MainLoop<'a> {
     pub fn window(&self) -> &glutin::GlWindow {

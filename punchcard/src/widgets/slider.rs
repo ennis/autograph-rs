@@ -86,16 +86,16 @@ impl<T: Interpolable> Slider<T> {
 
 impl<T: Interpolable + Display> Component for Slider<T> {
     fn event(&mut self,
-             elem: &RetainedNode,
              event: &WindowEvent,
+             bounds: &Bounds,
              input_state: &InputState) -> EventResult
     {
         use num::clamp;
 
         // update the slider current value from the current cursor position
-        let mut update_slider_pos = |layout: &Layout, cursor_pos: (f32, f32)| {
+        let mut update_slider_pos = |cursor_pos: (f32, f32)| {
             let (cx, _) = cursor_pos;
-            self.set_ratio(clamp((cx - layout.left) / layout.width(), 0.0, 1.0));
+            self.set_ratio(clamp((cx - bounds.left) / bounds.width(), 0.0, 1.0));
         };
 
         // debug!("Slider capture {:016X} {:?}", itemid, event);
@@ -106,7 +106,7 @@ impl<T: Interpolable + Display> Component for Slider<T> {
             } => {
                 if state == ElementState::Pressed {
                     // capture events
-                    update_slider_pos(&elem.layout, input_state.cursor_pos());
+                    update_slider_pos(input_state.cursor_pos());
                     EventResult::stop().set_capture()
                 }
                 else {
@@ -116,7 +116,7 @@ impl<T: Interpolable + Display> Component for Slider<T> {
             }
             &WindowEvent::CursorMoved { .. } => {
                 if input_state.is_capturing() {
-                    update_slider_pos(&elem.layout, input_state.cursor_pos());
+                    update_slider_pos(input_state.cursor_pos());
                     EventResult::stop().set_capture()
                 } else {
                     EventResult::pass()

@@ -258,6 +258,12 @@ impl<'frame, 'queue: 'frame, 'binder> Drop for DrawCmdBuilder<'frame, 'queue, 'b
 }
 
 impl<'frame, 'queue: 'frame, 'binder> DrawCmdBuilder<'frame, 'queue, 'binder> {
+    /// Binds a shaderinterface to the pipeline.
+    /*unsafe fn with_shader_interface_unchecked<T: ShaderInterface>(mut self, interface: &T, binder: &InterfaceBinder<T>)
+    {
+
+    }*/
+
     /// Set a uniform buffer to use for this command.
     pub fn with_uniform_buffer<U: ToBufferSlice>(mut self, slot: u32, buffer: &U) -> Self {
         let buffer = unsafe { buffer.to_slice_any() };

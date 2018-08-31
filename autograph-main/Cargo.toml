@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Alexandre Bléron <alex.bleron@gmail.com>"]
 
 [dependencies]
+remotery = "*"
 autograph = { path = "../autograph" }
 #autograph_codegen = { path = "../autograph_codegen" }
 autograph-derive = { path = "../autograph-derive" }

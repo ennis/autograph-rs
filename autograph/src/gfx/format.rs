@@ -6,6 +6,7 @@ use gl::types::*;
 /// These are actually Vulkan formats.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
+#[repr(u16)]
 pub enum Format {
     UNDEFINED = 0,
     R4G4_UNORM_PACK8 = 1,

@@ -1009,6 +1009,75 @@ Requirements:
     + Terra?
 - bonus: coroutines
 
+### autograph-gfx next
+- on top of vulkan
+- robust handling of frame-transient resources
+    - textures
+    - buffers
+    - do not allocate many objects
+- statically ensure that a buffer (slice) cannot outlive a frame
+    - trait: GpuData, for data accessible by the GPU
+    - trait: TransientData, for data that only lives for the frame.
+- draw API can use transients or long-lived resources
+- transients are NOT managed by the user
+- frame graph
+- command queues?
+- async compute?
+- scenarios:
+    - upload (stream)
+        - small texture updates?
+    - readback
+    - long-lived
+    - Shader-to-shader without round-trips
+    - easily create and synchronize passes
+
+- Ideal API: schedule tasks that have dependencies on some data
+    - GPUTask
+        - associated type: outputs
+    - == FrameGraph
+- Every operation on the GPU goes through the framegraph
+    - clear texture
+    - texture update from CPU
+    - readback texture
+- manipulate only 'revisions' of resources
+- inside a node (GpuTask)
+    - access to transient allocator
+        - transients cannot escape the task
+    - access to object caches
+    - pipelines automatically loaded and statically verified
+    - access to internal retained state?
+- avoid rebuilding the pipeline on each frame?
+    - like imgui stuff
+- dynamic API for creating tasks
+    - DynamicGpuTask::new(): new task in graph
+    - DynamicGpuTask::add_resource(name)
+    - DynamicGpuTask::bind_resource(name, resource)
+- ResourceRevision (what is passed between tasks):
+    - resource id + revision
+- VirtualResource:
+    - name
+    - id
+    - status: Allocated or Unallocated
+    - if allocated: which Resource?
+- Resource: trait
+    - Downcast to concrete resource?
+- TaskNode:
+    - inputs
+
+
+```
+    let renderData = RenderData {
+        ... geometry ...
+        ... textures ...
+        ... scene uniforms ...
+        ... render targets ...
+    };
+    // schedule_draw consumes render data so that previous state of rendertargets is inaccessible
+    let outputs = context.schedule_draw(renderData);
+    // in outputs: a new 'revision' of the rendertarget
+```
+
+
 ### Rendering large worlds
 
 #### Voxel data
